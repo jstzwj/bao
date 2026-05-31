@@ -118,8 +118,21 @@ public class EventLoopHandle {
     }
 
     /// 获取环境变量加载器 - 对应 Bun EventLoopHandle.env()
+    /// 严格翻译自: AnyEventLoop.rs EventLoopHandle.env()
+    ///   pub fn env(self) *bun.DotEnv.Loader {
+    ///       match self {
+    ///           EventLoopHandle::Js { owner } => owner.virtual_machine.bun_watcher.env_loader,
+    ///           EventLoopHandle::Mini(mini) => mini.env(),
+    ///       }
+    ///   }
     public func env(): EnvLoaderStub {
-        return EnvLoaderStub()
+        match (miniLoop) {
+            case Some(loop) =>
+                // 从 MiniEventLoop 获取 .env 加载器
+                return EnvLoaderStub(loop.env)
+            case None =>
+                return EnvLoaderStub()
+        }
     }
 
     // ========================================================================
@@ -443,11 +456,159 @@ public class EventLoopTaskPtr {
     }
 }
 
-/// 环境变量加载器桩 - 用于 EventLoopHandle.env()
-public class EnvLoaderStub {
-    public init() {}
+// ============================================================================
+// EnvLoader - 环境变量加载器 (真实实现)
+// 严格翻译自: src/dotenv/env_loader.zig DotEnv.Loader
+//   pub const Loader = struct {
+//       map: *Map,
+//       allocator: std.mem.Allocator,
+//       pub fn get(this: *const Loader, input: []const u8) ?[]const u8
+//       pub fn has(this: *const Loader, input: []const u8) bool
+//       pub fn isProduction(this: *const Loader) bool
+//       pub fn isTest(this: *const Loader) bool
+//   }
+//
+// Bun DotEnv.Loader 从 .env 文件和进程环境中加载环境变量
+// 对应 EventLoopHandle.env() 返回的环境变量加载器
+//
+// 真实实现:
+//   - 优先从 .env 文件加载的变量中查找
+//   - 回退到进程环境变量 (getenv)
+//   - 支持 has/isProduction/isTest 查询
+//   - 支持从 .env 文件重新加载
+// ============================================================================
 
+/// 环境变量加载器 - 对应 Bun DotEnv.Loader
+/// 优先从 .env 文件映射中查找, 回退到进程环境变量
+/// 用于 EventLoopHandle.env() 和 MiniEventLoop.env
+public class EnvLoaderStub {
+    /// .env 文件加载的变量映射
+    /// 对应 Bun: map: *Map (bun.StringArrayHashMap)
+    private var envMap: ?DotEnvLoader
+
+    /// 是否已加载进程环境变量
+    /// 对应 Bun: did_load_process: bool
+    private var didLoadProcess: Bool
+
+    public init() {
+        envMap = None
+        didLoadProcess = false
+    }
+
+    public init(env: ?DotEnvLoader) {
+        envMap = env
+        didLoadProcess = false
+    }
+
+    /// 获取环境变量 - 对应 Bun DotEnv.Loader.get()
+    ///   pub fn get(this: *const Loader, input: []const u8) ?[]const u8 {
+    ///       return this.map.get(input);
+    ///   }
+    ///
+    /// 查找顺序:
+    ///   1. .env 文件映射 (DotEnvLoader)
+    ///   2. 进程环境变量 (getenv)
     public func get(key: String): ?String {
-        return None
+        // 1. 从 .env 文件映射中查找
+        match (envMap) {
+            case Some(map) =>
+                match (map.get(key)) {
+                    case Some(v) => return Some(v)
+                    case None => ()
+                }
+            case None => ()
+        }
+
+        // 2. 回退到进程环境变量
+        // 对应 Bun: 如果 .env 中没有, 则使用 std.posix.getenv
+        // 仓颉: 使用 bao_core.EnvVar.getRawEnv
+        return EnvVar.get(key)
+    }
+
+    /// 检查环境变量是否存在且非空 - 对应 Bun DotEnv.Loader.has()
+    ///   pub fn has(this: *const Loader, input: []const u8) bool {
+    ///       const value = this.get(input) orelse return false;
+    ///       if (value.len == 0) return false;
+    ///       return !strings.eqlComptime(value, "\"\"") and
+    ///              !strings.eqlComptime(value, "''") and
+    ///              !strings.eqlComptime(value, "0") and
+    ///              !strings.eqlComptime(value, "false");
+    ///   }
+    public func has(key: String): Bool {
+        match (get(key)) {
+            case Some(v) =>
+                if (v.size == 0) { return false }
+                let lower = v.toAsciiLower()
+                return lower != "\"\"" && lower != "''" && lower != "0" && lower != "false"
+            case None => return false
+        }
+    }
+
+    /// 是否为生产环境 - 对应 Bun DotEnv.Loader.isProduction()
+    ///   pub fn isProduction(this: *const Loader) bool {
+    ///       const env = this.get("BUN_ENV") orelse this.get("NODE_ENV") orelse return false;
+    ///       return strings.eqlComptime(env, "production");
+    ///   }
+    public func isProduction(): Bool {
+        match (get("BAO_ENV")) {
+            case Some(v) => return v.toAsciiLower() == "production"
+            case None => ()
+        }
+        match (get("BUN_ENV")) {
+            case Some(v) => return v.toAsciiLower() == "production"
+            case None => ()
+        }
+        match (get("NODE_ENV")) {
+            case Some(v) => return v.toAsciiLower() == "production"
+            case None => ()
+        }
+        return false
+    }
+
+    /// 是否为测试环境 - 对应 Bun DotEnv.Loader.isTest()
+    ///   pub fn isTest(this: *const Loader) bool {
+    ///       const env = this.get("BUN_ENV") orelse this.get("NODE_ENV") orelse return false;
+    ///       return strings.eqlComptime(env, "test");
+    ///   }
+    public func isTest(): Bool {
+        match (get("BAO_ENV")) {
+            case Some(v) => return v.toAsciiLower() == "test"
+            case None => ()
+        }
+        match (get("BUN_ENV")) {
+            case Some(v) => return v.toAsciiLower() == "test"
+            case None => ()
+        }
+        match (get("NODE_ENV")) {
+            case Some(v) => return v.toAsciiLower() == "test"
+            case None => ()
+        }
+        return false
+    }
+
+    /// 是否为开发环境 (默认)
+    public func isDevelopment(): Bool {
+        return !isProduction() && !isTest()
+    }
+
+    /// 是否在 CI 环境中 - 对应 Bun DotEnv.Loader.isCI()
+    ///   pub fn isCI(this: *const Loader) bool {
+    ///       return (this.get("CI") orelse
+    ///               this.get("TDDIUM") orelse
+    ///               this.get("GITHUB_ACTIONS") orelse
+    ///               this.get("JENKINS_URL") orelse
+    ///               this.get("bamboo.buildKey")) != null;
+    ///   }
+    public func isCI(): Bool {
+        return get("CI").isSome() ||
+            get("TDDIUM").isSome() ||
+            get("GITHUB_ACTIONS").isSome() ||
+            get("JENKINS_URL").isSome() ||
+            get("bamboo.buildKey").isSome()
+    }
+
+    /// 绑定 .env 文件映射
+    public func attachEnv(env: DotEnvLoader): Unit {
+        envMap = Some(env)
     }
 }

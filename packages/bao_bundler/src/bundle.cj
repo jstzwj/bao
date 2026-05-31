@@ -8,6 +8,7 @@ import bao_parser.*
 import bao_io.*
 import bao_path.*
 import bao_sys.*
+import bao_hash.*
 
 // ============================================================================
 // Bundle 编排器
@@ -238,10 +239,35 @@ public class ShakeResult {
         removedCount = 0
     }
 }/// Hash 辅助
+// 严格翻译自: Bun 使用 Wyhash11 对字符串哈希后截取前 8 位 hex
 public class Hash {
     private static let hexChars: Array<String> = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"]
 
+    /// 计算字符串的短哈希 (8 字符 hex)
+    // 对应 Bun: std.hash.Wyhash.hash(0, input) 截断为 u32 后转 hex
     public static func shortHash(input: String): String {
-        return "00000000"
+        let hashValue = Wyhash.hash(input)
+        // 取低 32 位，转为 8 字符 hex
+        let u32val = UInt32(hashValue & UInt64(0xFFFFFFFF))
+        return toHex8(u32val)
+    }
+
+    /// UInt32 转 8 字符十六进制字符串
+    private static func toHex8(value: UInt32): String {
+        var result = ""
+        var v = value
+        var chars = ArrayList<String>()
+        for (_ in 0..8) {
+            chars.add(hexChars[Int64(v & UInt32(0xF))])
+            v = v >> 4
+        }
+        // 反转
+        var sb = StringBuilder()
+        var i = chars.size - 1
+        while (i >= 0) {
+            sb.append(chars[i])
+            i -= 1
+        }
+        return sb.toString()
     }
 }

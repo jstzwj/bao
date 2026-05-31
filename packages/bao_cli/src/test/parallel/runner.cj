@@ -254,8 +254,16 @@ public class ParallelRunner {
         argv.append("--isolate")
 
         // 转发影响测试执行的选项
-        // 对应 Bun: buildWorkerArgv 中逐项转发的标志
-        // TODO: 完整转发所有选项 (timeout, todo, only, dots, etc.)
+        // 严格对应 Bun: runner.zig buildWorkerArgv 中逐项转发的标志
+        let opts = ctx.testOptions
+
+        // JUnit 报告
+        if (opts.reporters.junit) { argv.append("--junit") }
+        if (opts.junit) { argv.append("--junit") }
+
+        // 覆盖率
+        if (opts.coverage.enabled) { argv.append("--coverage") }
+
         return Array<String>(argv.size, { i => argv[i] })
     }
 

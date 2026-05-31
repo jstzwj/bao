@@ -4211,5 +4211,871 @@ public func sysErrorWithPathLike(err: SyscallError, path: String): SystemError {
     return sysErr
 }
 
+// ============================================================================
+// is_valid_blob_type — validate WHATWG Blob type string
+// Corresponds to: Bun: is_valid_blob_type (Blob.rs:86-88)
+// WHATWG File API §3.1: a Blob/File type is only used when every character
+// is in the range U+0020 to U+007E; otherwise it is treated as the empty string.
+// ============================================================================
+public func isValidBlobType(slice: String): Bool {
+    for (c in slice) {
+        let code = Int32(c)
+        if (code < 0x20 || code > 0x7E) {
+            return false
+        }
+    }
+    return true
+}
+
+/// Validate blob type from byte array
+/// Corresponds to: Bun: is_valid_blob_type(slice: &[u8])
+public func isValidBlobTypeBytes(slice: Array<UInt8>): Bool {
+    for (b in slice) {
+        if (Int32(b) < 0x20 || Int32(b) > 0x7E) {
+            return false
+        }
+    }
+    return true
+}
+
+// ============================================================================
+// Blob.Init — Blob initialization from byte array
+// Corresponds to: Bun: Blob::init(Vec<u8>, global) (bun_jsc::webcore_types)
+// ============================================================================
+/// Blob extension: init from byte array with optional content type
+public func blobInit(bytes: Array<UInt8>, global: JsGlobalObject, contentType: String): Blob {
+    if (bytes.size == 0) {
+        let blob = Blob.initEmpty(global)
+        if (contentType.size > 0) {
+            blob.contentType = contentType
+            blob.contentTypeWasSet = true
+        }
+        return blob
+    }
+    let store = BlobStore(bytes)
+    let blob = Blob.initWithStore(store, global)
+    if (contentType.size > 0) {
+        blob.contentType = contentType
+        blob.contentTypeWasSet = true
+    }
+    return blob
+}
+
+// ============================================================================
+// writeFileInternal — core dispatch for Bun.write()
+// Corresponds to: Bun: write_file_internal (Blob.rs:5100-5363)
+// ============================================================================
+/// Internal write file dispatch
+/// 对应 Bun: write_file_internal — 处理 Bun.write(destination, data, options) 的核心分发
+public func writeFileInternal(global: JsGlobalObject, pathOrBlob: PathOrBlob, data: JsValue, options: WriteFileOptions): JsValue {
+    // Step 1: Resolve source blob from data
+    var sourceBlob: Blob
+    if (data.isString()) {
+        let str = data.toString()
+        sourceBlob = Blob.create(Utf8Codec.encode(str), global, true)
+    } else {
+        let blobOpt = Blob.fromJs(global, data)
+        if (blobOpt.isSome()) {
+            sourceBlob = blobOpt.getOrThrow()
+        } else {
+            sourceBlob = Blob.initEmpty(global)
+        }
+    }
+
+    // Step 2: Resolve destination blob
+    var destinationBlob: Blob
+    if (pathOrBlob.isPath) {
+        destinationBlob = Blob.findOrCreateFileFromPath(pathOrBlob.path, global, true)
+    } else {
+        destinationBlob = pathOrBlob.blob.dupe()
+    }
+
+    // Step 3: Dispatch based on source and destination types
+    return Blob.writeWithSourceDestination(global, sourceBlob, destinationBlob, options)
+}
+
+// ============================================================================
+// Blob.getName / Blob.setName — name property accessors
+// Corresponds to: Bun: Blob.get_name / Blob.set_name (Blob.rs:2186-2214)
+// ============================================================================
+/// Blob name getter — 对应 Bun: Blob.getName (JS binding)
+public func blobGetName(blob: Blob): String {
+    let name = blob.getNameString()
+    if (name.isSome()) {
+        return name.getOrThrow()
+    }
+    return ""
+}
+
+/// Blob name setter — 对应 Bun: Blob.setName (JS binding)
+public func blobSetName(blob: Blob, value: JsValue, global: JsGlobalObject): Unit {
+    if (value.isEmptyOrUndefinedOrNull()) {
+        blob.name = ""
+        return
+    }
+    if (value.isString()) {
+        blob.name = value.toString()
+    }
+}
+
+// ============================================================================
+// Blob.getType — type property getter
+// Corresponds to: Bun: Blob.get_type (Blob.rs:2163-2172)
+// ============================================================================
+/// Blob type getter — 对应 Bun: Blob.getType
+public func blobGetType(blob: Blob): String {
+    if (blob.contentType.size > 0) {
+        return blob.contentType
+    }
+    match (blob.store) {
+        case Some(s) =>
+            if (s.mimeType.size > 0) {
+                return s.mimeType
+            }
+        case None => ()
+    }
+    return ""
+}
+
+// ============================================================================
+// Blob.getStat — stat property getter
+// Corresponds to: Bun: Blob.get_stat (Blob.rs:2282-2342)
+// ============================================================================
+/// Blob stat — 对应 Bun: Blob.getStat (returns stat info for File-backed blobs)
+public func blobGetStat(blob: Blob, global: JsGlobalObject): JsValue {
+    match (blob.store) {
+        case None => return JsValue()
+        case Some(s) =>
+            match (s.kind) {
+                case BlobStoreKind.File =>
+                    // stub: would return stat result as Promise
+                    let obj = JsObject()
+                    obj.set("size", JsValue(Float64(blob.getSizeForBindings())))
+                    obj.set("mode", JsValue(Float64(Int64(s.fileMode))))
+                    return JsPromise.resolve(global, JsValue(obj))
+                case BlobStoreKind.Memory => return JsValue()
+                case BlobStoreKind.S3 => return JsValue()
+            }
+    }
+}
+
+// ============================================================================
+// escapeFormDataName — escape special chars in form data field names
+// Corresponds to: Bun: escape_form_data_name (Blob.rs:3988-4002)
+// ============================================================================
+/// Escape special characters in form data field names per WHATWG HTML spec
+/// 对应 Bun: escape_form_data_name — 百分比编码 "、CR、LF
+public func escapeFormDataName(bytes: String): ?String {
+    var needsEscape = false
+    for (c in bytes) {
+        if (c == '"' || c == '\r' || c == '\n') {
+            needsEscape = true
+            break
+        }
+    }
+    if (!needsEscape) {
+        return None
+    }
+    var result = ""
+    for (c in bytes) {
+        if (c == '"') {
+            result += "%22"
+        } else {
+            if (c == '\r') {
+                result += "%0D"
+            } else {
+                if (c == '\n') {
+                    result += "%0A"
+                } else {
+                    result += String(c)
+                }
+            }
+        }
+    }
+    return Some(result)
+}
+
+// ============================================================================
+// Blob.doReadFile — read file to JS value
+// Corresponds to: Bun: BlobExt::doReadFile (Blob.rs:451-515)
+// ============================================================================
+/// Blob read file dispatch — 对应 Bun: Blob.doReadFile
+/// 对 File/S3 后端的 Blob 进行异步文件读取并返回 Promise
+public func blobDoReadFile(global: JsGlobalObject, blob: Blob): JsValue {
+    match (blob.store) {
+        case Some(s) =>
+            match (s.kind) {
+                case BlobStoreKind.File =>
+                    // stub: would schedule async file read task
+                    return JsPromise.wrap(global) { =>
+                        let bytes = blob.sharedView()
+                        JsValue.createBuffer(global.globalThis, bytes)
+                    }
+                case BlobStoreKind.S3 =>
+                    // stub: would initiate S3 download
+                    return JsPromise.wrap(global) { =>
+                        let bytes = blob.sharedView()
+                        JsValue.createBuffer(global.globalThis, bytes)
+                    }
+                case BlobStoreKind.Memory =>
+                    return JsPromise.resolve(global, JsValue.createBuffer(global.globalThis, blob.sharedView()))
+            }
+        case None =>
+            return JsPromise.resolve(global, JsValue.createBuffer(global.globalThis, Array<UInt8>()))
+    }
+}
+
+// ============================================================================
+// Blob.doReadFromS3 — read S3 blob
+// Corresponds to: Bun: BlobExt::doReadFromS3 (Blob.rs:431-449)
+// ============================================================================
+/// Blob read from S3 — 对应 Bun: Blob.doReadFromS3
+public func blobDoReadFromS3(global: JsGlobalObject, blob: Blob): JsValue {
+    return S3BlobDownloadTask.`init`(global, blob) { b: Blob, g: JsGlobalObject, bytes: Array<UInt8> =>
+        JsValue.createBuffer(g.globalThis, bytes)
+    }
+}
+
+// ============================================================================
+// Blob.readBytesToHandler — read bytes to handler
+// Corresponds to: Bun: BlobExt::read_bytes_to_handler (Blob.rs:532-671)
+// ============================================================================
+/// Read blob bytes to handler — 对应 Bun: Blob.readBytesToHandler
+/// 将 Blob 字节读取并传递给回调, 不经过 JS 堆
+public func blobReadBytesToHandler(blob: Blob, handler: ReadBytesHandler, global: JsGlobalObject): Unit {
+    if (blob.needsToReadFile()) {
+        // File/S3: async read then pass to handler
+        let bytes = blob.sharedView()
+        handler.onReadBytes(ReadBytesResult.Ok(bytes))
+        return
+    }
+    if (blob.isS3()) {
+        let bytes = blob.sharedView()
+        handler.onReadBytes(ReadBytesResult.Ok(bytes))
+        return
+    }
+    // In-memory
+    let view = blob.sharedView()
+    handler.onReadBytes(ReadBytesResult.Ok(view))
+}
+
+// ============================================================================
+// Blob.doImage — image creation from blob
+// Corresponds to: Bun: BlobExt::do_image (Blob.rs:677-679)
+// ============================================================================
+/// Blob doImage — 对应 Bun: Blob.doImage (stub)
+public func blobDoImage(blob: Blob, global: JsGlobalObject): JsValue {
+    // stub: would create Bun.Image from blob
+    return JsValue()
+}
+
+// ============================================================================
+// Blob.get/set content type helpers
+// ============================================================================
+/// Free content type — 对应 Bun: Blob.free_content_type
+public func blobFreeContentType(blob: Blob): Unit {
+    if (blob.contentTypeAllocated) {
+        blob.contentType = ""
+        blob.contentTypeAllocated = false
+    }
+    blob.contentType = ""
+}
+
+// ============================================================================
+// Blob__init — C-exported Blob initialization
+// Corresponds to: Bun: Blob__init (C FFI export)
+// ============================================================================
+/// Blob init — 对应 Bun: Blob__init (C FFI)
+public func blobInit(global: JsGlobalObject, bytes: Array<UInt8>, wasString: Bool): Blob {
+    if (bytes.size == 0) {
+        return Blob.initEmpty(global)
+    }
+    let store = BlobStore(bytes)
+    let blob = Blob.initWithStore(store, global)
+    if (wasString) {
+        blob.contentType = "text/plain;charset=utf-8"
+    }
+    return blob
+}
+
+// ============================================================================
+// Blob__toJS — convert Blob to JS value
+// Corresponds to: Bun: BlobExt::to_js (Blob.rs:3747-3762)
+// ============================================================================
+/// Blob to JS — 对应 Bun: Blob.toJs
+public func blobToJs(blob: Blob, global: JsGlobalObject): JsValue {
+    blob.calculateEstimatedByteSize()
+    return blob.toJsValue(global)
+}
+
+// ============================================================================
+// Blob__new — create heap-allocated Blob
+// Corresponds to: Bun: Blob::new (bun_jsc)
+// ============================================================================
+/// Create heap-allocated Blob — 对应 Bun: Blob.new
+public func blobNew(b: Blob): Blob {
+    return Blob.newHeap(b)
+}
+
+// ============================================================================
+// Blob__sharedView — C-exported shared view
+// Corresponds to: Bun: Bun__Blob__sharedView (Blob.rs:408-415)
+// ============================================================================
+/// Blob shared view — 对应 Bun: Bun__Blob__sharedView
+public func blobSharedView(blob: Blob): Array<UInt8> {
+    return blob.sharedView()
+}
+
+// ============================================================================
+// Blob dupeWithContentType — dupe with optional content type preservation
+// Corresponds to: Bun: Blob.dupe_with_content_type
+// ============================================================================
+/// Dupe blob with content type option
+public func blobDupeWithContentType(blob: Blob, keepContentType: Bool): Blob {
+    return blob.dupeWithContentType(keepContentType)
+}
+
+// ============================================================================
+// Blob fromJsCloneOptionalArray — from JS without requiring array
+// Corresponds to: Bun: Blob.from_js_clone_optional_array
+// ============================================================================
+/// From JS clone optional array — 对应 Bun: Blob.fromJsCloneOptionalArray
+public func blobFromJsCloneOptionalArray(global: JsGlobalObject, arg: JsValue): ?Blob {
+    return Blob.fromJs(global, arg)
+}
+
+// ============================================================================
+// constructBunFile — Bun.file() constructor
+// Corresponds to: Bun: construct_bun_file (Blob.rs:5768-5798+)
+// ============================================================================
+/// Construct Bun file — 对应 Bun: constructBunFile (Bun.file() constructor)
+public func constructBunFile(global: JsGlobalObject, callframe: CallFrame): JsValue {
+    let args = callframe.argumentsAsArray(2)
+
+    // First argument: path or file descriptor
+    if (args.size == 0 || args[0].isEmptyOrUndefinedOrNull()) {
+        return JsValue("TypeError: Expected file path string or file descriptor")
+    }
+
+    let pathStr = args[0].toString()
+    let pathOrFd = PathOrFileDescriptor(pathStr)
+
+    var blob = Blob.findOrCreateFileFromPath(pathOrFd, global, true)
+
+    // Second argument: options
+    if (args.size > 1) {
+        let options = args[1]
+        if (!options.isUndefined() && !options.isNull() && options.isObject()) {
+            // type option
+            let typeVal = options.get(global.globalThis, "type")
+            if (typeVal.isSome() && typeVal.getOrThrow().isString()) {
+                let typeStr = typeVal.getOrThrow().toString()
+                if (isValidBlobType(typeStr)) {
+                    blob.contentType = typeStr.toAsciiLower()
+                    blob.contentTypeWasSet = true
+                }
+            }
+            // lastModified option
+            let lmVal = options.get(global.globalThis, "lastModified")
+            if (lmVal.isSome() && lmVal.getOrThrow().isNumber()) {
+                blob.lastModified = lmVal.getOrThrow().toNumber()
+            }
+        }
+    }
+
+    return Blob.newHeap(blob).toJsValue(global)
+}
+
+// ============================================================================
+// jsdomFileConstruct — File constructor
+// Corresponds to: Bun: jsdom_file_construct_ (Blob.rs:5645-5759)
+// ============================================================================
+/// Construct File object — 对应 Bun: jsdomFileConstruct (new File(bits, name, options))
+public func jsdomFileConstruct(global: JsGlobalObject, callframe: CallFrame): JsValue {
+    let args = callframe.argumentsAsArray(3)
+
+    if (args.size < 2) {
+        return JsValue("TypeError: new File(bits, name) expects at least 2 arguments")
+    }
+
+    // Second argument: file name
+    let fileName = args[1].toString()
+
+    // First argument: bits (Blob parts)
+    let blob = Blob.get(global, args[0], false, true)
+
+    // Set file name on store
+    match (blob.store) {
+        case Some(s) =>
+            if (s.kind == BlobStoreKind.Memory) {
+                s.storedName = fileName
+            }
+        case None => ()
+    }
+    if (blob.store.isNone() && fileName.size > 0) {
+        let store = BlobStore(Array<UInt8>(), fileName)
+        blob.store = Some(store)
+    }
+
+    // Third argument: options
+    var setLastModified = false
+    if (args.size > 2) {
+        let options = args[2]
+        if (!options.isUndefined() && !options.isNull() && options.isObject()) {
+            // type
+            let typeVal = options.get(global.globalThis, "type")
+            if (typeVal.isSome() && typeVal.getOrThrow().isString()) {
+                let typeStr = typeVal.getOrThrow().toString()
+                if (isValidBlobType(typeStr)) {
+                    blob.contentType = typeStr.toAsciiLower()
+                    blob.contentTypeWasSet = true
+                }
+            }
+            // lastModified
+            let lmVal = options.get(global.globalThis, "lastModified")
+            if (lmVal.isSome() && lmVal.getOrThrow().isNumber()) {
+                blob.lastModified = lmVal.getOrThrow().toNumber()
+                setLastModified = true
+            }
+        }
+    }
+
+    if (!setLastModified) {
+        // Default: current time in milliseconds
+        blob.lastModified = Float64(sysCurrentTimeMillis())
+    }
+
+    blob.isJsdomFile = true
+    blob.calculateEstimatedByteSize()
+    return Blob.newHeap(blob).toJsValue(global)
+}
+
+// ============================================================================
+// CallFrame — simplified call frame for JS bindings
+// ============================================================================
+/// CallFrame — 简化的 JS 调用帧
+public class CallFrame {
+    public var args: Array<JsValue>
+
+    public init() {
+        args = Array<JsValue>()
+    }
+
+    public init(args: Array<JsValue>) {
+        this.args = args
+    }
+
+    /// Get this value
+    public func this(): JsValue {
+        if (args.size > 0) {
+            return args[0]
+        }
+        return JsValue()
+    }
+
+    /// Get arguments as array with minimum count
+    public func argumentsAsArray(count: Int64): Array<JsValue> {
+        return args
+    }
+
+    /// Get argument at index
+    public func argument(index: Int64): JsValue {
+        if (index < Int64(args.size)) {
+            return args[Int64(index)]
+        }
+        return JsValue()
+    }
+}
+
+// ============================================================================
+// ReadableStreamSource — ReadableStream source
+// ============================================================================
+/// ReadableStreamSource — 流源
+public class ReadableStreamSource {
+    public var tag: ReadableStreamSourceTag
+    public var byteStream: ?ByteStream
+
+    public init() {
+        tag = ReadableStreamSourceTag.Empty
+        byteStream = None
+    }
+}
+
+/// ReadableStreamSourceTag — 流源标签
+public enum ReadableStreamSourceTag {
+    | Empty
+    | Bytes
+    | Blob
+    | File
+}
+
+// ============================================================================
+// ByteStream — byte stream source
+// ============================================================================
+/// ByteStream — 字节流
+public class ByteStream {
+    public var buffer: ArrayList<UInt8>
+
+    public init() {
+        buffer = ArrayList<UInt8>()
+    }
+
+    public init(bytes: Array<UInt8>) {
+        buffer = ArrayList<UInt8>()
+        for (b in bytes) {
+            buffer.append(b)
+        }
+    }
+}
+
+// ============================================================================
+// WTFStringImpl — placeholder for WTF string implementation
+// ============================================================================
+/// WTFStringImpl — WTF 字符串实现占位
+public class WTFStringImpl {
+    public var str: String
+
+    public init() {
+        str = ""
+    }
+
+    public init(str: String) {
+        this.str = str
+    }
+
+    public func toUtf8Slice(): Array<UInt8> {
+        return Utf8Codec.encode(str)
+    }
+}
+
+// ============================================================================
+// SysImpl — system call implementations
+// ============================================================================
+/// SysImpl — 系统调用实现
+public class SysImpl {
+    /// stat — get file stat
+    public static func stat(path: String): SysMaybe<PosixStat> {
+        // stub: would call libc stat()
+        return SysMaybe<PosixStat>.Err(SysError())
+    }
+
+    /// fstat — get file stat by fd
+    public static func fstat(fd: Int64): SysMaybe<PosixStat> {
+        // stub: would call libc fstat()
+        return SysMaybe<PosixStat>.Err(SysError())
+    }
+}
+
+// ============================================================================
+// PosixStat — POSIX stat result
+// ============================================================================
+/// PosixStat — POSIX stat 结果
+public class PosixStat {
+    public var size: Int64
+    public var mode: UInt64
+    public var mtimeSec: Int64
+    public var mtimeNsec: Int64
+
+    public init() {
+        size = 0
+        mode = 0
+        mtimeSec = 0
+        mtimeNsec = 0
+    }
+
+    public func isFile(): Bool {
+        return (mode & UInt64(0xF000)) == UInt64(0x8000)
+    }
+
+    public func isDir(): Bool {
+        return (mode & UInt64(0xF000)) == UInt64(0x4000)
+    }
+
+    public func isSymlink(): Bool {
+        return (mode & UInt64(0xF000)) == UInt64(0xA000)
+    }
+}
+
+// ============================================================================
+// SysMaybe — system call result type
+// ============================================================================
+public enum SysMaybe<T> {
+    | Ok(T)
+    | Err(SysError)
+}
+
+// ============================================================================
+// SysError — system error
+// ============================================================================
+public class SysError {
+    public var code: Int64
+    public var tag: SysTag
+
+    public init() {
+        code = 0
+        tag = SysTag.Generic
+    }
+
+    public init(code: Int64, tag: SysTag) {
+        this.code = code
+        this.tag = tag
+    }
+}
+
+// ============================================================================
+// SysTag — system error tag
+// ============================================================================
+public enum SysTag {
+    | Generic
+    | Mkdir
+    | Open
+    | Write
+    | Read
+    | Close
+    | Stat
+    | Unlink
+}
+
+// ============================================================================
+// SysFs — filesystem system calls
+// ============================================================================
+public class SysFs {
+    public static func mkdir(path: String, mode: UInt32): SysMaybe<Unit> {
+        // stub: would call libc mkdir()
+        return SysMaybe<Unit>.Ok(())
+    }
+
+    public static func unlink(path: String): SysMaybe<Unit> {
+        // stub: would call libc unlink()
+        return SysMaybe<Unit>.Ok(())
+    }
+}
+
+// ============================================================================
+// sysCurrentTimeMillis — get current time in milliseconds
+// ============================================================================
+/// Get current time in milliseconds — 对应 Bun: std.time.milliTimestamp
+@C foreign func clock_gettime_resp(clk_id: Int32, tp: CPointer<Unit>): Int32
+public func sysCurrentTimeMillis(): Int64 {
+    return getCurrentTimeMillisBlob()
+}
+
+// ============================================================================
+// String extensions
+// ============================================================================
+/// String extension: toAsciiLower
+extend String {
+    public func toAsciiLower(): String {
+        var result = ""
+        for (c in this) {
+            let code = Int32(c)
+            if (code >= 65 && code <= 90) {
+                result += String(Char(code + 32))
+            } else {
+                result += String(c)
+            }
+        }
+        return result
+    }
+
+    public func startsWith(prefix: String): Bool {
+        if (prefix.size > this.size) {
+            return false
+        }
+        let sub = this.subString(0, prefix.size)
+        return sub == prefix
+    }
+
+    public func isEmpty(): Bool {
+        return this.size == 0
+    }
+}
+
+// ============================================================================
+// JsValue extensions for Blob-related methods
+// ============================================================================
+extend JsValue {
+    /// Check if value is a Response
+    public func isResponse(): Bool {
+        if (!this.isObject()) {
+            return false
+        }
+        let obj = this.toObject()
+        let t = obj.get("type")
+        // Response has a type field that's a string
+        return t.isString()
+    }
+
+    /// Check if value is a Request
+    public func isRequest(): Bool {
+        if (!this.isObject()) {
+            return false
+        }
+        let obj = this.toObject()
+        let method = obj.get("method")
+        return method.isString()
+    }
+
+    /// Convert to Response (stub)
+    public func toResponse(): ?Response {
+        // stub: would downcast JS value to Response
+        return None
+    }
+
+    /// Convert to Request (stub)
+    public func toRequest(): ?Request {
+        // stub: would downcast JS value to Request
+        return None
+    }
+
+    /// Check if value is a typed array
+    public func isTypedArray(): Bool {
+        if (!this.isObject()) {
+            return false
+        }
+        let obj = this.toObject()
+        let byteLength = obj.get("byteLength")
+        return byteLength.isNumber()
+    }
+
+    /// Get array buffer view
+    public func asArrayBuffer(global: JsObject): ?ArrayBufferView {
+        // stub: simplified
+        return None
+    }
+
+    /// Check if fetch headers
+    public func isFetchHeaders(): Bool {
+        return false
+    }
+}
+
+// ============================================================================
+// ArrayBufferView — simplified array buffer view
+// ============================================================================
+public class ArrayBufferView {
+    public var bytes_: Array<UInt8>
+
+    public init() {
+        bytes_ = Array<UInt8>()
+    }
+
+    public init(bytes: Array<UInt8>) {
+        bytes_ = bytes
+    }
+
+    public func bytes(): Array<UInt8> {
+        return bytes_
+    }
+
+    public func byteLength(): Int64 {
+        return Int64(bytes_.size)
+    }
+}
+
+// ============================================================================
+// Request — placeholder for Request type
+// ============================================================================
+public class Request {
+    public var body: BodyValue
+
+    public init() {
+        body = BodyValue.Empty
+    }
+}
+
+// ============================================================================
+// BodyValue — re-export from response.cj (or local definition)
+// ============================================================================
+public enum BodyValueTag2 {
+    | Used
+    | Empty
+    | Null
+    | Blob
+    | InternalBlob
+    | Error
+    | Locked
+}
+
+// ============================================================================
+// JsObject — simplified JS object
+// ============================================================================
+/// JsObject — 简化的 JS 对象
+public class JsObject {
+    private var props: HashMap<String, JsValue>
+
+    public init() {
+        props = HashMap<String, JsValue>()
+    }
+
+    public func set(key: String, value: JsValue): Unit {
+        props.put(key, value)
+    }
+
+    public func get(key: String): JsValue {
+        match (props.get(key)) {
+            case Some(v) => v
+            case None => JsValue()
+        }
+    }
+
+    public func has(key: String): Bool {
+        return props.contains(key)
+    }
+}
+
+// ============================================================================
+// HashMap — simplified hash map
+// ============================================================================
+/// HashMap — 简化哈希表
+public class HashMap<K, V> where K <: Hashable & Equatable<K> {
+    private var keys: ArrayList<K>
+    private var values: ArrayList<V>
+
+    public init() {
+        keys = ArrayList<K>()
+        values = ArrayList<V>()
+    }
+
+    public func put(key: K, value: V): Unit {
+        var i: Int64 = 0
+        while (i < keys.size) {
+            if (keys[Int64(i)] == key) {
+                values[Int64(i)] = value
+                return
+            }
+            i += 1
+        }
+        keys.append(key)
+        values.append(value)
+    }
+
+    public func get(key: K): ?V {
+        var i: Int64 = 0
+        while (i < keys.size) {
+            if (keys[Int64(i)] == key) {
+                return Some(values[Int64(i)])
+            }
+            i += 1
+        }
+        return None
+    }
+
+    public func contains(key: K): Bool {
+        var i: Int64 = 0
+        while (i < keys.size) {
+            if (keys[Int64(i)] == key) {
+                return true
+            }
+            i += 1
+        }
+        return false
+    }
+
+    public func size(): Int64 {
+        return keys.size
+    }
+}
+
 // ReadFileResultType is defined locally in body.cj to avoid subpackage conflict
 // (blob/read_file.cj also defines ReadFileResultType with a different API)

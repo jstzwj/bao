@@ -672,6 +672,8 @@ public class ValkeyHandler {
 
 /// Spawn IPC 处理器
 /// 对应 Zig: pub const SpawnIPC = struct { ... }
+/// 对应 Bun 行为: ext 为空时静默返回 (orelse return)，不抛出异常
+/// IPC 事件委托给 IPCHandlers.PosixSocket 方法处理
 public class SpawnIPCHandler {
     public var ext: ?SendQueue
 
@@ -679,47 +681,56 @@ public class SpawnIPCHandler {
         ext = None
     }
 
-    public func unsupported(eventName: String): Unit {
-        throw Exception("ENOSYS: uWS spawn IPC dispatch is not implemented for " + eventName)
-    }
-
     /// 连接打开 (IPC 不需要)
     public func onOpen(s: UsSocket, isClient: Bool, ip: String): Unit {}
 
     /// 数据到达
+    /// 对应 Zig: pub fn onData(ext: Ext, s: *us_socket_t, data: []const u8) void
+    /// ext.* orelse return — 如果 ext 为空，静默返回
     public func onData(s: UsSocket, data: Array<Byte>): Unit {
-        if (ext.isNone()) { unsupported("data") }
-        IPCHandlers.posixSocketOnData(ext.getOrThrow(), wrap(s), data)
+        if (let Some(queue) <- ext) {
+            IPCHandlers.posixSocketOnData(queue, wrap(s), data)
+        }
     }
 
     /// 文件描述符
+    /// 对应 Zig: pub fn onFd(ext: Ext, s: *us_socket_t, fd: c_int) void
     public func onFd(s: UsSocket, fd: Int32): Unit {
-        if (ext.isNone()) { unsupported("fd") }
-        IPCHandlers.posixSocketOnFd(ext.getOrThrow(), wrap(s), fd)
+        if (let Some(queue) <- ext) {
+            IPCHandlers.posixSocketOnFd(queue, wrap(s), fd)
+        }
     }
 
     /// 可写
+    /// 对应 Zig: pub fn onWritable(ext: Ext, s: *us_socket_t) void
     public func onWritable(s: UsSocket): Unit {
-        if (ext.isNone()) { unsupported("writable") }
-        IPCHandlers.posixSocketOnWritable(ext.getOrThrow(), wrap(s))
+        if (let Some(queue) <- ext) {
+            IPCHandlers.posixSocketOnWritable(queue, wrap(s))
+        }
     }
 
     /// 关闭
+    /// 对应 Zig: pub fn onClose(ext: Ext, s: *us_socket_t, code: i32, reason: ?*anyopaque) void
     public func onClose(s: UsSocket, code: Int32, reason: ?Any): Unit {
-        if (ext.isNone()) { unsupported("close") }
-        IPCHandlers.posixSocketOnClose(ext.getOrThrow(), wrap(s), code, reason)
+        if (let Some(queue) <- ext) {
+            IPCHandlers.posixSocketOnClose(queue, wrap(s), code, reason)
+        }
     }
 
     /// 超时
+    /// 对应 Zig: pub fn onTimeout(ext: Ext, s: *us_socket_t) void
     public func onTimeout(s: UsSocket): Unit {
-        if (ext.isNone()) { unsupported("timeout") }
-        IPCHandlers.posixSocketOnTimeout(ext.getOrThrow(), wrap(s))
+        if (let Some(queue) <- ext) {
+            IPCHandlers.posixSocketOnTimeout(queue, wrap(s))
+        }
     }
 
     /// 结束
+    /// 对应 Zig: pub fn onEnd(ext: Ext, s: *us_socket_t) void
     public func onEnd(s: UsSocket): Unit {
-        if (ext.isNone()) { unsupported("end") }
-        IPCHandlers.posixSocketOnEnd(ext.getOrThrow(), wrap(s))
+        if (let Some(queue) <- ext) {
+            IPCHandlers.posixSocketOnEnd(queue, wrap(s))
+        }
     }
 
     func wrap(s: UsSocket): NewSocketHandler { NewSocketHandler.from(s) }

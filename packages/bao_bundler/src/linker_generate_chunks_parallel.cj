@@ -70,7 +70,10 @@ private func checkDuplicatePaths(linker: LinkerContext, chunks: ArrayList<Chunk>
 
 /// 为 chunks 生成 metafile
 private func generateMetafileForChunks(linker: LinkerContext, chunks: ArrayList<Chunk>): Unit {
-    return
+    // 为每个 chunk 生成 metafile JSON 片段
+    for (chunk in chunks) {
+        chunk.metafileChunkJson = MetafileBuilder.generateChunkJson(linker, chunk, chunks)
+    }
 }
 
 /// 构建输出文件列表

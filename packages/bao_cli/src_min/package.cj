@@ -183,12 +183,9 @@ func buildCommand(args: Array<String>, start: Int64): Unit {
     if (format != "esm") { println("  format: ${format}") }
     if (codeSplitting) { println("  code splitting: ${codeSplitting}") }
 
-    // TODO(bao-cli): When full bao_cli/src dependency closure compiles,
-    // replace the above with:
-    //   let options = BuildCommandOptions()
-    //   // ... populate fields from parsed args ...
-    //   let cmd = BuildCommand(options)
-    //   let exitCode = cmd.execute()
+    // NOTE(src_min): 当前为最小独立实现, 验证参数解析和输出。
+    // 完整实现位于 bao_cli/src/commands/build_command.cj,
+    // 当其依赖闭包编译完成后, 本函数应委托给 BuildCommand.execute()。
 }
 
 // ============================================================================
@@ -306,12 +303,9 @@ func testCommand(args: Array<String>, start: Int64): Unit {
     println("  ${failCount} fail")
     println("")
 
-    // TODO(bao-cli): When full bao_cli/src dependency closure compiles,
-    // replace the above with:
-    //   let options = TestCommandOptions()
-    //   // ... populate fields from parsed args ...
-    //   let cmd = TestCommand(options)
-    //   let exitCode = cmd.execute()
+    // NOTE(src_min): 当前为最小独立实现, 验证测试发现和执行。
+    // 完整实现位于 bao_cli/src/commands/test_command.cj,
+    // 当其依赖闭包编译完成后, 本函数应委托给 TestCommand。
 }
 
 /// Discover test files in current directory
@@ -407,14 +401,9 @@ func installCommand(args: Array<String>, start: Int64): Unit {
 
     println("  Already up to date")
 
-    // TODO(bao-cli): When full bao_cli/src dependency closure compiles,
-    // replace the above with:
-    //   let cliOptions = InstallCommandLineOptions()
-    //   cliOptions.production = production
-    //   cliOptions.frozenLockfile = frozen
-    //   cliOptions.verbose = verbose
-    //   let cmd = InstallCommand(cliOptions)
-    //   let exitCode = cmd.execute()
+    // NOTE(src_min): 当前为最小独立实现, 验证参数解析。
+    // 完整实现位于 bao_cli/src/commands/install_command.cj,
+    // 当其依赖闭包编译完成后, 本函数应委托给 InstallCommand。
 }
 
 // ============================================================================
@@ -479,11 +468,9 @@ func addCommand(args: Array<String>, start: Int64): Unit {
 
     println("bao add: install completed")
 
-    // TODO(bao-cli): When full bao_cli/src dependency closure compiles,
-    // replace the above with:
-    //   let addArgs = collectArgs(args, start)
-    //   let cmd = AddCommand()
-    //   cmd.execute(addArgs)
+    // NOTE(src_min): 当前为最小独立实现, 验证参数解析和依赖字段选择。
+    // 完整实现位于 bao_cli/src/commands/add_command.cj,
+    // 当其依赖闭包编译完成后, 本函数应委托给 AddCommand。
 }
 
 // ============================================================================
@@ -527,11 +514,9 @@ func removeCommand(args: Array<String>, start: Int64): Unit {
 
     println("bao remove: completed")
 
-    // TODO(bao-cli): When full bao_cli/src dependency closure compiles,
-    // replace the above with:
-    //   let removeArgs = collectArgs(args, start)
-    //   let cmd = RemoveCommand()
-    //   cmd.execute(removeArgs)
+    // NOTE(src_min): 当前为最小独立实现, 验证参数解析。
+    // 完整实现位于 bao_cli/src/commands/remove_command.cj,
+    // 当其依赖闭包编译完成后, 本函数应委托给 RemoveCommand。
 }
 
 // ============================================================================
@@ -698,13 +683,9 @@ func initCommand(args: Array<String>, start: Int64): Unit {
     println("  bao install")
     println("  bao run index.js")
 
-    // TODO(bao-cli): When full bao_cli/src dependency closure compiles,
-    // replace the above with:
-    //   let options = InitOptions()
-    //   options.name = name
-    //   options.template = template
-    //   let cmd = InitCommand(options)
-    //   let exitCode = cmd.execute()
+    // NOTE(src_min): 当前为最小独立实现, 生成 package.json / tsconfig / .gitignore。
+    // 完整实现位于 bao_cli/src/commands/init_command.cj,
+    // 当其依赖闭包编译完成后, 本函数应委托给 InitCommand。
 }
 
 // ============================================================================
@@ -827,11 +808,9 @@ func replCommand(args: Array<String>, start: Int64): Unit {
         }
     }
 
-    // TODO(bao-cli): When full bao_cli/src dependency closure compiles,
-    // replace the above with:
-    //   let replArgs = collectArgs(args, start)
-    //   let cmd = ReplCommand()
-    //   let exitCode = cmd.execute(replArgs)
+    // NOTE(src_min): 当前为最小独立 REPL 实现。
+    // 完整实现位于 bao_cli/src/commands/repl_command.cj,
+    // 当其依赖闭包编译完成后, 本函数应委托给 ReplCommand。
 }
 
 // ============================================================================
@@ -955,11 +934,9 @@ func execCommand(command: String, args: Array<String>, start: Int64): Unit {
         println("")
     }
 
-    // TODO(bao-cli): When full bao_cli/src dependency closure compiles,
-    // replace the above with:
-    //   let execArgs = collectArgs(args, start)
-    //   let cmd = XCommand()
-    //   cmd.execute(execArgs)
+    // NOTE(src_min): 当前为最小独立实现, 验证参数解析和本地二进制查找。
+    // 完整实现位于 bao_cli/src/commands/bunx_command.cj,
+    // 当其依赖闭包编译完成后, 本函数应委托给 XCommand。
 }
 
 // ============================================================================

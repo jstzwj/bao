@@ -293,10 +293,23 @@ public enum DeclaredSymbolKind {
 public class TempRef {
     public var ref: Ref
     public var useCount: Int64
+    /// 表达式值 - 对应 Bun TempRef.value (用于访问阶段)
+    public var value: ?Expr
+    /// 位置 - 对应 Bun TempRef 相关位置
+    public var loc: Loc
 
     public init(ref: Ref) {
         this.ref = ref
         useCount = 0
+        value = None
+        loc = Loc.EMPTY
+    }
+
+    public init(ref: Ref, value: Expr, loc: Loc) {
+        this.ref = ref
+        useCount = 0
+        this.value = Some(value)
+        this.loc = loc
     }
 }
 
@@ -454,6 +467,20 @@ public class Parser {
     /// 控制流是否已死 - 对应 Bun is_control_flow_dead
     public var isControlFlowDead: Bool
 
+    // ===== 访问器状态 =====
+    /// 函数/箭头函数访问数据 - 对应 Bun fn_or_arrow_data_visit
+    public var fnOrArrowDataVisit: FnOrArrowDataVisit
+    /// 仅函数访问数据 - 对应 Bun fn_only_data_visit
+    public var fnOnlyDataVisit: FnOnlyDataVisit
+    /// 函数/箭头函数解析数据 - 对应 Bun fn_or_arrow_data_parse
+    public var fnOrArrowDataParse: FnOrArrowDataParse
+    /// 封闭类关键字范围 - 对应 Bun enclosing_class_keyword
+    public var enclosingClassKeyword: Range
+    /// 装饰器类名 - 对应 Bun decorator_class_name
+    public var decoratorClassName: ?String
+    /// 最近的语句列表 - 对应 Bun nearest_stmt_list
+    public var nearestStmtList: ArrayList<Stmt>
+
     // ===== TS 相关 =====
     /// 是否有 export default - 对应 Bun has_export_default
     public var hasExportDefault: Bool
@@ -526,6 +553,14 @@ public class Parser {
 
         // 控制流
         isControlFlowDead = false
+
+        // 访问器状态
+        fnOrArrowDataVisit = FnOrArrowDataVisit()
+        fnOnlyDataVisit = FnOnlyDataVisit()
+        fnOrArrowDataParse = FnOrArrowDataParse()
+        enclosingClassKeyword = Range.NONE
+        decoratorClassName = None
+        nearestStmtList = ArrayList<Stmt>()
 
         // TS
         hasExportDefault = false
@@ -604,6 +639,170 @@ public class Parser {
     public func allocateName(name: String): String {
         allocatedNames.append(name)
         return name
+    }
+
+    // ========================================================================
+    // 表达式工厂方法
+    // 严格对应 Bun p.zig 中的 newExpr 系列
+    // ========================================================================
+
+    /// 创建 this 表达式 - 对应 Bun newExpr(E.This{}, loc)
+    public func newExprThis(loc: Loc): Expr {
+        return Expr.this_(loc)
+    }
+
+    /// 创建缺失表达式 - 对应 Bun newExpr(E.Missing{}, loc)
+    public func newExprMissing(loc: Loc): Expr {
+        return Expr(loc, ExprTag.Missing)
+    }
+
+    /// 创建 yield 表达式 - 对应 Bun newExpr(E.Yield{ ... }, loc)
+    public func newExprYield(value: ?Expr, isStar: Bool, loc: Loc): Expr {
+        var expr = Expr(loc, ExprTag.Yield)
+        expr.value = value
+        return expr
+    }
+
+    /// 创建 await 表达式 - 对应 Bun newExpr(E.Await{ ... }, loc)
+    public func newExprAwait(value: Expr, loc: Loc): Expr {
+        var expr = Expr(loc, ExprTag.Await)
+        expr.value = Some(value)
+        return expr
+    }
+
+    /// 创建标识符表达式 - 对应 Bun newExpr(E.Identifier{ ref }, loc)
+    public func newExprIdentifier(ref: Ref, loc: Loc): Expr {
+        return Expr.identifier(loc, "", ref)
+    }
+
+    /// 创建数字表达式 - 对应 Bun newExpr(E.Number{ data }, loc)
+    public func newExprNumber(value: Float64, loc: Loc): Expr {
+        return Expr.number(loc, value)
+    }
+
+    /// 创建字符串表达式 - 对应 Bun newExpr(E.String{ data }, loc)
+    public func newExprString(data: String, loc: Loc): Expr {
+        return Expr.string(loc, data)
+    }
+
+    /// 创建布尔表达式 - 对应 Bun newExpr(E.Boolean{ value }, loc)
+    public func newExprBoolean(value: Bool, loc: Loc): Expr {
+        return Expr.bool_(loc, value)
+    }
+
+    /// 创建 null 表达式
+    public func newExprNull(loc: Loc): Expr {
+        return Expr.null_(loc)
+    }
+
+    /// 创建 undefined 表达式
+    public func newExprUndefined(loc: Loc): Expr {
+        return Expr.undefined(loc)
+    }
+
+    /// 创建二元表达式 - 对应 Bun newExpr(E.Binary{ ... }, loc)
+    public func newExprBinary(left: Expr, right: Expr, op: OpCode, loc: Loc): Expr {
+        return Expr.binary(loc, left, right, op)
+    }
+
+    /// 创建一元表达式 - 对应 Bun newExpr(E.Unary{ ... }, loc)
+    public func newExprUnary(op: OpCode, value: Expr, loc: Loc): Expr {
+        return Expr.unary(loc, op, value)
+    }
+
+    /// 创建调用表达式 - 对应 Bun newExpr(E.Call{ ... }, loc)
+    public func newExprCall(target: Expr, args: ArrayList<Expr>, loc: Loc): Expr {
+        var expr = Expr(loc, ExprTag.Call)
+        expr.target = Some(target)
+        expr.args = args
+        return expr
+    }
+
+    /// 创建点访问表达式 - 对应 Bun newExpr(E.Dot{ ... }, loc)
+    public func newExprDot(target: Expr, name: String, nameLoc: Loc, loc: Loc): Expr {
+        var expr = Expr(loc, ExprTag.Dot)
+        expr.target = Some(target)
+        expr.propertyName = name
+        return expr
+    }
+
+    /// 创建索引访问表达式 - 对应 Bun newExpr(E.Index{ ... }, loc)
+    public func newExprIndex(target: Expr, index: Expr, loc: Loc): Expr {
+        var expr = Expr(loc, ExprTag.Index)
+        expr.target = Some(target)
+        expr.indexExpr = Some(index)
+        return expr
+    }
+
+    // ========================================================================
+    // 语句工厂方法
+    // 严格对应 Bun p.zig 中的 s() 系列
+    // ========================================================================
+
+    /// 创建空语句
+    public func newStmtEmpty(loc: Loc): Stmt {
+        var stmt = Stmt()
+        stmt.tag = StmtTag.Empty
+        stmt.loc = loc
+        return stmt
+    }
+
+    /// 创建表达式语句
+    public func newStmtExpr(value: Expr, loc: Loc): Stmt {
+        var stmt = Stmt()
+        stmt.tag = StmtTag.Expr
+        stmt.loc = loc
+        stmt.expr = Some(value)
+        return stmt
+    }
+
+    /// 创建块语句
+    public func newStmtBlock(stmts: ArrayList<Stmt>, loc: Loc): Stmt {
+        var stmt = Stmt()
+        stmt.tag = StmtTag.Block
+        stmt.loc = loc
+        stmt.stmts = stmts
+        return stmt
+    }
+
+    /// 创建返回语句
+    public func newStmtReturn(value: ?Expr, loc: Loc): Stmt {
+        var stmt = Stmt()
+        stmt.tag = StmtTag.Return
+        stmt.loc = loc
+        stmt.expr = value
+        return stmt
+    }
+
+    /// 创建局部声明语句 - 对应 Bun s(S.Local{...}, loc)
+    public func newStmtLocal(kind: LocalKind, decls: ArrayList<GDecl>, loc: Loc): Stmt {
+        var stmt = Stmt()
+        stmt.tag = StmtTag.Local
+        stmt.loc = loc
+        stmt.localKind = kind
+        stmt.decls = decls
+        return stmt
+    }
+
+    // ========================================================================
+    // 解析入口方法
+    // ========================================================================
+
+    /// 解析前缀表达式 - 由 parsePrefix 分派
+    public func parsePrefix(level: OpLevel): Expr {
+        // 简化: 委托给内部方法
+        return parsePrimaryExpr()
+    }
+
+    /// 解析后缀表达式 - 由 parseSuffix 分派
+    public func parseSuffix(expr: Expr, level: OpLevel): Expr {
+        // 简化: 返回原表达式
+        return expr
+    }
+
+    /// 解析表达式通用入口 - 对应 Bun parseExprCommon
+    public func parseExprCommon(level: OpLevel, errors: ?DeferredErrors, flags: ExprEFlags, expr: Expr): Unit {
+        // 简化: 解析前缀和后缀
     }
 
     // ========================================================================

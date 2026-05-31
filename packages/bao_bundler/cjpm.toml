@@ -23,3 +23,4 @@ bao_ast = { path = "../bao_ast" }
 bao_hash = { path = "../bao_hash" }
 bao_sourcemap = { path = "../bao_sourcemap" }
 bao_options = { path = "../bao_options" }
+bao_string = { path = "../bao_string" }

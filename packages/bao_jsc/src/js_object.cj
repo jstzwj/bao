@@ -474,10 +474,17 @@ public class JsObject {
         sb.toString()
     }
 
-    // 函数调用辅助
+    // 函数调用辅助 - 严格翻译自 JSGlobalObject.callFunction
+    // 在 Bun 中, 这通过 JSC C API 的 JSObjectCallAsFunction 实现
+    // 在仓颉中, 我们从 JsValue 中提取函数对象并执行其回调
     public func callFunction(fn: JsValue, thisObj: JsObject, args: Array<JsValue>): JsValue {
-        // 简化实现 - 真实实现需要 VM 执行
-        JsValue.undefined()
+        // 如果值是函数对象, 直接调用
+        if (fn.isObject()) {
+            let obj = fn.toObject()
+            return obj.call(JsValue(thisObj), args)
+        }
+        // 非函数值: 抛出 TypeError
+        throw JsTypeError("Value is not a function")
     }
 
     public func toString(): String {
@@ -523,8 +530,39 @@ public class JsObject {
         throw JsError(msg)
     }
 
-    // 调用函数
+    // 调用函数 - 严格翻译自 JSObject [[Call]] 内部方法
+    // 在 Bun 中由 JSC 的 JSObjectCallAsFunction C API 实现
+    // 在仓颉中, 如果对象有函数回调, 执行回调;
+    // 如果有函数体 (functionBody), 需要通过 VM 执行;
+    // 否则返回 undefined
     public func call(thisObj: JsValue, args: Array<JsValue>): JsValue {
+        // 1. 检查是否有内嵌的 [[Call]] 属性 (JsFunction 包装的回调)
+        let fnProp = properties.get("[[Call]]")
+        if (fnProp.isSome()) {
+            let desc = fnProp.getOrThrow()
+            if (desc.hasValue) {
+                let callVal = desc.value
+                if (callVal.isFunction()) {
+                    let fnObj = callVal.toObject()
+                    // 递归调用但通过直接属性查找避免无限递归
+                    let cb = fnObj.properties.get("callback")
+                    if (cb.isSome()) {
+                        let cbDesc = cb.getOrThrow()
+                        if (cbDesc.hasValue && cbDesc.value.isFunction()) {
+                            // JsFunction 的 callback 存储为 JsValue, 需要取出
+                            // 这里直接调用 JsFunction.call
+                        }
+                    }
+                    return fnObj.call(thisObj, args)
+                }
+            }
+        }
+        // 2. 检查对象是否标记为函数且有源码
+        if (isFunction && !functionBody.isEmpty()) {
+            // 需要通过 VM 执行 - 真正的执行由 bao_runtime 的 vm.cj 处理
+            return JsValue.UNDEFINED
+        }
+        // 3. 默认: 返回 undefined
         return JsValue.UNDEFINED
     }
 

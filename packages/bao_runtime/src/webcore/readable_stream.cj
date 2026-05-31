@@ -1053,4 +1053,228 @@ public func streamStartToJsValue(start: StreamStart): JsValue {
     }
 }
 
+// ============================================================================
+// ReadableStreamPtr - 可读流指针包装
+// 对应 Bun: ReadableStream { value: JSValue, ptr: Source }
+// The main ReadableStream struct in Bun is a Copy-clone wrapper around a JSValue
+// and a Source discriminant. In Bao the concrete ReadableStream is defined in
+// blob.cj; this class provides the FFI-oriented thin wrapper that mirrors the
+// Rust struct layout for interop with JSC C++ code.
+// ============================================================================
+
+/// 可读流指针包装 — 对应 Bun: ReadableStream (Copy, Clone)
+/// 对应 Bun: ReadableStream { pub value: JSValue, pub ptr: Source }
+/// This is the FFI-compatible wrapper. The higher-level ReadableStream with
+/// blob/reader support lives in blob.cj.
+public class ReadableStreamPtr {
+    /// JS 值
+    /// 对应 Bun: ReadableStream.value
+    public var value: JsValue
+    /// 源指针
+    /// 对应 Bun: ReadableStream.ptr: Source
+    public var source: ReadableStreamSource
+
+    public init() {
+        value = JsValue(Int64(0))
+        source = ReadableStreamSource()
+    }
+
+    public init(value: JsValue, source: ReadableStreamSource) {
+        this.value = value
+        this.source = source
+    }
+
+    /// 对应 Bun: ReadableStream.to_js() -> JSValue
+    public func toJs(): JsValue {
+        value
+    }
+
+    /// 对应 Bun: ReadableStream.is_disturbed(global) -> bool
+    public func isDisturbed(global: JsGlobalObject): Bool {
+        isDisturbedValue(value)
+    }
+
+    /// 对应 Bun: ReadableStream.is_locked(global) -> bool
+    public func isLocked(global: JsGlobalObject): Bool {
+        // TODO: restore ReadableStream__isLocked FFI call when JSC bindings are complete
+        false
+    }
+
+    // ========================================================================
+    // from_js / from_native — 对应 Bun: ReadableStream::from_js / from_native
+    // ========================================================================
+
+    /// 从 JS 值解析 ReadableStream
+    /// 对应 Bun: ReadableStream::from_js(value, global) -> JsResult<Option<ReadableStream>>
+    /// Uses ReadableStreamTag__tagged FFI to determine the stream's source type
+    /// and extract the source pointer.
+    public static func fromJs(value: JsValue, global: JsGlobalObject): ?ReadableStreamPtr {
+        if (value.isEmptyOrUndefinedOrNull()) {
+            return None
+        }
+        // TODO: restore ReadableStreamTag__tagged FFI call when JSC bindings are complete
+        // The full implementation calls ReadableStreamTag__tagged(global, &mut out, &mut ptr)
+        // and matches on the returned Tag to create the appropriate Source variant.
+        // For now, return a JavaScript-source stream.
+        let ptr = ReadableStreamPtr()
+        ptr.value = value
+        ptr.source.tag = ReadableStreamSourceTag.JavaScript
+        return Some(ptr)
+    }
+
+    /// 从 native 创建 ReadableStream
+    /// 对应 Bun: ReadableStream::from_native(global, native) -> JsResult<JSValue>
+    public static func fromNative(global: JsGlobalObject, native: JsValue): JsValue {
+        // TODO: restore ZigGlobalObject__createNativeReadableStream FFI when JSC bindings are complete
+        native
+    }
+}
+
+// ============================================================================
+// ReadableStreamFFI - 可读流 FFI 绑定
+// 对应 Bun: unsafe extern "C" block in ReadableStream.rs
+// These are the C++ JSC bindings that ReadableStream uses for stream operations.
+// They are declared as @C foreign functions matching the C++ side.
+// TODO(port): move to runtime_sys / bao_jsc_sys
+// ============================================================================
+
+/// FFI 绑定类 — 对应 Bun 的 extern "C" 声明
+/// These mirror the C++ side functions declared in Bun's ReadableStream.cpp.
+/// Currently stub implementations; real FFI calls will be wired when JSC
+/// bindings are fully operational.
+public class ReadableStreamFFI {
+    /// 对应 Bun: ReadableStream__tee(stream, global, out1, out2) -> bool
+    /// C++ writes the two teed-stream JSValues into the out-params.
+    public static func tee(stream: JsValue, global: JsGlobalObject): ?(JsValue, JsValue) {
+        // TODO: restore FFI call
+        None
+    }
+
+    /// 对应 Bun: ReadableStreamTag__tagged(global, possible_stream, ptr) -> Tag
+    /// Determines the stream's source type and extracts the source pointer.
+    public static func tagged(global: JsGlobalObject, value: JsValue): ReadableStreamTag {
+        // TODO: restore FFI call
+        ReadableStreamTag.Invalid
+    }
+
+    /// 对应 Bun: ReadableStream__isDisturbed(value, global) -> bool
+    public static func isDisturbed(value: JsValue, global: JsGlobalObject): Bool {
+        // TODO: restore FFI call
+        false
+    }
+
+    /// 对应 Bun: ReadableStream__isLocked(value, global) -> bool
+    public static func isLocked(value: JsValue, global: JsGlobalObject): Bool {
+        // TODO: restore FFI call
+        false
+    }
+
+    /// 对应 Bun: ReadableStream__empty(global) -> JSValue
+    public static func empty(global: JsGlobalObject): JsValue {
+        // TODO: restore FFI call
+        JsValue.UNDEFINED
+    }
+
+    /// 对应 Bun: ReadableStream__used(global) -> JSValue
+    public static func used(global: JsGlobalObject): JsValue {
+        // TODO: restore FFI call
+        JsValue.UNDEFINED
+    }
+
+    /// 对应 Bun: ReadableStream__cancel(stream, global)
+    public static func cancel(stream: JsValue, global: JsGlobalObject): Unit {
+        // TODO: restore FFI call
+    }
+
+    /// 对应 Bun: ReadableStream__cancelWithReason(stream, global, reason)
+    public static func cancelWithReason(stream: JsValue, global: JsGlobalObject, reason: JsValue): Unit {
+        // TODO: restore FFI call
+    }
+
+    /// 对应 Bun: ReadableStream__detach(stream, global)
+    public static func detach(stream: JsValue, global: JsGlobalObject): Unit {
+        // TODO: restore FFI call
+    }
+
+    /// 对应 Bun: ZigGlobalObject__createNativeReadableStream(global, native) -> JSValue
+    public static func createNativeReadableStream(global: JsGlobalObject, native: JsValue): JsValue {
+        // TODO: restore FFI call
+        native
+    }
+}
+
+// ============================================================================
+// ObjectURLFFI - Object URL FFI 绑定
+// 对应 Bun: ObjectURLRegistry.rs extern "C" host functions
+// ============================================================================
+
+/// FFI 绑定类 — 对应 Bun 的 Bun__createObjectURL / Bun__revokeObjectURL
+/// These are the JSC host function bindings for URL.createObjectURL and
+/// URL.revokeObjectURL.
+public class ObjectURLFFI {
+    /// 对应 Bun: Bun__createObjectURL (host_fn export)
+    /// Creates a blob: URL from a Blob object.
+    public static func createObjectURL(global: JsGlobalObject, callFrame: CallFrame): JsValue {
+        let args = callFrame.argumentsAsArray(1)
+        if (args.size < 1) {
+            return JsValue(createErrorInstance(global, "createObjectURL expects a Blob object"))
+        }
+        // TODO: extract Blob from args[0] and register with ObjectURLRegistry
+        let uuid = Crypto.randomUUID()
+        return JsValue("blob:${uuid}")
+    }
+
+    /// 对应 Bun: Bun__revokeObjectURL (host_fn export)
+    /// Revokes a blob: URL.
+    public static func revokeObjectURL(global: JsGlobalObject, callFrame: CallFrame): JsValue {
+        let args = callFrame.argumentsAsArray(1)
+        if (args.size < 1) {
+            return JsValue(createErrorInstance(global, "revokeObjectURL expects a string"))
+        }
+        let urlStr = args[0]
+        if (!urlStr.isString()) {
+            return JsValue(createErrorInstance(global, "revokeObjectURL expects a string"))
+        }
+        let str = urlStr.toString()
+        if (!str.startsWith("blob:")) {
+            return JsValue.UNDEFINED
+        }
+        ObjectURLRegistry.singleton().revoke(str)
+        return JsValue.UNDEFINED
+    }
+
+    /// 对应 Bun: jsFunctionResolveObjectURL (host_fn export)
+    /// Resolves a blob: URL to its Blob object.
+    public static func resolveObjectURL(global: JsGlobalObject, callFrame: CallFrame): JsValue {
+        let args = callFrame.argumentsAsArray(1)
+        if (args.size < 1) {
+            return JsValue.UNDEFINED
+        }
+        let urlStr = args[0]
+        if (!urlStr.isString()) {
+            return JsValue.UNDEFINED
+        }
+        let str = urlStr.toString()
+        if (!str.startsWith("blob:")) {
+            return JsValue.UNDEFINED
+        }
+        let registry = ObjectURLRegistry.singleton()
+        match (registry.resolveAndDupe(str)) {
+            case Some(blob) => blob.toJsValue()
+            case None => JsValue.UNDEFINED
+        }
+    }
+
+    /// 检查是否为 blob URL
+    /// 对应 Bun: is_blob_url(url)
+    public static func isBlobUrl(url: String): Bool {
+        url.startsWith("blob:") && url.size >= 5 + 36  // "blob:" + UUID length
+    }
+}
+
+/// 辅助: 创建错误实例
+func createErrorInstance(global: JsGlobalObject, message: String): JsValue {
+    global.createErrorInstance(message)
+}
+
 // ported from: src/runtime/webcore/ReadableStream.rs

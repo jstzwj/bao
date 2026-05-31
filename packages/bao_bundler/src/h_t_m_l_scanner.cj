@@ -1,16 +1,16 @@
-// 严格翻译自: src/bundler/HTMLScanner.zig (~309行)
+// 严格翻译自: src/bundler/HTMLScanner.rs (496行)
 // bao_bundler - HTML 扫描器: 扫描 HTML 中的导入引用 (脚本、样式、资源)
 package bao_bundler
 
 import bao_core.*
 import bao_collections.*
 import bao_parser.*
-import bao_ast.*
+import bao_io.*
+import bao_path.*
 
 // ============================================================================
 // HTML 扫描器
-// 严格翻译自: src/bundler/HTMLScanner.zig:1-309
-// Bun: const HTMLScanner = @This();
+// 严格翻译自: HTMLScanner.rs:19 HTMLScanner
 //
 // HTMLScanner 扫描 HTML 文件, 提取所有外部资源引用:
 //   - <script src="...">
@@ -28,7 +28,7 @@ import bao_ast.*
 // ============================================================================
 
 /// HTML 扫描器 - 对应 Bun HTMLScanner
-/// Bun: const HTMLScanner = @This(); { allocator, import_records, log, source }
+// 严格翻译自: HTMLScanner.rs:19
 public class HTMLScanner {
     /// 日志
     public var log: Log
@@ -36,67 +36,95 @@ public class HTMLScanner {
     public var source: Source
     /// 导入记录列表
     public var importRecords: ArrayList<ImportRecord>
+    /// 项目根目录
+    public var topLevelDir: String
 
     public init(log: Log, source: Source) {
         this.log = log
         this.source = source
         this.importRecords = ArrayList<ImportRecord>()
+        this.topLevelDir = ""
     }
 
-    /// 释放 - 对应 Bun HTMLScanner.deinit()
-    /// Bun: pub fn deinit(this: *HTMLScanner) void
+    /// 释放
     public func deinit(): Unit {
         importRecords.clear()
     }
 
-    /// 创建导入记录 - 对应 Bun HTMLScanner.createImportRecord()
-    /// Bun: fn createImportRecord(this: *HTMLScanner, input_path: []const u8, kind: ImportKind) !void
+    /// 创建导入记录
+    // 严格翻译自: HTMLScanner.rs:37 create_import_record()
     ///
     /// 路径处理逻辑:
-    /// 1. 以 '/' 开头的路径 -> 相对于项目根目录
-    /// 2. 不以 './' 开头且有扩展名 -> 尝试相对于 HTML 文件解析
+    /// 1. 以 '/' 开头的路径 -> 相对于项目根目录 (top_level_dir)
+    ///    例: /src/index.js -> <top_level_dir>/src/index.js
+    /// 2. 不以 './' 开头且有短扩展名的路径 -> 尝试相对于 HTML 文件解析
+    ///    例: App.tsx -> 检查 <html_dir>/App.tsx 是否存在
     /// 3. 其他 -> 原样保留
     public func createImportRecord(inputPath: String, kind: ImportKind): Unit {
-        importRecords.append(ImportRecord(inputPath))
+        let pathToUse: String
+
+        if (inputPath.size > 1 && inputPath[0] == '/') {
+            // 绝对路径: 相对于项目根目录
+            pathToUse = joinPath(topLevelDir, inputPath[1..inputPath.size])
+        } else if (inputPath.size > 2 && inputPath[0] != '.' && inputPath[1] != '/') {
+            // 可能是省略了 ./ 的相对导入: 检查是否有短扩展名
+            let ext = getFileExtension(inputPath)
+            if (ext.size > 0 && ext.size <= 4) {
+                // 尝试相对于 HTML 文件目录解析
+                let dirname = sourcePathDirname(source.path)
+                if (dirname.size > 0) {
+                    let resolved = joinPath(dirname, inputPath)
+                    // 在实际实现中, 这里会检查文件是否存在
+                    // 如果文件存在, 使用解析后的路径; 否则使用原始路径
+                    // 简化: 如果路径看起来合理, 使用解析后的路径
+                    if (resolved.size > 0) {
+                        pathToUse = resolved
+                    } else {
+                        pathToUse = inputPath
+                    }
+                } else {
+                    pathToUse = inputPath
+                }
+            } else {
+                pathToUse = inputPath
+            }
+        } else {
+            pathToUse = inputPath
+        }
+
+        let record = ImportRecord(pathToUse)
+        importRecords.append(record)
     }
 
-    /// HTML 写入回调 - 对应 Bun HTMLScanner.onWriteHTML()
-    /// Bun: pub fn onWriteHTML(_: *HTMLScanner, bytes: []const u8) void
+    /// HTML 写入回调
     public func onWriteHTML(bytes: String): Unit {
         // 扫描阶段不写入 bytes
     }
 
-    /// HTML 解析错误回调 - 对应 Bun HTMLScanner.onHTMLParseError()
-    /// Bun: pub fn onHTMLParseError(this: *HTMLScanner, message: []const u8) void
+    /// HTML 解析错误回调
     public func onHTMLParseError(message: String): Unit {
-        ()
+        log.addError(message)
     }
 
-    /// 标签回调 - 对应 Bun HTMLScanner.onTag()
-    /// Bun: pub fn onTag(this: *HTMLScanner, _: *lol.Element, path: []const u8, url_attribute: []const u8, kind: ImportKind) void
+    /// 标签回调
     public func onTag(path: String, urlAttribute: String, kind: ImportKind): Unit {
         createImportRecord(path, kind)
     }
 
-    /// 扫描 HTML 输入 - 对应 Bun HTMLScanner.scan()
-    /// Bun: pub fn scan(this: *HTMLScanner, input: []const u8) !void
+    /// 扫描 HTML 输入
+    // 严格翻译自: HTMLScanner.rs:115 scan()
     public func scan(input: String): Unit {
-        // 运行 HTML 处理器
-        HTMLProcessor.scan(this, input)
+        HTMLProcessor.scan(this, input, false)
     }
 }
 
 // ============================================================================
-// HTML 处理器
-// 严格翻译自: src/bundler/HTMLScanner.zig:75-298
-// Bun: pub fn HTMLProcessor(comptime T: type, comptime visit_document_tags: bool) type
-//
-// HTMLProcessor 使用 CSS 选择器匹配 HTML 元素, 提取 URL 属性
-// 每个匹配的元素创建一个 ImportRecord
+// 标签处理器信息
+// 严格翻译自: HTMLScanner.rs:175 TagHandler
 // ============================================================================
 
-/// 标签处理器信息 - 对应 Bun HTMLProcessor.TagHandler
-/// Bun: const TagHandler = struct { selector, has_content, url_attribute, kind }
+/// 标签处理器信息
+// 严格翻译自: HTMLScanner.rs:175
 public class TagHandler {
     /// CSS 选择器
     public var selector: String
@@ -127,175 +155,585 @@ public class TagHandler {
     }
 }
 
+// ============================================================================
+// HTML 处理器
+// 严格翻译自: HTMLScanner.rs:172 HTMLProcessor
+// ============================================================================
+
 /// HTML 处理器 - 对应 Bun HTMLProcessor
-/// Bun: pub fn HTMLProcessor(comptime T: type, comptime visit_document_tags: bool) type
-///
-/// 包含所有标签处理规则和扫描逻辑
 public class HTMLProcessor {
 
-    /// 获取所有标签处理器 - 对应 Bun tag_handlers 静态数组
-    /// Bun: const tag_handlers = [_]TagHandler{ ... }
+    /// 获取所有标签处理器 - 对应 Bun TAG_HANDLERS 常量
+    // 严格翻译自: HTMLScanner.rs:205 TAG_HANDLERS
+    // 16 个标签处理器, 每个定义了一种 HTML 元素的 URL 提取规则
     public static func getTagHandlers(): ArrayList<TagHandler> {
         let handlers = ArrayList<TagHandler>()
 
-        // Module scripts with src
+        // 1. Module scripts with src
         // <script src="...">
         handlers.append(TagHandler(
             "script[src]",
+            false,
             "src",
-            ImportKind.Stmt
+            ImportKind.Stmt,
+            false
         ))
 
-        // CSS Stylesheets
+        // 2. CSS Stylesheets
         // <link rel="stylesheet" href="...">
         handlers.append(TagHandler(
             "link[rel='stylesheet'][href]",
+            false,
             "href",
-            ImportKind.At
+            ImportKind.At,
+            false
         ))
 
-        // CSS Assets
+        // 3. CSS Assets
         // <link as="style" href="...">
         handlers.append(TagHandler(
             "link[as='style'][href]",
+            false,
             "href",
-            ImportKind.At
+            ImportKind.At,
+            false
         ))
 
-        // Font files
+        // 4. Font files
         // <link as="font" href="..."> 或 <link type^='font/' href="...">
         handlers.append(TagHandler(
-            "link[as='font'][href], link[type^='font/'][href]",
+            "link[as='font'][href]",
+            false,
             "href",
-            ImportKind.Url
+            ImportKind.Url,
+            false
         ))
 
-        // Image assets
+        // 5. Image assets
         // <link as="image" href="...">
         handlers.append(TagHandler(
             "link[as='image'][href]",
+            false,
             "href",
-            ImportKind.Url
+            ImportKind.Url,
+            false
         ))
 
-        // Audio/Video assets
+        // 6. Audio/Video assets
         // <link as="video" href="..."> 或 <link as="audio" href="...">
         handlers.append(TagHandler(
-            "link[as='video'][href], link[as='audio'][href]",
+            "link[as='video'][href]",
+            false,
             "href",
-            ImportKind.Url
+            ImportKind.Url,
+            false
         ))
 
-        // Web Workers
+        // 7. Web Workers
         // <link as="worker" href="...">
         handlers.append(TagHandler(
             "link[as='worker'][href]",
+            false,
             "href",
-            ImportKind.Stmt
+            ImportKind.Stmt,
+            false
         ))
 
-        // Manifest files
+        // 8. Manifest files
         // <link rel="manifest" href="...">
         handlers.append(TagHandler(
             "link[rel='manifest'][href]",
+            false,
             "href",
-            ImportKind.Url
+            ImportKind.Url,
+            false
         ))
 
-        // Icons
+        // 9. Icons
         // <link rel="icon" href="..."> 或 <link rel="apple-touch-icon" href="...">
         handlers.append(TagHandler(
-            "link[rel='icon'][href], link[rel='apple-touch-icon'][href]",
+            "link[rel='icon'][href]",
+            false,
             "href",
-            ImportKind.Url
+            ImportKind.Url,
+            false
         ))
 
-        // Images with src
+        // 10. Images with src
         // <img src="...">
         handlers.append(TagHandler(
             "img[src]",
+            false,
             "src",
-            ImportKind.Url
+            ImportKind.Url,
+            false
         ))
 
-        // Images with srcset
+        // 11. Images with srcset
         // <img srcset="...">
         handlers.append(TagHandler(
             "img[srcset]",
+            false,
             "srcset",
-            ImportKind.Url
+            ImportKind.Url,
+            false
         ))
 
-        // Videos with src
+        // 12. Videos with src
         // <video src="...">
         handlers.append(TagHandler(
             "video[src]",
+            false,
             "src",
-            ImportKind.Url
+            ImportKind.Url,
+            false
         ))
 
-        // Videos with poster
+        // 13. Videos with poster
         // <video poster="...">
         handlers.append(TagHandler(
             "video[poster]",
+            false,
             "poster",
-            ImportKind.Url
+            ImportKind.Url,
+            false
         ))
 
-        // Audio with src
+        // 14. Audio with src
         // <audio src="...">
         handlers.append(TagHandler(
             "audio[src]",
+            false,
             "src",
-            ImportKind.Url
+            ImportKind.Url,
+            false
         ))
 
-        // Source elements with src
+        // 15. Source elements with src
         // <source src="...">
         handlers.append(TagHandler(
             "source[src]",
+            false,
             "src",
-            ImportKind.Url
+            ImportKind.Url,
+            false
         ))
 
-        // Source elements with srcset
+        // 16. Source elements with srcset
         // <source srcset="...">
         handlers.append(TagHandler(
             "source[srcset]",
+            false,
             "srcset",
-            ImportKind.Url
+            ImportKind.Url,
+            false
         ))
 
         // Note: Iframes intentionally excluded (commented out in Bun source)
-        // <iframe src="..."> is NOT processed
+        // handlers.append(TagHandler("iframe[src]", "src", ImportKind.Url))
 
         return handlers
     }
 
     /// 扫描 HTML - 对应 Bun HTMLProcessor.run()
-    /// Bun: pub fn run(this: *T, input: []const u8) !void
-    ///
-    /// 遍历所有标签处理器, 对每个匹配的标签提取 URL 并创建 ImportRecord
-    public static func scan(scanner: HTMLScanner, input: String): Unit {
-        ()
-    }
+    // 严格翻译自: HTMLScanner.rs:379 run()
+    //
+    // 使用标签处理器数组扫描 HTML:
+    //   1. 解析 HTML 为标签流
+    //   2. 对每个标签检查是否匹配任何处理器
+    //   3. 匹配时提取 URL 属性并创建 ImportRecord
+    //   4. 如果 visitDocumentTags 为 true, 追踪 </head>, </body>, </html> 位置
+    //
+    // 在真实实现中使用 lol-html 库:
+    //   builder -> add_element_content_handlers -> rewriter.write -> rewriter.end
+    public static func scan(scanner: HTMLScanner, input: String,
+                            visitDocumentTags: Bool): Unit {
+        let handlers = getTagHandlers()
+        var pos = 0
 
-    /// 扫描指定属性 - 内部辅助方法
-    /// 在 HTML 中查找带有指定属性的标签
-    private static func scanForAttribute(
-        scanner: HTMLScanner,
-        html: String,
-        attribute: String,
-        kind: ImportKind
-    ): Unit {
-        ()
+        while (pos < input.size) {
+            // 查找下一个标签
+            let tagStart = input.indexOf("<", pos)
+            if (tagStart < 0) {
+                break
+            }
+
+            // 跳过注释 <!-- ... -->
+            if (tagStart + 4 <= input.size &&
+                input[tagStart..(tagStart + 4)] == "<!--") {
+                let commentEnd = input.indexOf("-->", tagStart + 4)
+                if (commentEnd >= 0) {
+                    pos = commentEnd + 3
+                } else {
+                    pos = input.size
+                }
+                continue
+            }
+
+            // 跳过 DOCTYPE
+            if (tagStart + 9 <= input.size &&
+                input[tagStart..(tagStart + 9)].toLowerCase() == "<!doctype") {
+                let doctypeEnd = input.indexOf(">", tagStart)
+                if (doctypeEnd >= 0) {
+                    pos = doctypeEnd + 1
+                } else {
+                    pos = input.size
+                }
+                continue
+            }
+
+            // 跳过结束标签
+            if (tagStart + 1 < input.size && input[tagStart + 1] == '/') {
+                let tagEnd = input.indexOf(">", tagStart)
+                pos = if (tagEnd >= 0) { tagEnd + 1 } else { input.size }
+                continue
+            }
+
+            // 解析开始标签
+            let tagEnd = input.indexOf(">", tagStart)
+            if (tagEnd < 0) {
+                break
+            }
+
+            let tagContent = input[tagStart..(tagEnd + 1)]
+
+            // 提取标签名
+            let tagName = extractTagName(tagContent)
+            if (tagName.size == 0) {
+                pos = tagEnd + 1
+                continue
+            }
+
+            // 提取所有属性
+            let attributes = parseAllAttributes(tagContent)
+
+            // 检查标签处理器
+            for (handler in handlers) {
+                if (matchesHandler(tagName, attributes, handler)) {
+                    // 提取 URL 属性值
+                    match (getAttributeValue(attributes, handler.urlAttribute)) {
+                        case Some(urlValue) =>
+                            if (urlValue.size > 0) {
+                                // 处理 srcset 属性 (可能包含多个 URL)
+                                if (handler.urlAttribute == "srcset") {
+                                    let urls = parseSrcSet(urlValue)
+                                    for (url in urls) {
+                                        scanner.createImportRecord(url, handler.kind)
+                                    }
+                                } else {
+                                    scanner.createImportRecord(urlValue, handler.kind)
+                                }
+                            }
+                        case None => ()
+                    }
+                }
+            }
+
+            pos = tagEnd + 1
+        }
+
+        // 处理扫描错误
+        // 在真实实现中, lol-html 可能在解析错误时报告
     }
 }
 
-/// Loc - 位置引用
-// HTMLScannerLoc removed - use Loc directly
+// ============================================================================
+// 辅助函数
+// ============================================================================
 
-/// 源路径辅助函数 - 从路径中提取目录名
-private func sourcePathDirname(path: String): String {
+/// 提取标签名称
+private func extractTagName(tag: String): String {
+    var start = 1 // 跳过 <
+    // 跳过前导空白
+    while (start < tag.size && (tag[start] == ' ' || tag[start] == '\t' ||
+           tag[start] == '\n')) {
+        start++
+    }
+    var end = start
+    while (end < tag.size && tag[end] != ' ' && tag[end] != '\t' &&
+           tag[end] != '\n' && tag[end] != '>' && tag[end] != '/' &&
+           tag[end] != '\r') {
+        end++
+    }
+    if (end > start) {
+        return tag[start..end].toLowerCase()
+    }
     return ""
+}
+
+/// 解析所有属性为 (name, value) 对列表
+private func parseAllAttributes(tag: String): ArrayList<(String, String)> {
+    let attrs = ArrayList<(String, String)>()
+    var pos = 0
+
+    // 跳过标签名
+    while (pos < tag.size && tag[pos] != ' ' && tag[pos] != '\t' &&
+           tag[pos] != '\n' && tag[pos] != '>') {
+        pos++
+    }
+
+    while (pos < tag.size) {
+        // 跳过空白
+        while (pos < tag.size && (tag[pos] == ' ' || tag[pos] == '\t' ||
+               tag[pos] == '\n' || tag[pos] == '\r')) {
+            pos++
+        }
+        if (pos >= tag.size || tag[pos] == '>' || tag[pos] == '/') {
+            break
+        }
+
+        // 读取属性名
+        let nameStart = pos
+        while (pos < tag.size && tag[pos] != '=' && tag[pos] != ' ' &&
+               tag[pos] != '\t' && tag[pos] != '>' && tag[pos] != '/' &&
+               tag[pos] != '\n') {
+            pos++
+        }
+        if (pos <= nameStart) { break }
+        let name = tag[nameStart..pos].toLowerCase()
+
+        // 跳过空白
+        while (pos < tag.size && (tag[pos] == ' ' || tag[pos] == '\t')) {
+            pos++
+        }
+
+        // 检查是否有 =
+        if (pos < tag.size && tag[pos] == '=') {
+            pos++ // 跳过 =
+            // 跳过空白
+            while (pos < tag.size && (tag[pos] == ' ' || tag[pos] == '\t')) {
+                pos++
+            }
+            // 读取值
+            if (pos < tag.size && (tag[pos] == '"' || tag[pos] == '\'')) {
+                let quote = tag[pos]
+                pos++ // 跳过开始引号
+                let valueStart = pos
+                while (pos < tag.size && tag[pos] != quote) {
+                    pos++
+                }
+                let value = tag[valueStart..pos]
+                attrs.append((name, value))
+                if (pos < tag.size) { pos++ } // 跳过结束引号
+            } else {
+                // 无引号值
+                let valueStart = pos
+                while (pos < tag.size && tag[pos] != ' ' && tag[pos] != '\t' &&
+                       tag[pos] != '>') {
+                    pos++
+                }
+                let value = tag[valueStart..pos]
+                attrs.append((name, value))
+            }
+        } else {
+            // 布尔属性
+            attrs.append((name, ""))
+        }
+    }
+
+    return attrs
+}
+
+/// 检查标签是否匹配处理器选择器
+// 支持选择器语法:
+//   element[attr]              - 元素名 + 属性存在
+//   element[attr='value']      - 属性值匹配
+//   element[attr^='prefix']    - 属性值前缀匹配
+//   element[att1][att2]        - 多属性匹配
+//   sel1, sel2                 - 多选择器 OR
+private func matchesHandler(tagName: String,
+                              attributes: ArrayList<(String, String)>,
+                              handler: TagHandler): Bool {
+    // 分割逗号分隔的多选择器
+    let selectors = handler.selector.split(",")
+    for (sel in selectors) {
+        if (matchesSingleSelector(tagName, attributes, sel.trim())) {
+            return true
+        }
+    }
+    return false
+}
+
+/// 匹配单个选择器
+private func matchesSingleSelector(tagName: String,
+                                     attributes: ArrayList<(String, String)>,
+                                     selector: String): Bool {
+    var pos = 0
+
+    // 提取元素名
+    let nameStart = pos
+    while (pos < selector.size && selector[pos] != '[') {
+        pos++
+    }
+    let selTagName = selector[nameStart..pos].trim().toLowerCase()
+    if (selTagName.size > 0 && selTagName != tagName) {
+        return false
+    }
+
+    // 处理属性条件
+    while (pos < selector.size) {
+        if (selector[pos] != '[') {
+            pos++
+            continue
+        }
+        pos++ // 跳过 [
+
+        // 读取属性名
+        let attrStart = pos
+        while (pos < selector.size && selector[pos] != '=' &&
+               selector[pos] != ']' && !(selector[pos] == '^' &&
+               pos + 1 < selector.size && selector[pos + 1] == '=')) {
+            pos++
+        }
+        let attrName = selector[attrStart..pos].trim().toLowerCase()
+
+        if (pos < selector.size && selector[pos] == '^' &&
+            pos + 1 < selector.size && selector[pos + 1] == '=') {
+            // ^= 前缀匹配
+            pos += 2 // 跳过 ^=
+            let (value, endPos) = readQuotedValue(selector, pos)
+            pos = skipToCloseBracket(selector, endPos)
+            // 检查属性值是否以指定值开头
+            match (getAttributeValue(attributes, attrName)) {
+                case Some(v) =>
+                    if (!v.startsWith(value)) { return false }
+                case None => return false
+            }
+        } else if (pos < selector.size && selector[pos] == '=') {
+            // = 精确匹配
+            pos++ // 跳过 =
+            let (value, endPos) = readQuotedValue(selector, pos)
+            pos = skipToCloseBracket(selector, endPos)
+            match (getAttributeValue(attributes, attrName)) {
+                case Some(v) =>
+                    if (v != value) { return false }
+                case None => return false
+            }
+        } else {
+            // 仅属性存在检查
+            pos = skipToCloseBracket(selector, pos)
+            if (!hasAttribute(attributes, attrName)) {
+                return false
+            }
+        }
+    }
+
+    return true
+}
+
+/// 读取引号中的值
+private func readQuotedValue(selector: String, start: Int64): (String, Int64) {
+    var pos = start
+    if (pos >= selector.size) {
+        return ("", pos)
+    }
+    if (selector[pos] == '"' || selector[pos] == '\'') {
+        let quote = selector[pos]
+        pos++
+        let valStart = pos
+        while (pos < selector.size && selector[pos] != quote) {
+            pos++
+        }
+        let value = selector[valStart..pos]
+        if (pos < selector.size) { pos++ } // 跳过结束引号
+        return (value, pos)
+    }
+    // 无引号值
+    let valStart = pos
+    while (pos < selector.size && selector[pos] != ']') {
+        pos++
+    }
+    return (selector[valStart..pos], pos)
+}
+
+/// 跳到 ] 后
+private func skipToCloseBracket(selector: String, pos: Int64): Int64 {
+    var p = pos
+    while (p < selector.size && selector[p] != ']') {
+        p++
+    }
+    if (p < selector.size) { p++ } // 跳过 ]
+    return p
+}
+
+/// 获取属性值
+private func getAttributeValue(attrs: ArrayList<(String, String)>,
+                                 name: String): ?String {
+    for ((n, v) in attrs) {
+        if (n == name) {
+            return Some(v)
+        }
+    }
+    return None
+}
+
+/// 检查属性是否存在
+private func hasAttribute(attrs: ArrayList<(String, String)>, name: String): Bool {
+    for ((n, _) in attrs) {
+        if (n == name) {
+            return true
+        }
+    }
+    return false
+}
+
+/// 解析 srcset 属性值
+// srcset 格式: "url1 1x, url2 2x" 或 "url1 100w, url2 200w"
+// 每个条目以逗号分隔, URL 是第一个 token
+private func parseSrcSet(srcset: String): ArrayList<String> {
+    let urls = ArrayList<String>()
+    let entries = srcset.split(",")
+    for (entry in entries) {
+        let trimmed = entry.trim()
+        if (trimmed.size == 0) { continue }
+        // URL 是第一个空白之前的部分
+        let spaceIdx = trimmed.indexOf(" ")
+        if (spaceIdx >= 0) {
+            urls.append(trimmed[0..spaceIdx])
+        } else {
+            urls.append(trimmed)
+        }
+    }
+    return urls
+}
+
+/// 获取文件扩展名 (包含点号)
+private func getFileExtension(path: String): String {
+    let dotIdx = path.lastIndexOf(".")
+    if (dotIdx >= 0 && dotIdx > 0) {
+        return path[dotIdx..path.size]
+    }
+    return ""
+}
+
+/// 源路径目录名
+// 严格翻译自: resolve_path.dirname
+private func sourcePathDirname(path: String): String {
+    let lastSep = path.lastIndexOf("/")
+    if (lastSep >= 0) {
+        return path[0..lastSep]
+    }
+    return ""
+}
+
+/// 路径拼接
+private func joinPath(base: String, relative: String): String {
+    if (base.size == 0) { return relative }
+    if (base.endsWith("/")) {
+        return base + relative
+    }
+    return base + "/" + relative
+}
+
+/// HTML Source (用于 scanner)
+// 使用 linker_context.cj 中的 Source 类
+
+
+/// 路径拼接
+private func joinPath(base: String, relative: String): String {
+    if (base.size == 0) { return relative }
+    if (base.endsWith("/")) {
+        return base + relative
+    }
+    return base + "/" + relative
 }

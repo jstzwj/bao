@@ -38,6 +38,17 @@ public enum BmpError {
 // 对应 Bun: codec_bmp
 // ============================================================================
 
+/// shiftWidth 结果
+class ShiftWidthResult {
+    var shift: UInt32
+    var width: UInt32
+
+    init(shift: UInt32, width: UInt32) {
+        this.shift = shift
+        this.width = width
+    }
+}
+
 public class CodecBmp {
 
     /// 读取 BITMAPFILEHEADER + BITMAPINFOHEADER (任何版本 >= 40)
@@ -59,7 +70,7 @@ public class CodecBmp {
         let hRaw = readInt32LE(b, 22)
 
         // biHeight == Int32::MIN 会使 abs 溢出
-        if (wRaw <= 0 || hRaw == 0 || hRaw == Int32.Min) { return None }
+        if (wRaw <= 0 || hRaw == 0 || hRaw == -(Int32.Max) - 1) { return None }
 
         let bpp = readUInt16LE(b, 28)
         let compression = readUInt32LE(b, 30)
@@ -115,13 +126,13 @@ public class CodecBmp {
         return true
     }
 
-    /// 一个连续位域 -> (右移位数, 位宽)
+    /// 一个连续位域 -> ShiftWidth 结果
     /// 对应 Bun: shiftWidth
-    public static func shiftWidth(mask: UInt32): (UInt32, UInt32) {
-        if (mask == 0) { return (0, 0) }
+    public static func shiftWidth(mask: UInt32): ShiftWidthResult {
+        if (mask == 0) { return ShiftWidthResult(0, 0) }
         let sh = UInt32(countTrailingZeros(mask))
         let w = UInt32(popCount(mask))
-        return (sh, w)
+        return ShiftWidthResult(sh, w)
     }
 
     /// 将 width 位通道值扩展为 8 位，通过位复制
@@ -150,10 +161,10 @@ public class CodecBmp {
         let need = UInt64(h.pixOff) + stride * UInt64(h.height)
         if (need > UInt64(bytes.size)) { return None }
 
-        let (rs, rw) = shiftWidth(h.rMask)
-        let (gs, gw) = shiftWidth(h.gMask)
-        let (bs, bw) = shiftWidth(h.bMask)
-        let (aShift, aWidth) = shiftWidth(h.aMask)
+        let rsW = shiftWidth(h.rMask)
+        let gsW = shiftWidth(h.gMask)
+        let bsW = shiftWidth(h.bMask)
+        let asW = shiftWidth(h.aMask)
 
         let npix = UInt64(h.width) * UInt64(h.height)
         let outSize = npix * 4
@@ -182,19 +193,19 @@ public class CodecBmp {
                           (UInt32(bytes[base + 3]) << 24)
                 }
 
-                let rMax = (UInt32(1) << rw) - 1
-                let gMax = (UInt32(1) << gw) - 1
-                let bMax = (UInt32(1) << bw) - 1
-                let aMax = if (aWidth > 0) { (UInt32(1) << aWidth) - 1 } else { UInt32.Max }
+                let rMax = (UInt32(1) << rsW.width) - 1
+                let gMax = (UInt32(1) << gsW.width) - 1
+                let bMax = (UInt32(1) << bsW.width) - 1
+                let aMax = if (asW.width > 0) { (UInt32(1) << asW.width) - 1 } else { UInt32.Max }
 
                 let base = Int64(dstOff + UInt64(x) * 4)
-                out[base + 0] = to8((pix >> Int64(rs)) & rMax, rw)
-                out[base + 1] = to8((pix >> Int64(gs)) & gMax, gw)
-                out[base + 2] = to8((pix >> Int64(bs)) & bMax, bw)
+                out[base + 0] = to8((pix >> Int64(rsW.shift)) & rMax, rsW.width)
+                out[base + 1] = to8((pix >> Int64(gsW.shift)) & gMax, gsW.width)
+                out[base + 2] = to8((pix >> Int64(bsW.shift)) & bMax, bsW.width)
                 out[base + 3] = if (h.aMask == 0) {
                     0xFF
                 } else {
-                    to8((pix >> Int64(aShift)) & aMax, aWidth)
+                    to8((pix >> Int64(asW.shift)) & aMax, asW.width)
                 }
                 x += 1
             }

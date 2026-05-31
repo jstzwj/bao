@@ -12,6 +12,7 @@ import bao_io.*
 import bao_path.*
 import bao_sys.*
 import bao_threading.*
+import bao_hash.*
 
 /// 单个输出文件
 public class BundleOutput {
@@ -741,20 +742,20 @@ public class CodeGenerator {
 // ============================================================================
 
 /// Chunk 哈希计算器
-// 严格翻译自: Chunk.zig:computeChunkHash
-// 使用 WyHash 对 chunk 内容计算内容哈希
+// 严格翻译自: Chunk.zig:computeChunkHash / LinkerContext.zig generateIsolatedHash
+// 使用 WyHash (final4) 对 chunk 内容计算内容哈希
 public class ChunkHash {
     /// 计算 chunk 内容的哈希值
     // 严格翻译自: Chunk.zig 中 hashChunkContent
     public static func compute(content: String): String {
-        let hash = wyhash(content)
-        return toHex(hash)
+        let hashValue = Wyhash.hash(content)
+        return toHex(hashValue)
     }
 
     /// 计算字节数组的哈希值
     public static func computeBytes(data: Array<UInt8>): String {
-        // 简化: 直接用字节数组长度做哈希
-        return compute(data.size.toString())
+        let hashValue = Wyhash.hash(data)
+        return toHex(hashValue)
     }
 
     /// 哈希文件名中的 [hash] 占位符
@@ -768,20 +769,22 @@ public class ChunkHash {
         return template.replace("[name]", name)
     }
 
-    /// 简化的 WyHash 实现
-    private static func wyhash(input: String): UInt64 {
-        var hash: UInt64 = UInt64(0x07F7DB6B)
-        for (c in input) {
-            hash = hash * UInt64(0x5BD1E995)
-            hash = hash ^ UInt64(c)
-        }
-        hash = hash ^ (hash >> 16)
-        return hash
-    }
-
     /// 将 UInt64 转为 16 字符的十六进制字符串
     private static func toHex(value: UInt64): String {
-        return "00000000"
+        let hexChars = "0123456789abcdef"
+        var sb = StringBuilder()
+        var chars = ArrayList<UInt8>()
+        var v = value
+        for (_ in 0..16) {
+            chars.add(UInt8(v & UInt64(0xF)))
+            v = v >> 4
+        }
+        var i = chars.size - 1
+        while (i >= 0) {
+            sb.append(hexChars[Int64(chars[i])])
+            i -= 1
+        }
+        return sb.toString()
     }
 }
 

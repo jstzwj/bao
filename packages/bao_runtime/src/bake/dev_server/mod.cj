@@ -1,11 +1,23 @@
 // 翻译自 Bun: src/runtime/bake/dev_server/mod.rs
 // DevServer 子模块入口。
 //
-// [KEPT] reasons:
-//   "no-pkg"       — no real package yet provides this type
-//   "deferred"     — depends on another [KEPT] type, will resolve later
-//   "forward-ref"  — forward reference to type defined in parent package
-//   "wrapper"      — thin wrapper for API compat
+// 此文件定义了 dev_server 子包的共享基础设施类型。
+// DevServer 主类型定义在父包的 dev_server.cj 中。
+//
+// 子包专用类型（dev_server/*.cj）：
+//   - assets.cj          — 资产存储
+//   - directory_watch_store.cj — 目录监视
+//   - error_report_request.cj — 错误报告请求
+//   - hmr_socket.cj      — HMR WebSocket 处理
+//   - hot_reload_event.cj — 热重载事件
+//   - incremental_graph.cj — 增量图
+//   - lifecycle.cj       — 文件监视生命周期
+//   - memory_cost.cj     — 内存成本计算
+//   - packed_map.cj      — 压缩路由映射
+//   - route_bundle.cj    — 路由 bundle
+//   - serialized_failure.cj — 序列化失败
+//   - source_map_store.cj — 源映射存储
+//   - watcher_atomics.cj — 监视器原子操作
 
 package bao_runtime.bake.dev_server
 

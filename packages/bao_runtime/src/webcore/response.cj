@@ -512,4 +512,756 @@ public enum FormatTag {
     | Double
 }
 
+// ============================================================================
+// Response — HTTP 响应对象
+// 对应 Bun: Response (Response.rs:182-953)
+// ============================================================================
+
+/// Response — HTTP 响应对象
+/// 对应 Bun: Response struct (Response.rs:182-203)
+public class Response {
+    /// 响应体 — 对应 Bun: Response.body (JsCell<Body>)
+    public var body: BodyValue
+    /// 初始化参数 — 对应 Bun: Response.init (JsCell<Init>)
+    public var `init`: ResponseInit
+    /// URL 字符串 — 对应 Bun: Response.url (JsCell<OwnedString>)
+    public var url: String
+    /// 是否重定向 — 对应 Bun: Response.redirected (Cell<bool>)
+    public var redirected: Bool
+    /// 引用计数 — 对应 Bun: Response.ref_count (Cell<u32>)
+    public var refCount: UInt32
+    /// 弱引用数据 — 对应 Bun: Response.weak_ptr_data
+    public var weakPtrData: WeakPtrData
+    /// JS 引用句柄 — 对应 Bun: Response.js_ref (JsCell<JsRef>)
+    public var jsRef: JsRef
+    /// 估计大小 — 对应 Bun: Response.reported_estimated_size (Cell<usize>)
+    public var reportedEstimatedSize: Int64
+
+    public init() {
+        body = BodyValue.Empty
+        `init` = ResponseInit()
+        url = ""
+        redirected = false
+        refCount = 1
+        weakPtrData = WeakPtrData()
+        jsRef = JsRef()
+        reportedEstimatedSize = 0
+    }
+
+    public init(`init`: ResponseInit, body: BodyValue, url: String, redirected: Bool) {
+        this.`init` = `init`
+        this.body = body
+        this.url = url
+        this.redirected = redirected
+        refCount = 1
+        weakPtrData = WeakPtrData()
+        jsRef = JsRef()
+        reportedEstimatedSize = 0
+    }
+
+    // ========================================================================
+    // 字段访问器 — 对应 Bun: Response field accessors (Response.rs:286-407)
+    // ========================================================================
+
+    /// 设置 init 参数 — 对应 Bun: Response.setInit (Response.rs:298-307)
+    public func setInit(method: HttpMethod, statusCode: UInt16, statusText: String): Unit {
+        `init`.method = method
+        `init`.statusCode = statusCode
+        `init`.statusText = statusText
+    }
+
+    /// 设置 init headers — 对应 Bun: Response.setInitHeaders (Response.rs:310-312)
+    public func setInitHeaders(headers: ?HeadersRef): Unit {
+        `init`.headers = headers
+    }
+
+    /// 获取 init status code — 对应 Bun: Response.getInitStatusCode (Response.rs:316-318)
+    public func getInitStatusCode(): UInt16 {
+        return `init`.statusCode
+    }
+
+    /// 获取 init status text — 对应 Bun: Response.getInitStatusText (Response.rs:324-326)
+    public func getInitStatusText(): String {
+        return `init`.statusText
+    }
+
+    /// 设置 URL — 对应 Bun: Response.setUrl (Response.rs:330-335)
+    public func setUrl(url: String): Unit {
+        this.url = url
+    }
+
+    /// 获取 UTF-8 URL — 对应 Bun: Response.getUtf8Url (Response.rs:338-340)
+    public func getUtf8Url(): String {
+        return url
+    }
+
+    /// 获取 URL (内部访问器) — 对应 Bun: Response.url() (Response.rs:350-352)
+    public func urlInternal(): String {
+        return url
+    }
+
+    /// 获取 init headers — 对应 Bun: Response.getInitHeaders (Response.rs:355-357)
+    public func getInitHeaders(): ?HeadersRef {
+        return `init`.headers
+    }
+
+    /// 获取可变 init headers — 对应 Bun: Response.getInitHeadersMut (Response.rs:378-380)
+    public func getInitHeadersMut(): ?HeadersRef {
+        return `init`.headers
+    }
+
+    /// 交换 init headers — 对应 Bun: Response.swapInitHeaders (Response.rs:383-385)
+    public func swapInitHeaders(): ?HeadersRef {
+        let old = `init`.headers
+        `init`.headers = None
+        return old
+    }
+
+    /// 获取 HTTP 方法 — 对应 Bun: Response.getMethod (Response.rs:388-390)
+    public func getMethod(): HttpMethod {
+        return `init`.method
+    }
+
+    /// 获取估计大小 — 对应 Bun: Response.estimatedSize (Response.rs:392-394)
+    public func estimatedSize(): Int64 {
+        return reportedEstimatedSize
+    }
+
+    /// 获取 body 值 — 对应 Bun: Response.getBodyValue (Response.rs:402-406)
+    public func getBodyValue(): BodyValue {
+        return body
+    }
+
+    /// 设置 body 值
+    public func setBodyValue(v: BodyValue): Unit {
+        body = v
+    }
+
+    /// 获取 body 长度 — 对应 Bun: Response.getBodyLen (Response.rs:415-417)
+    public func getBodyLen(): Int64 {
+        match (body) {
+            case BodyValue.Blob(b) => Int64(b.sharedView().size)
+            case BodyValue.InternalBlob(ib) => Int64(ib.bytes.size)
+            case BodyValue.WTFStringImpl(s) => 0
+            case _ => 0
+        }
+    }
+
+    // ========================================================================
+    // Getter 方法 — 对应 Bun: Response getters (Response.rs:573-684)
+    // ========================================================================
+
+    /// 获取重定向位置 — 对应 Bun: Response.redirectLocation (Response.rs:586-588)
+    public func redirectLocation(): ?String {
+        return header("location")
+    }
+
+    /// 获取指定 header — 对应 Bun: Response.header (Response.rs:590-596)
+    public func header(name: String): ?String {
+        match (`init`.headers) {
+            case Some(h) =>
+                // stub: simplified header lookup
+                return None
+            case None => return None
+        }
+    }
+
+    /// 是否成功 (200-299) — 对应 Bun: Response.isOk (Response.rs:598-601)
+    public func isOk(): Bool {
+        let code = `init`.statusCode
+        return code >= 200 && code <= 299
+    }
+
+    /// 获取 URL (JS getter) — 对应 Bun: Response.getURL (Response.rs:605-608)
+    public func getURL(global: JsGlobalObject): JsValue {
+        return JsValue(url)
+    }
+
+    /// 获取响应类型 — 对应 Bun: Response.getResponseType (Response.rs:610-616)
+    public func getResponseType(global: JsGlobalObject): JsValue {
+        if (`init`.statusCode < 200) {
+            return JsValue("error")
+        }
+        return JsValue("default")
+    }
+
+    /// 获取状态文本 — 对应 Bun: Response.getStatusText (Response.rs:618-621)
+    public func getStatusText(global: JsGlobalObject): JsValue {
+        return JsValue(`init`.statusText)
+    }
+
+    /// 获取是否重定向 — 对应 Bun: Response.getRedirected (Response.rs:623-626)
+    public func getRedirected(): JsValue {
+        return JsValue(redirected)
+    }
+
+    /// 获取 ok 状态 — 对应 Bun: Response.getOk (Response.rs:628-631)
+    public func getOk(): JsValue {
+        return JsValue(isOk())
+    }
+
+    /// 获取状态码 — 对应 Bun: Response.getStatus (Response.rs:633-636)
+    public func getStatus(): JsValue {
+        return JsValue(Float64(Int64(`init`.statusCode)))
+    }
+
+    /// 获取或创建 headers — 对应 Bun: Response.getOrCreateHeaders (Response.rs:639-660)
+    public func getOrCreateHeaders(global: JsGlobalObject): ?HeadersRef {
+        if (`init`.headers.isNone()) {
+            `init`.headers = Some(HeadersRef.createEmpty())
+            match (body) {
+                case BodyValue.Blob(blob) =>
+                    let ct = blob.contentType
+                    if (ct.size > 0) {
+                        // stub: simplified — would call headers.put(ContentType, ct)
+                        ()
+                    }
+                case _ => ()
+            }
+        }
+        return `init`.headers
+    }
+
+    /// 获取 headers (JS getter) — 对应 Bun: Response.getHeaders (Response.rs:662-664)
+    public func getHeaders(global: JsGlobalObject): JsValue {
+        let h = getOrCreateHeaders(global)
+        match (h) {
+            case Some(headers) => return headers.toJsValue(global)
+            case None => return JsValue()
+        }
+    }
+
+    /// 获取 content type — 对应 Bun: Response.getContentType (Response.rs:666-683)
+    public func getContentType(): ?String {
+        match (`init`.headers) {
+            case Some(h) =>
+                // stub: would call headers.fastGet(ContentType)
+                ()
+            case None => ()
+        }
+        match (body) {
+            case BodyValue.Blob(blob) =>
+                let ct = blob.contentType
+                if (ct.size > 0) {
+                    return Some(ct)
+                }
+            case _ => ()
+        }
+        return None
+    }
+
+    /// 获取状态码 — 对应 Bun: Response.statusCode (Response.rs:579-582)
+    public func statusCode(): UInt16 {
+        return `init`.statusCode
+    }
+
+    /// 获取 fetch headers — 对应 Bun: Response.getFetchHeaders (Response.rs:574-576)
+    public func getFetchHeaders(): ?HeadersRef {
+        return `init`.headers
+    }
+
+    // ========================================================================
+    // 克隆 — 对应 Bun: Response.doClone / cloneValue / clone (Response.rs:830-876)
+    // ========================================================================
+
+    /// 克隆 Response — 对应 Bun: Response.doClone (Response.rs:830-842)
+    public func doClone(global: JsGlobalObject): JsValue {
+        let cloned = cloneValue(global)
+        let jsWrapper = makeMaybePooled(global, cloned)
+        return jsWrapper
+    }
+
+    /// 创建可能池化的 JS 包装器 — 对应 Bun: Response.makeMaybePooled (Response.rs:850-853)
+    public static func makeMaybePooled(global: JsGlobalObject, response: Response): JsValue {
+        return response.toJs(global)
+    }
+
+    /// 克隆值 — 对应 Bun: Response.cloneValue (Response.rs:855-870)
+    public func cloneValue(global: JsGlobalObject): Response {
+        let clonedBody = BodyValue.Empty // stub: simplified — should clone body value via cached stream
+        let clonedInit = `init`.clone(global)
+        let cloned = Response(`init`: clonedInit, body: clonedBody, url: url, redirected: redirected)
+        return cloned
+    }
+
+    /// 克隆 — 对应 Bun: Response.clone (Response.rs:872-876)
+    public func clone(global: JsGlobalObject): Response {
+        return cloneValue(global)
+    }
+
+    // ========================================================================
+    // 引用计数管理 — 对应 Bun: Response.ref_ / unref / finalize / destroy
+    // (Response.rs:878-953)
+    // ========================================================================
+
+    /// 增加引用 — 对应 Bun: Response.ref_ (Response.rs:919-925)
+    public func refInc(): Unit {
+        refCount += 1
+    }
+
+    /// 减少引用 — 对应 Bun: Response.unref (Response.rs:931-941)
+    public func unref(): Unit {
+        if (refCount > 0) {
+            refCount -= 1
+        }
+        if (refCount == 0) {
+            destroy()
+        }
+    }
+
+    /// 终结 — 对应 Bun: Response.finalize (Response.rs:943-952)
+    public func finalize(): Unit {
+        jsRef.finalize()
+        unref()
+    }
+
+    /// 销毁 — 对应 Bun: Response.destroy (Response.rs:878-914)
+    public func destroy(): Unit {
+        `init` = ResponseInit()
+        body = BodyValue.Empty
+        url = ""
+        jsRef = JsRef()
+    }
+
+    // ========================================================================
+    // 格式化输出 — 对应 Bun: Response.writeFormat (Response.rs:691-828)
+    // ========================================================================
+
+    /// 格式化输出 — 对应 Bun: Response.writeFormat
+    public func writeFormat(): String {
+        let sizeStr = formatResponseSize(getBodyLen())
+        var result = "Response (${sizeStr}) {\n"
+        result += "  ok: ${isOk()},\n"
+        result += "  url: \"${url}\",\n"
+        result += "  status: ${`init`.statusCode},\n"
+        result += "  statusText: \"${`init`.statusText}\",\n"
+        result += "  headers: Headers {},\n"
+        result += "  redirected: ${redirected}\n"
+        result += "}"
+        return result
+    }
+
+    // ========================================================================
+    // 估计大小 — 对应 Bun: Response.calculateEstimatedByteSize (Response.rs:432-439)
+    // ========================================================================
+
+    /// 计算估计字节大小 — 对应 Bun: Response.calculateEstimatedByteSize
+    public func calculateEstimatedByteSize(): Unit {
+        var sz: Int64 = 0
+        sz += body.estimatedSize()
+        sz += Int64(url.size)
+        sz += Int64(`init`.statusText.size)
+        reportedEstimatedSize = sz
+    }
+
+    // ========================================================================
+    // 转换为 JsValue
+    // ========================================================================
+
+    /// 转换为 JsValue — 对应 Bun: Response.toJs
+    public func toJs(global: JsGlobalObject): JsValue {
+        calculateEstimatedByteSize()
+        let obj = JsObject()
+
+        obj.set("url", JsValue(url))
+        obj.set("status", JsValue(Float64(Int64(`init`.statusCode))))
+        obj.set("statusText", JsValue(`init`.statusText))
+        obj.set("ok", JsValue(isOk()))
+        obj.set("redirected", JsValue(redirected))
+        obj.set("type", getResponseType(global))
+
+        // headers
+        obj.set("headers", getHeaders(global))
+
+        // body methods
+        obj.set("text", JsValue("text"))
+        obj.set("json", JsValue("json"))
+        obj.set("arrayBuffer", JsValue("arrayBuffer"))
+        obj.set("blob", JsValue("blob"))
+        obj.set("formData", JsValue("formData"))
+        obj.set("bytes", JsValue("bytes"))
+
+        // clone
+        obj.set("clone", JsValue("clone"))
+
+        // body property
+        match (body) {
+            case BodyValue.Null => obj.set("body", JsValue())
+            case BodyValue.Empty => obj.set("body", JsValue())
+            case _ => obj.set("body", JsValue("body"))
+        }
+
+        obj.set("bodyUsed", JsValue(false))
+
+        return JsValue(obj)
+    }
+
+    // ========================================================================
+    // 静态工厂方法 — 对应 Bun: Response 构造函数和静态方法
+    // ========================================================================
+
+    /// 构造 JSON Response — 对应 Bun: Response.constructJson (Response.rs:954-1077)
+    public static func constructJson(global: JsGlobalObject, jsonValue: JsValue, initValue: JsValue): JsValue {
+        let response = Response()
+        response.`init`.statusCode = 200
+
+        if (!jsonValue.isUndefined() && !jsonValue.isNull()) {
+            // 验证 JSON 可序列化性
+            if (jsonValue.isUndefined() || jsonValue.isSymbol()) {
+                return JsValue("TypeError: Value is not JSON serializable")
+            }
+
+            let str = jsonValue.toString()
+            if (str.size > 0) {
+                response.body = BodyValue.InternalBlob(InternalBlob(Utf8Codec.encode(str), true))
+            }
+        }
+
+        // 处理 init 参数
+        if (!initValue.isUndefined() && !initValue.isNull()) {
+            if (initValue.isNumber()) {
+                let num = initValue.toNumber()
+                let code = UInt16(max(0.0, min(num, 65535.0)))
+                response.`init`.statusCode = code
+            } else {
+                if (initValue.isObject()) {
+                    let parsedInit = ResponseInit.`init`(global, initValue)
+                    if (parsedInit.isSome()) {
+                        response.`init` = parsedInit.getOrThrow()
+                    }
+                }
+            }
+        }
+
+        // 设置 Content-Type: application/json
+        let h = response.getOrCreateHeaders(global)
+        // stub: would set Content-Type to application/json
+
+        response.calculateEstimatedByteSize()
+        return response.toJs(global)
+    }
+
+    /// 验证重定向状态码 — 对应 Bun: Response.validateRedirectStatusCode (Response.rs:1079-1092)
+    public static func validateRedirectStatusCode(statusCode: Int64): ?UInt16 {
+        match (statusCode) {
+            case 301 => return Some(UInt16(301))
+            case 302 => return Some(UInt16(302))
+            case 303 => return Some(UInt16(303))
+            case 307 => return Some(UInt16(307))
+            case 308 => return Some(UInt16(308))
+            case _ => return None
+        }
+    }
+
+    /// 构造重定向 Response — 对应 Bun: Response.constructRedirect (Response.rs:1094-1173)
+    public static func constructRedirect(global: JsGlobalObject, urlValue: JsValue, statusValue: JsValue): JsValue {
+        let response = Response()
+        response.`init`.statusCode = 302
+
+        var urlString = ""
+        if (!urlValue.isUndefined() && !urlValue.isNull()) {
+            urlString = urlValue.toString()
+        }
+
+        // 处理状态码参数
+        if (!statusValue.isUndefined() && !statusValue.isNull()) {
+            if (statusValue.isNumber()) {
+                let code = Int64(statusValue.toNumber())
+                let validated = validateRedirectStatusCode(code)
+                if (validated.isSome()) {
+                    response.`init`.statusCode = validated.getOrThrow()
+                } else {
+                    return JsValue("RangeError: Invalid status code for redirect")
+                }
+            } else {
+                if (statusValue.isObject()) {
+                    let parsedInit = ResponseInit.`init`(global, statusValue)
+                    if (parsedInit.isSome()) {
+                        response.`init` = parsedInit.getOrThrow()
+                        let status = Int64(response.`init`.statusCode)
+                        if (status != 200) {
+                            let validated = validateRedirectStatusCode(status)
+                            if (validated.isSome()) {
+                                response.`init`.statusCode = validated.getOrThrow()
+                            } else {
+                                return JsValue("RangeError: Invalid status code for redirect")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 设置 Location header
+        let h = response.getOrCreateHeaders(global)
+        // stub: would set Location header to urlString
+
+        response.url = ""
+        return response.toJs(global)
+    }
+
+    /// 构造错误 Response — 对应 Bun: Response.constructError (Response.rs:1175-1194)
+    public static func constructError(global: JsGlobalObject): JsValue {
+        let response = Response()
+        response.`init`.statusCode = 0
+        response.body = BodyValue.Empty
+        return response.toJs(global)
+    }
+
+    /// 构造 Response — 对应 Bun: Response.constructor (Response.rs:1199-1336)
+    public static func constructResponse(global: JsGlobalObject, bodyValue: JsValue, initValue: JsValue): JsValue {
+        // 解析 init
+        var responseInit: ResponseInit
+        if (initValue.isUndefined() || initValue.isNull()) {
+            responseInit = ResponseInit()
+            responseInit.statusCode = 200
+        } else {
+            if (initValue.isObject()) {
+                let parsed = ResponseInit.`init`(global, initValue)
+                if (parsed.isSome()) {
+                    responseInit = parsed.getOrThrow()
+                } else {
+                    responseInit = ResponseInit()
+                    responseInit.statusCode = 200
+                }
+            } else {
+                return JsValue("TypeError: The provided value is not of type 'ResponseInit'")
+            }
+        }
+
+        // 解析 body
+        var responseBody: BodyValue
+        if (bodyValue.isUndefined() || bodyValue.isNull()) {
+            responseBody = BodyValue.Null
+        } else {
+            responseBody = extractBody(global, bodyValue)
+        }
+
+        // 如果 body 是 Blob 且有 content type，且 init 没有显式设置 content type
+        match (responseBody) {
+            case BodyValue.Blob(blob) =>
+                let ct = blob.contentType
+                if (ct.size > 0) {
+                    // stub: check if headers already have content-type
+                    ()
+                }
+            case _ => ()
+        }
+
+        let response = Response(`init`: responseInit, body: responseBody, url: "", redirected: false)
+        response.calculateEstimatedByteSize()
+        return response.toJs(global)
+    }
+
+    /// 从 JsValue 提取 body — 对应 Bun: body::extract
+    public static func extractBody(global: JsGlobalObject, value: JsValue): BodyValue {
+        if (value.isString()) {
+            let str = value.toString()
+            return BodyValue.InternalBlob(InternalBlob(Utf8Codec.encode(str), true))
+        }
+        if (value.isTypedArray()) {
+            let abOpt = value.asArrayBuffer(global.globalThis)
+            if (abOpt.isSome()) {
+                let ab = abOpt.getOrThrow()
+                return BodyValue.Blob(Blob(ab.bytes(), "application/octet-stream"))
+            }
+        }
+        if (value.isObject()) {
+            // 检查是否是 Blob
+            let blobOpt = Blob.fromJs(global, value)
+            if (blobOpt.isSome()) {
+                return BodyValue.Blob(blobOpt.getOrThrow())
+            }
+            // 检查是否是 ArrayBuffer
+            let abOpt2 = value.asArrayBuffer(global.globalThis)
+            if (abOpt2.isSome()) {
+                let ab = abOpt2.getOrThrow()
+                return BodyValue.Blob(Blob(ab.bytes(), "application/octet-stream"))
+            }
+        }
+        return BodyValue.Null
+    }
+}
+
+// ============================================================================
+// BodyValue — 响应体值枚举
+// 对应 Bun: body::Value (BodyValue)
+// ============================================================================
+
+public enum BodyValueTag {
+    | Used
+    | Empty
+    | Null
+    | Blob
+    | WTFStringImpl
+    | InternalBlob
+    | Error
+    | Locked
+}
+
+/// BodyValue — 响应体值
+/// 对应 Bun: body::Value
+public class BodyValue {
+    public var tag: BodyValueTag
+    public var blob: ?Blob
+    public var wtfStringImpl: ?String
+    public var internalBlob: ?InternalBlob
+    public var errorMessage: ?String
+
+    public init() {
+        tag = BodyValueTag.Empty
+        blob = None
+        wtfStringImpl = None
+        internalBlob = None
+        errorMessage = None
+    }
+
+    public static func Empty(): BodyValue {
+        let v = BodyValue()
+        v.tag = BodyValueTag.Empty
+        return v
+    }
+
+    public static func Null(): BodyValue {
+        let v = BodyValue()
+        v.tag = BodyValueTag.Null
+        return v
+    }
+
+    public static func Used(): BodyValue {
+        let v = BodyValue()
+        v.tag = BodyValueTag.Used
+        return v
+    }
+
+    public static func fromBlob(b: Blob): BodyValue {
+        let v = BodyValue()
+        v.tag = BodyValueTag.Blob
+        v.blob = Some(b)
+        return v
+    }
+
+    public static func fromInternalBlob(ib: InternalBlob): BodyValue {
+        let v = BodyValue()
+        v.tag = BodyValueTag.InternalBlob
+        v.internalBlob = Some(ib)
+        return v
+    }
+
+    public static func fromString(s: String): BodyValue {
+        let v = BodyValue()
+        v.tag = BodyValueTag.WTFStringImpl
+        v.wtfStringImpl = Some(s)
+        return v
+    }
+
+    public static func fromError(msg: String): BodyValue {
+        let v = BodyValue()
+        v.tag = BodyValueTag.Error
+        v.errorMessage = Some(msg)
+        return v
+    }
+
+    /// 是否确定是空的 — 对应 Bun: BodyValue.isDefinitelyEmpty
+    public func isDefinitelyEmpty(): Bool {
+        match (tag) {
+            case BodyValueTag.Empty => true
+            case BodyValueTag.Null => true
+            case BodyValueTag.Used => true
+            case BodyValueTag.InternalBlob =>
+                match (internalBlob) {
+                    case Some(ib) => ib.bytes.size == 0
+                    case None => true
+                }
+            case BodyValueTag.Blob =>
+                match (blob) {
+                    case Some(b) => b.size == 0
+                    case None => true
+                }
+            case BodyValueTag.WTFStringImpl =>
+                match (wtfStringImpl) {
+                    case Some(s) => s.size == 0
+                    case None => true
+                }
+            case _ => false
+        }
+    }
+
+    /// 估计大小 — 对应 Bun: BodyValue.estimatedSize
+    public func estimatedSize(): Int64 {
+        match (tag) {
+            case BodyValueTag.Blob =>
+                match (blob) {
+                    case Some(b) => b.size
+                    case None => 0
+                }
+            case BodyValueTag.InternalBlob =>
+                match (internalBlob) {
+                    case Some(ib) => Int64(ib.bytes.size)
+                    case None => 0
+                }
+            case BodyValueTag.WTFStringImpl =>
+                match (wtfStringImpl) {
+                    case Some(s) => Int64(s.size)
+                    case None => 0
+                }
+            case _ => 0
+        }
+    }
+}
+
+// ============================================================================
+// InternalBlob — Blob 内部表示 (简化版)
+// ============================================================================
+
+public class InternalBlob {
+    public var bytes: Array<UInt8>
+    public var wasString: Bool
+
+    public init() {
+        bytes = Array<UInt8>()
+        wasString = false
+    }
+
+    public init(bytes: Array<UInt8>, wasString: Bool) {
+        this.bytes = bytes
+        this.wasString = wasString
+    }
+}
+
+// ============================================================================
+// 辅助函数
+// ============================================================================
+
+/// 格式化响应大小 — 对应 Bun: bun.fmt.size
+public func formatResponseSize(bytes: Int64): String {
+    if (bytes < 1024) {
+        return "${bytes} B"
+    }
+    if (bytes < 1024 * 1024) {
+        return "${Float64(bytes) / 1024.0} KB"
+    }
+    if (bytes < 1024 * 1024 * 1024) {
+        return "${Float64(bytes) / (1024.0 * 1024.0)} MB"
+    }
+    return "${Float64(bytes) / (1024.0 * 1024.0 * 1024.0)} GB"
+}
+
+/// 创建 404 响应 — 对应 Bun: status_404 (Response.rs:1492-1494)
+public func status404(global: JsGlobalObject): Response {
+    return emptyWithStatus(global, 404)
+}
+
+/// 创建 200 响应 — 对应 Bun: status_200 (Response.rs:1496-1498)
+public func status200(global: JsGlobalObject): Response {
+    return emptyWithStatus(global, 200)
+}
+
+/// 创建指定状态码的空响应 — 对应 Bun: empty_with_status (Response.rs:1500-1512)
+public func emptyWithStatus(global: JsGlobalObject, status: UInt16): Response {
+    let `init` = ResponseInit(status)
+    let response = Response(`init`: `init`, body: BodyValue.Null, url: "", redirected: false)
+    return response
+}
+
 // ported from: src/runtime/webcore/Response.rs

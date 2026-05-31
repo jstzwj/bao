@@ -10,6 +10,7 @@ import bao_parser.*
 import bao_io.*
 import bao_path.*
 import bao_sys.*
+import bao_string.*
 
 // ============================================================================
 // Metafile 构建器
@@ -55,15 +56,17 @@ public class LegacyMetafileBuilder {
         chunk: Chunk,
         allChunks: ArrayList<Chunk>
     ): String {
-        return "{}"
+        // 委托给 MetafileBuilder.generateChunkJson
+        return MetafileBuilder.generateChunkJson(linker, chunk, allChunks)
     }
 
     public static func generate(linker: LinkerContext, chunks: ArrayList<Chunk>): String {
-        return "{\"inputs\":{},\"outputs\":{}}"
+        // 委托给 MetafileBuilder.generate
+        return MetafileBuilder.generate(linker, chunks)
     }
 
     public static func writeJSONString(sb: StringBuilder, value: String): Unit {
-        sb.append("\"\"")
+        sb.append(MetafileBuilder.jsonEncodeString(value))
     }
 }
 
@@ -138,7 +141,95 @@ public class MetafileOutput {
 
     /// 转换为 JSON
     public func toJson(): String {
-        return "{}"
+        let sb = StringBuilder()
+
+        sb.append("{\n      \"bytes\": ")
+        sb.append(bytes.toString())
+
+        // Write inputs (bytesInOutput map)
+        sb.append(",\n      \"inputs\": {")
+        var firstInput = true
+        var inputIter = inputs.iterator()
+        while (inputIter.hasNext()) {
+            let entry = inputIter.next().getOrThrow()
+            if (!firstInput) {
+                sb.append(",")
+            }
+            firstInput = false
+
+            sb.append("\n        ")
+            sb.append(MetafileBuilder.jsonEncodeString(entry.0))
+            sb.append(": {\n          \"bytesInOutput\": ")
+            sb.append(entry.1.toString())
+            sb.append("\n        }")
+        }
+        if (!firstInput) {
+            sb.append("\n      ")
+        }
+        sb.append("}")
+
+        // Write imports
+        sb.append(",\n      \"imports\": [")
+        var firstImport = true
+        for (imp in imports) {
+            if (!firstImport) {
+                sb.append(",")
+            }
+            firstImport = false
+
+            sb.append("\n        {\n          \"path\": ")
+            sb.append(MetafileBuilder.jsonEncodeString(imp.path))
+            sb.append(",\n          \"kind\": \"")
+            sb.append(imp.kind)
+            sb.append("\"")
+            if (imp.external) {
+                sb.append(",\n          \"external\": true")
+            }
+            sb.append("\n        }")
+        }
+        if (!firstImport) {
+            sb.append("\n      ")
+        }
+        sb.append("]")
+
+        // Write exports
+        sb.append(",\n      \"exports\": [")
+        var firstExport = true
+        for (exp in exports) {
+            if (!firstExport) {
+                sb.append(",")
+            }
+            firstExport = false
+            sb.append("\n        ")
+            sb.append(MetafileBuilder.jsonEncodeString(exp))
+        }
+        if (!firstExport) {
+            sb.append("\n      ")
+        }
+        sb.append("]")
+
+        // Write entryPoint if present
+        match (entryPoint) {
+            case Some(ep) =>
+                if (ep.size > 0) {
+                    sb.append(",\n      \"entryPoint\": ")
+                    sb.append(MetafileBuilder.jsonEncodeString(ep))
+                }
+            case None => ()
+        }
+
+        // Write cssBundle if present
+        match (cssBundle) {
+            case Some(css) =>
+                if (css.size > 0) {
+                    sb.append(",\n      \"cssBundle\": ")
+                    sb.append(MetafileBuilder.jsonEncodeString(css))
+                }
+            case None => ()
+        }
+
+        sb.append("\n    }")
+        return sb.toString()
     }
 }
 
@@ -167,6 +258,85 @@ public class Metafile {
 
     /// 生成完整 JSON
     public func toJson(): String {
-        return "{\"inputs\":{},\"outputs\":{}}"
+        let sb = StringBuilder()
+
+        sb.append("{\n  \"inputs\": {")
+
+        // Write inputs
+        var firstInput = true
+        var inputIter = inputs.iterator()
+        while (inputIter.hasNext()) {
+            let entry = inputIter.next().getOrThrow()
+            let inputKey = entry.0
+            let inputValue = entry.1
+
+            if (!firstInput) {
+                sb.append(",")
+            }
+            firstInput = false
+
+            sb.append("\n    ")
+            sb.append(MetafileBuilder.jsonEncodeString(inputKey))
+            sb.append(": {\n      \"bytes\": ")
+            sb.append(inputValue.bytes.toString())
+
+            // Write imports
+            sb.append(",\n      \"imports\": [")
+            var firstImport = true
+            for (imp in inputValue.imports) {
+                if (!firstImport) {
+                    sb.append(",")
+                }
+                firstImport = false
+
+                sb.append("\n        {\n          \"path\": ")
+                sb.append(MetafileBuilder.jsonEncodeString(imp.path))
+                sb.append(",\n          \"kind\": \"")
+                sb.append(imp.kind)
+                sb.append("\"")
+                if (imp.external) {
+                    sb.append(",\n          \"external\": true")
+                }
+                sb.append("\n        }")
+            }
+            if (!firstImport) {
+                sb.append("\n      ")
+            }
+            sb.append("]")
+
+            // Write format
+            if (inputValue.format.size > 0) {
+                sb.append(",\n      \"format\": \"")
+                sb.append(inputValue.format)
+                sb.append("\"")
+            }
+
+            sb.append("\n    }")
+        }
+
+        sb.append("\n  },\n  \"outputs\": {")
+
+        // Write outputs
+        var firstOutput = true
+        var outputIter = outputs.iterator()
+        while (outputIter.hasNext()) {
+            let entry = outputIter.next().getOrThrow()
+            let outputKey = entry.0
+            let outputValue = entry.1
+
+            if (!firstOutput) {
+                sb.append(",")
+            }
+            firstOutput = false
+
+            sb.append("\n    ")
+            sb.append(MetafileBuilder.jsonEncodeString(outputKey))
+            sb.append(": ")
+            sb.append(outputValue.toJson())
+        }
+
+        sb.append("\n  }\n}\n")
+
+        return sb.toString()
     }
 }

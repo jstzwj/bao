@@ -580,7 +580,8 @@ public class BunImage {
         // 工作线程的 RGBA scratch 是任务范围的，在任何 GC 观察之前释放
         let baseSize: Int64 = 128  // BunImage 对象本身的大小估算
         match (source) {
-            case ImageSource.jsBuffer | ImageSource.blob => return baseSize
+            case ImageSource.jsBuffer => return baseSize
+            case ImageSource.blob => return baseSize
             case ImageSource.owned(b) => return baseSize + Int64(b.size)
             case ImageSource.path(p) => return baseSize + Int64(p.size)
         }
@@ -601,7 +602,8 @@ public enum ImageSource {
 
     public func deinit(): Unit {
         match (this) {
-            case ImageSource.jsBuffer | ImageSource.blob => ()
+            case ImageSource.jsBuffer => ()
+            case ImageSource.blob => ()
             case ImageSource.owned(bytes) => () // bytes 由分配器释放
             case ImageSource.path(p) => ()
         }
@@ -678,18 +680,24 @@ public enum ImageFilter {
     | nearest
     | box
     | bilinear
-    | hamming
     | lanczos3
     | mitchell
+    | cubic
+    | lanczos2
+    | mks2013
+    | mks2021
 
     public static func fromString(s: String): ImageFilter {
         let lower = s.toAsciiLower()
         if (lower == "nearest") { return nearest }
         if (lower == "box") { return box }
-        if (lower == "bilinear") { return bilinear }
-        if (lower == "hamming") { return hamming }
+        if (lower == "bilinear" || lower == "linear") { return bilinear }
         if (lower == "lanczos3") { return lanczos3 }
         if (lower == "mitchell") { return mitchell }
+        if (lower == "cubic") { return cubic }
+        if (lower == "lanczos2") { return lanczos2 }
+        if (lower == "mks2013") { return mks2013 }
+        if (lower == "mks2021") { return mks2021 }
         return lanczos3
     }
 }
@@ -724,7 +732,7 @@ public class EncodeOptions {
     public var compressionLevel: Int8 = -1
     public var palette: Bool = false
     public var colors: UInt16 = 256
-    public var dither: Bool = true
+    public var dither: Bool = false
     public var progressive: Bool = false
 
     public init() {}
@@ -843,7 +851,11 @@ public class BlobReadChain {
             case ReadBytesResult.ok(bytes) =>
                 // 第一个解析器获胜: 将源交换为 .owned
                 // 后续解析器释放冗余读取的字节
-                if (match (image.source) { case ImageSource.blob => true case _ => false }) {
+                let isBlobSource = match (image.source) {
+                    case ImageSource.blob => true
+                    case _ => false
+                }
+                if (isBlobSource) {
                     image.source.deinit()
                     image.source = ImageSource.owned(bytes)
                 }
@@ -917,7 +929,11 @@ public class PipelineTask {
         // 2. 仅头部的 metadata 快速路径
         //    Sharp 仅解析 IHDR/SOF/VP8 头部; 我们过去先解码完整 RGBA 缓冲区
         //    (在 1920x1080 PNG 上慢 ~70x)。EXIF 方向仅交换报告的维度, 不涉及像素。
-        if (match (this.kind) { case PipelineTaskKind.metadata => true case _ => false }) {
+        let isMeta = match (this.kind) {
+            case PipelineTaskKind.metadata => true
+            case _ => false
+        }
+        if (isMeta) {
             // if (codecs.probe(input, this.maxPixels)) |p| {
             //     var w = p.width
             //     var h = p.height
@@ -974,14 +990,22 @@ public class PipelineTask {
         //    }
 
         // 7. metadata 二次检查 (HEIC/AVIF 通过完整解码到达此处)
-        if (match (this.kind) { case PipelineTaskKind.metadata => true case _ => false }) {
+        let isMeta2 = match (this.kind) {
+            case PipelineTaskKind.metadata => true
+            case _ => false
+        }
+        if (isMeta2) {
             // this.result = PipelineResult.meta(MetaResult(
             //     w: decoded.width, h: decoded.height, format: srcFormat))
             return
         }
 
         // 8. 占位符
-        if (match (this.kind) { case PipelineTaskKind.placeholder => true case _ => false }) {
+        let isPlaceholder = match (this.kind) {
+            case PipelineTaskKind.placeholder => true
+            case _ => false
+        }
+        if (isPlaceholder) {
             // BAO_STUB: decoded is not yet available, placeholder stub
             this.result = PipelineResult.meta
             return
@@ -1024,12 +1048,12 @@ public class PipelineTask {
                 let bytes = enc.bytes
                 let jsValue = match (deliver) {
                     case DeliverKind.uint8array =>
-                        JsArrayBuffer.create(globalObj, bytes.map { b => UInt8(b) }, JSType.Uint8Array)
+                        JsArrayBuffer.create(globalObj, Array<UInt8>(bytes.size, { i => UInt8(bytes[i]) }), JSType.Uint8Array)
                     case DeliverKind.buffer =>
-                        JsArrayBuffer.createBuffer(globalObj, bytes.map { b => UInt8(b) })
+                        JsArrayBuffer.createBuffer(globalObj, Array<UInt8>(bytes.size, { i => UInt8(bytes[i]) }))
                     case DeliverKind.blob =>
                         // Blob 需要创建 Blob 对象并设置 content type
-                        JsArrayBuffer.createBuffer(globalObj, bytes.map { b => UInt8(b) })
+                        JsArrayBuffer.createBuffer(globalObj, Array<UInt8>(bytes.size, { i => UInt8(bytes[i]) }))
                     case DeliverKind.base64 =>
                         // Base64 编码: 将字节转为 base64 字符串
                         let encoded = base64Encode(bytes)
@@ -1140,7 +1164,11 @@ public class PipelineTask {
         } else {
             UInt32(clampU64(UInt64(UInt64(r.w) * UInt64(sh) / UInt64(sw)), UInt64(1), UInt64(0x3FFFF)))
         }
-        if (match (r.fit) { case ImageFit.inside => true case _ => false }) {
+        let isInsideFit = match (r.fit) {
+            case ImageFit.inside => true
+            case _ => false
+        }
+        if (isInsideFit) {
             // 缩小框以保持源的纵横比并使两侧都适合。(Sharp 的 fit:'inside')
             let sx = Float64(w) / Float64(sw)
             let sy = Float64(h) / Float64(sh)
@@ -1158,19 +1186,22 @@ public class PipelineTask {
     /// 对应 Bun: PipelineTask.applyOrientation
     static func applyOrientation(d: DecodedImage, orient: ExifOrientation): Unit {
         let t = orient.transform()
-        if (t[0]) {
+        let doFlop = t[0]
+        let doFlip = t[1]
+        let rotDegrees = t[2]
+        if (doFlop) {
             // flop (水平镜像)
             // val next = Codecs.flip(d.rgba, d.width, d.height, true)
             // 释放 d.rgba; d.rgba = next.getOrThrow()
         }
-        if (t[1]) {
+        if (doFlip) {
             // flip (垂直镜像)
             // val next = Codecs.flip(d.rgba, d.width, d.height, false)
             // 释放 d.rgba; d.rgba = next.getOrThrow()
         }
-        if (t[2] != 0) {
+        if (rotDegrees != 0) {
             // 旋转
-            // val next = Codecs.rotate(d.rgba, d.width, d.height, t[2])
+            // val next = Codecs.rotate(d.rgba, d.width, d.height, rotDegrees)
             // 释放 d.rgba
             // d.rgba = next.getOrThrow().rgba
             // d.width = next.getOrThrow().width

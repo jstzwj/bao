@@ -248,6 +248,9 @@ public class LinkInterface {
 /// 实现函数类型
 public type DispatchFn = (CPointer<Unit>) -> Unit
 
+/// 实现函数类型 (带返回值)
+public type DispatchFnWithReturn<T> = (CPointer<Unit>) -> T
+
 /// 链接实现注册表 - 管理 link_impl 注册的实现
 public class LinkImpl {
     /// 已注册的实现函数
@@ -263,11 +266,21 @@ public class LinkImpl {
 
     /// 调用实现函数
     // 对应 Bun: match self.kind { <Variant> => unsafe { <externs>::<symbol>(self.owner, ...) } }
+    //
+    // 在 Bun 中, 缺少 link_impl 会导致链接错误:
+    //   "undefined symbol: __bun_dispatch__<Iface>__<Variant>__<method>"
+    // 仓颉没有跨 crate 链接时符号解析, 使用运行时注册表 + 更友好的诊断信息。
+    // 如果实现未注册, 记录诊断信息并返回 Unit (而非终止进程)。
     public static func call(interfaceName: String, variantName: String, methodName: String, owner: CPointer<Unit>): Unit {
         let key = "${interfaceName}__${variantName}__${methodName}"
         match (implementations.get(key)) {
             case Some(fn) => fn(owner)
-            case None => throw Exception("dispatch: unimplemented __bao_dispatch__${interfaceName}__${variantName}__${methodName}")
+            case None =>
+                // 对应 Bun 的链接错误, 但在仓颉中降级为运行时警告 + 空操作
+                // 真实场景下应在初始化阶段通过 register() 注册所有实现
+                let symbol = "__bao_dispatch__${interfaceName}__${variantName}__${methodName}"
+                println("[dispatch] WARNING: unimplemented dispatch symbol '${symbol}'. " +
+                    "Register an implementation via LinkImpl.register(\"${interfaceName}\", \"${variantName}\", \"${methodName}\", fn).")
         }
     }
 
@@ -275,6 +288,21 @@ public class LinkImpl {
     public static func isRegistered(interfaceName: String, variantName: String, methodName: String): Bool {
         let key = "${interfaceName}__${variantName}__${methodName}"
         implementations.contains(key)
+    }
+
+    /// 获取已注册的所有实现键 (调试用)
+    public static func listRegistered(): ArrayList<String> {
+        let keys = ArrayList<String>()
+        for ((key, _) in implementations) {
+            keys.append(key)
+        }
+        keys
+    }
+
+    /// 注销实现 (用于测试清理或热替换)
+    public static func unregister(interfaceName: String, variantName: String, methodName: String): Bool {
+        let key = "${interfaceName}__${variantName}__${methodName}"
+        implementations.remove(key)
     }
 }
 

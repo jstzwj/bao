@@ -467,3 +467,56 @@ private func arrayStartsWith(arr: Array<Byte>, prefix: Array<Byte>): Bool {
 public class NodeFallbacks {
     public static let ImportPath = "node:"
 }
+
+// ============================================================================
+// 共享辅助类型 (被多个 linker 文件引用)
+// ============================================================================
+
+/// 字符串拼接器 (通用版本, 用于 JS/CSS 后处理)
+// 严格翻译自: bun_core.string_joiner.StringJoiner
+public class StringJoiner {
+    private var parts: ArrayList<String>
+
+    public init() {
+        parts = ArrayList<String>()
+    }
+
+    public func pushStatic(s: String): Unit {
+        parts.append(s)
+    }
+
+    public func push(s: String): Unit {
+        parts.append(s)
+    }
+
+    public func ensureNewlineAtEnd(): Unit {
+        if (parts.size > 0) {
+            let last = parts[parts.size - 1]
+            if (!last.endsWith("\n")) {
+                parts.append("\n")
+            }
+        }
+    }
+
+    public func toString(): String {
+        var result = ""
+        for (part in parts) {
+            result = result + part
+        }
+        return result
+    }
+}
+
+/// 中间输出
+public class IntermediateOutput {
+    public var isPieces: Bool
+
+    public init() {
+        isPieces = false
+    }
+}
+
+/// Source map (简化)
+public class SourceMap {
+    public init() {}
+}

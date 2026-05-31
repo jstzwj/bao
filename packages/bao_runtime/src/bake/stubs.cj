@@ -44,8 +44,6 @@ import bao_options.LoaderMap
 import bao_options.DotEnvBehavior
 import bao_options.SourceMapMode
 import bao_path.*
-import bao_runtime.bake.dev_server.SerializedFailure
-import bao_runtime.bake.dev_server.HmrSocket
 
 // ============================================================================
 // Types imported from real packages (replaces previous local definitions):

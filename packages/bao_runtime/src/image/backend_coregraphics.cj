@@ -174,7 +174,12 @@ public class BackendCoreGraphics {
     /// vImage 缩放
     public static func scale(src: Array<UInt8>, sw: UInt32, sh: UInt32, dw: UInt32, dh: UInt32,
         filter: Filter): ?Array<UInt8> {
-        if (match (filter) { case Filter.lanczos3 => false case _ => true }) { return None }
+        // 只有 lanczos3 支持 vImage 缩放
+        let isLanczos3 = match (filter) {
+            case Filter.lanczos3 => true
+            case _ => false
+        }
+        if (!isLanczos3) { return None }
 
         let outLen = UInt64(dw) * UInt64(dh) * 4
         var out = Array<UInt8>(Int64(outLen), { _: Int64 => 0 })

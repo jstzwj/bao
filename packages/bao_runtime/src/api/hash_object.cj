@@ -6,6 +6,7 @@ package bao_runtime.api
 
 import bao_jsc.*
 import bao_zlib_sys.*
+import bao_hash.*
 
 // ============================================================================
 // HashObject — 非加密哈希函数集合
@@ -383,16 +384,7 @@ public class HashObject {
     /// Wyhash — 默认哈希算法 (64-bit)
     /// 对应 Zig: std.hash.Wyhash.hash(seed, bytes)
     private static func wyhashCompute(seed: UInt64, input: Array<UInt8>): UInt64 {
-        // 使用 FNV-1a 作为占位实现; 最终应使用 native wyhash 绑定
-        var hash = seed
-        if (hash == UInt64(0)) {
-            hash = 0xcbf29ce484222325u64
-        }
-        for (b in input) {
-            hash = hash ^ UInt64(b)
-            hash = hash * UInt64(0x100000001b3)
-        }
-        return hash
+        return Wyhash.hashWithSeed(input, seed)
     }
 
     /// Adler-32 校验和
@@ -442,98 +434,35 @@ public class HashObject {
 
     /// CityHash 32-bit
     /// 对应 Zig: std.hash.CityHash32.hash(seed, bytes)
+    /// 注意: CityHash32 不使用 seed, JS 端 seed 被忽略
     private static func cityHash32Compute(seed: UInt32, input: Array<UInt8>): UInt32 {
-        // 简化实现: 使用 FNV-1a 32-bit
-        var hash = seed
-        if (hash == UInt32(0)) { hash = UInt32(0x811c9dc5) }
-        for (b in input) {
-            hash = hash ^ UInt32(b)
-            hash = hash * UInt32(0x01000193)
-        }
-        return hash
+        // CityHash32 不使用 seed (Bun: "no seed; the JS seed is ignored")
+        return CityHash32.hash(input)
     }
 
     /// CityHash 64-bit
-    /// 对应 Zig: std.hash.CityHash64.hash(seed, bytes)
+    /// 对应 Zig: std.hash.CityHash64.hash_with_seed(input, seed)
     private static func cityHash64Compute(seed: UInt64, input: Array<UInt8>): UInt64 {
-        // 简化实现: 使用 FNV-1a 64-bit
-        var hash = seed
-        if (hash == UInt64(0)) { hash = 0xcbf29ce484222325u64 }
-        for (b in input) {
-            hash = hash ^ UInt64(b)
-            hash = hash * UInt64(0x100000001b3)
-        }
-        return hash
+        return CityHash64.hashWithSeed(input, seed)
     }
 
     /// xxHash 32-bit
     /// 对应 Zig: std.hash.XxHash32.hash(seed, bytes)
     private static func xxHash32Compute(seed: UInt32, input: Array<UInt8>): UInt32 {
-        // 简化实现
-        if (input.size == 0) {
-            return seed
-        }
-        var h32 = seed + UInt32(0x9e3779b1) + UInt32(input.size) * UInt32(0x85ebca77)
-        // 一次处理 4 字节
-        var i: Int64 = 0
-        while (i + 4 <= Int64(input.size)) {
-            var k: UInt32 = UInt32(input[Int64(i)])
-            k = k | (UInt32(input[Int64(i + 1)]) << Int64(8))
-            k = k | (UInt32(input[Int64(i + 2)]) << Int64(16))
-            k = k | (UInt32(input[Int64(i + 3)]) << Int64(24))
-            h32 = h32 + k * UInt32(0x85ebca77)
-            h32 = (h32 << Int64(13)) | (h32 >> Int64(19))
-            h32 = h32 * UInt32(0x9e3779b1)
-            i += 4
-        }
-        // 尾部处理
-        // avalanche
-        h32 = h32 ^ (h32 >> Int64(16))
-        h32 = h32 * UInt32(0x85ebca77)
-        h32 = h32 ^ (h32 >> Int64(13))
-        h32 = h32 * UInt32(0x9e3779b1)
-        h32 = h32 ^ (h32 >> Int64(16))
-        return h32
+        return XxHash32.hashWithSeed(input, seed)
     }
 
     /// xxHash 64-bit
     /// 对应 Zig: std.hash.XxHash64.hash(seed, bytes)
     private static func xxHash64Compute(seed: UInt64, input: Array<UInt8>): UInt64 {
-        // 简化实现
-        if (input.size == 0) {
-            return seed
-        }
-        var h64 = seed + 0x9e3779b97f4a7c15u64
-        // 一次处理 8 字节
-        var i: Int64 = 0
-        while (i + 8 <= Int64(input.size)) {
-            var k: UInt64 = UInt64(input[Int64(i)])
-            k = k | (UInt64(input[Int64(i + 1)]) << Int64(8))
-            k = k | (UInt64(input[Int64(i + 2)]) << Int64(16))
-            k = k | (UInt64(input[Int64(i + 3)]) << Int64(24))
-            k = k | (UInt64(input[Int64(i + 4)]) << Int64(32))
-            k = k | (UInt64(input[Int64(i + 5)]) << Int64(40))
-            k = k | (UInt64(input[Int64(i + 6)]) << Int64(48))
-            k = k | (UInt64(input[Int64(i + 7)]) << Int64(56))
-            h64 = h64 + k * 0x9e3779b97f4a7c15u64
-            h64 = (h64 << Int64(31)) | (h64 >> Int64(33))
-            h64 = h64 * UInt64(0x85ebca77)
-            i += 8
-        }
-        // avalanche
-        h64 = h64 ^ (h64 >> Int64(33))
-        h64 = h64 * 0xff51afd7ed558ccdu64
-        h64 = h64 ^ (h64 >> Int64(33))
-        h64 = h64 * 0xc4ceb9fe1a85ec53u64
-        h64 = h64 ^ (h64 >> Int64(33))
-        return h64
+        return XxHash64.hashWithSeed(input, seed)
     }
 
     /// XXH3 — 64-bit
     /// 对应 Zig: std.hash.XxHash3.hash(seed, bytes)
+    /// 使用 bao_hash 中的 XxHash3 标量实现
     private static func xxHash3Compute(seed: UInt64, input: Array<UInt8>): UInt64 {
-        // 简化实现: 退化为 xxHash64
-        xxHash64Compute(seed & UInt64(0xFFFFFFFF), input)
+        return XxHash3.hashWithSeed(input, seed)
     }
 
     /// MurmurHash2 32-bit
@@ -655,8 +584,7 @@ public class HashObject {
     /// RapidHash
     /// 对应 Zig: bun.deprecated.RapidHash.hash(seed, bytes)
     private static func rapidhashCompute(seed: UInt64, input: Array<UInt8>): UInt64 {
-        // 简化实现: 使用 wyhash 变体
-        wyhashCompute(seed, input)
+        return RapidHash.hashWithSeed(input, seed)
     }
 }
 

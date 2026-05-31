@@ -37,14 +37,14 @@ public enum ExifOrientation {
 
     public static func fromValue(v: UInt8): ?ExifOrientation {
         match (v) {
-            case 1 => normal
-            case 2 => flop
-            case 3 => rotate180
-            case 4 => flip
-            case 5 => flopRotate90
-            case 6 => rotate90
-            case 7 => flopRotate270
-            case 8 => rotate270
+            case 1 => Some(normal)
+            case 2 => Some(flop)
+            case 3 => Some(rotate180)
+            case 4 => Some(flip)
+            case 5 => Some(flopRotate90)
+            case 6 => Some(rotate90)
+            case 7 => Some(flopRotate270)
+            case 8 => Some(rotate270)
             case _ => None
         }
     }

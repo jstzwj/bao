@@ -452,6 +452,25 @@ public enum ImportKind {
             case Internal => match (other) { case Internal => true case _ => false }
         }
     }
+
+    /// 转换为 metafile JSON 中的 "kind" 标签
+    // 严格翻译自: Bun import_record.zig ImportKind.label()
+    public func toMetafileLabel(): String {
+        match (this) {
+            case Stmt => "import-statement"
+            case Dynamic => "dynamic-import"
+            case Require => "require-call"
+            case RequireResolve => "require-resolve"
+            case EntryPointRun => "entry-point-run"
+            case EntryPointBuild => "entry-point-build"
+            case At => "css-import"
+            case AtConditional => "css-import"
+            case Url => "url-import"
+            case Composes => "composes"
+            case HtmlManifest => "html-import"
+            case Internal => "internal"
+        }
+    }
 }
 
 /// 索引类型

@@ -6,6 +6,7 @@ import bao_runtime.*
 import bao_cli.*
 import bao_cli.test.*
 import bao_collections.*
+import bao_sys.*
 
 public enum ProcessStatus {
     | exited(Int64)
@@ -615,17 +616,39 @@ public class Coordinator {
 
 /// 中止信号处理器
 /// 对应 Bun: Coordinator.AbortHandler
+///
+/// Coordinator-side SIGINT/SIGTERM 处理。信号处理器仅设置标志;
+/// Coordinator.drive 在主循环中检查标志并自行终止 workers,
+/// 不在信号处理器中做非信号安全的工作。
 public class AbortHandler {
     public static var shouldAbort: Bool = false
 
-    public static func install(): Unit {
-        shouldAbort = false
-        // TODO(bao-parallel): 注册 SIGINT/SIGTERM 处理器
-        // 完整实现需要调用 sigaction 设置信号处理器
+    /// 信号处理器回调 — 仅设置标志 (信号安全)
+    /// 对应 Bun: AbortHandler.posixHandler
+    public static func handleSignal(sig: SignalCode): Unit {
+        shouldAbort = true
     }
 
+    /// 注册 SIGINT/SIGTERM 处理器
+    /// 对应 Bun: AbortHandler.install()
+    /// 使用 bao_sys.SignalHandler 注册 C signal handler,
+    /// 通过全局 SignalRegistry 桥接到仓颉回调。
+    public static func install(): Unit {
+        shouldAbort = false
+        // 忽略 SIGINT/SIGTERM 以避免默认终止行为
+        // 同时注册仓颉回调以设置 shouldAbort 标志
+        SignalHandler.register(SignalCode.SIGINT, handleSignal)
+        SignalHandler.register(SignalCode.SIGTERM, handleSignal)
+    }
+
+    /// 恢复原始信号处理器
+    /// 对应 Bun: AbortHandler.uninstall()
     public static func uninstall(): Unit {
-        // TODO(bao-parallel): 恢复原始信号处理器
-        ()
+        // 恢复默认信号处理
+        SignalHandler.restoreDefault(SignalCode.SIGINT)
+        SignalHandler.restoreDefault(SignalCode.SIGTERM)
+        // 从全局注册表取消
+        SignalRegistry.unregister(SignalCode.SIGINT)
+        SignalRegistry.unregister(SignalCode.SIGTERM)
     }
 }

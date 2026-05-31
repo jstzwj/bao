@@ -31,8 +31,6 @@ import bao_core.AllocationScope
 import bao_core.ArenaAllocator
 import bao_core.DevAllocator
 import bao_collections.ArrayList
-import bao_runtime.bake.dev_server.SerializedFailure
-import bao_runtime.bake.dev_server.HmrSocket
 
 // ============================================================================
 // 子模块导入
@@ -1407,7 +1405,927 @@ public class DevServer {
     /// 插件解析失败回调
     /// 对应 Bun: pub fn onPluginsRejected(dev)
     public func onPluginsRejected(): Unit {
-        // 标记插件状态为错误
+        pluginState = PluginState.err
+        // 中止所有排队的请求
+        var node = nextBundle.requests.first
+        while (let Some(n) <- node) {
+            n.data.abort()
+            n.data.deref()
+            node = n.next
+        }
+        nextBundle.routeQueue.clearRetainingCapacity()
+        // TODO: 允许从此状态恢复
+    }
+
+    // ========================================================================
+    // Bundle 完成处理
+    // ========================================================================
+
+    /// Bundle 完成后处理：索引、HMR、路由更新
+    /// 对应 Bun: pub fn finalizeBundle(dev, bv2, result)
+    public func finalizeBundle(result: DevServerOutput): Unit {
+        assert(magic == Magic.valid)
+        var hadSentHmrEvent = false
+
+        // 清理当前 bundle
+        var currentBundle = currentBundle.getOrThrow()
+
+        defer({
+            currentBundle.promise.deinitIdempotently()
+            this.currentBundle = Option<CurrentBundle>.None
+            log.clearAndFree()
+
+            // 测试同步信号
+            if (testingBatchEvents == TestingBatchEvents.enable_after_bundle) {
+                testingBatchEvents = TestingBatchEvents.enabled(TestingBatch())
+                publish(HmrTopic.testing_watch_synchronization,
+                    [MessageId.testing_watch_synchronization.char(), 0u8], Opcode.binary)
+            } else {
+                publish(HmrTopic.testing_watch_synchronization,
+                    [MessageId.testing_watch_synchronization.char(),
+                     if (hadSentHmrEvent) { 4u8 } else { 3u8 }], Opcode.binary)
+            }
+
+            startNextBundleIfPresent()
+        })
+
+        graphSafetyLock.lock()
+        defer(graphSafetyLock.unlock())
+
+        incrementalResult.reset()
+
+        // 通知增量图重置
+        clientGraph.reset()
+        serverGraph.reset()
+
+        generation += 1
+        if (currentBundle.hadReloadEvent) {
+            bundlesSinceLastError += 1
+        } else {
+            bundlesSinceLastError = 0
+        }
+
+        // 处理失败的入口点
+        if (incrementalResult.failuresAdded.items.size > 0) {
+            bundlesSinceLastError = 0
+            hadSentHmrEvent = true
+        }
+
+        indexFailures()
+
+        clientGraph.ensureStaleBitCapacity(false)
+        serverGraph.ensureStaleBitCapacity(false)
+
+        // 构建热更新 payload
+        let hotUpdateSubscribers = numSubscribers(HmrTopic.hot_update)
+        let willHearHotUpdate = hotUpdateSubscribers > 0
+
+        var hotUpdatePayload = ArrayList<Byte>()
+        hotUpdatePayload.append(MessageId.hot_update.char())
+
+        // 跟踪受影响的路由
+        if (willHearHotUpdate && currentBundle.hadReloadEvent &&
+            (incrementalResult.frameworkRoutesAffected.items.size +
+                incrementalResult.htmlRoutesHardAffected.items.size) > 0 &&
+            bundlingFailures.count() == 0) {
+
+            // 发送受影响的路由 ID 列表
+            for (entry in incrementalResult.frameworkRoutesAffected.items) {
+                // 框架路由通过 bundle 索引标识
+                writeInt32LE(hotUpdatePayload, Int32(entry.routeIndex.value))
+            }
+        }
+        writeInt32LE(hotUpdatePayload, Int32(-1))
+
+        // 发送 CSS 变更
+        if (willHearHotUpdate) {
+            // CSS 更新数量
+            writeInt32LE(hotUpdatePayload, Int32(0))
+        }
+
+        // 发布热更新
+        if (willHearHotUpdate && (clientGraph.currentChunkLen > 0 || result.cssChunkCount > 0)) {
+            publish(HmrTopic.hot_update, hotUpdatePayload.items.toArray(), Opcode.binary)
+            hadSentHmrEvent = true
+        }
+
+        // 发布错误变更
+        if (incrementalResult.failuresAdded.items.size > 0) {
+            var errorPayload = ArrayList<Byte>()
+            errorPayload.append(MessageId.errors.char())
+            writeInt32LE(errorPayload, Int32(incrementalResult.failuresRemoved.items.size))
+            for (removed in incrementalResult.failuresRemoved.items) {
+                writeInt32LE(errorPayload, Int32(0))
+            }
+            publish(HmrTopic.errors, errorPayload.items.toArray(), Opcode.binary)
+            hadSentHmrEvent = true
+        } else if (incrementalResult.failuresRemoved.items.size > 0) {
+            var errorPayload = ArrayList<Byte>()
+            errorPayload.append(MessageId.errors.char())
+            writeInt32LE(errorPayload, Int32(incrementalResult.failuresRemoved.items.size))
+            publish(HmrTopic.errors, errorPayload.items.toArray(), Opcode.binary)
+        }
+
+        // 处理请求完成
+        graphSafetyLock.unlock()
+
+        // 将所有延迟的路由设为 .loaded 状态
+        var requestNode = currentBundle.requests.first
+        while (let Some(n) <- requestNode) {
+            let rb = routeBundlePtr(n.data.routeBundleIndex)
+            rb.serverState = RouteBundleState.loaded
+            requestNode = n.next
+        }
+
+        // 处理排队的请求
+        requestNode = currentBundle.requests.first
+        while (let Some(n) <- requestNode) {
+            let req = n.data
+            defer(req.deref())
+            let rb = routeBundlePtr(req.routeBundleIndex)
+            rb.serverState = RouteBundleState.loaded
+
+            match (req.handler) {
+                case DeferredRequestHandler.aborted => ()
+                case DeferredRequestHandler.serverHandler(saved) =>
+                    onFrameworkRequestWithBundle(req.routeBundleIndex,
+                        SavedRequestUnion.saved(saved), saved.response)
+                case DeferredRequestHandler.bundledHtmlPage(ram) =>
+                    onHtmlRequestWithBundle(req.routeBundleIndex, ram.response, ram.method)
+            }
+            requestNode = n.next
+        }
+
+        graphSafetyLock.lock()
+    }
+
+    // ========================================================================
+    // 下一个 Bundle 链式处理
+    // ========================================================================
+
+    /// 如果有待处理的 bundle，立即启动
+    /// 对应 Bun: fn startNextBundleIfPresent(dev)
+    public func startNextBundleIfPresent(): Unit {
+        assert(magic == Magic.valid)
+        assert(currentBundle.isNone())
+        emitVisualizerMessageIfNeeded()
+
+        // 如果有待处理的请求，启动下一个 bundle
+        if (nextBundle.reloadEvent.isSome() || nextBundle.requests.first.isSome() ||
+            nextBundle.promise.strong.hasValue()) {
+            let isReload = nextBundle.reloadEvent.isSome()
+            let timer = if (isReload) {
+                let event = nextBundle.reloadEvent.getOrThrow()
+                nextBundle.reloadEvent = Option<HotReloadEvent>.None
+                event.timer
+            } else {
+                Timer.start()
+            }
+
+            var entryPoints = EntryPointList.empty
+            defer(entryPoints.deinit(allocator()))
+
+            // 为排队的路由添加入口点
+            for (routeBundleIndex in nextBundle.routeQueue.keys()) {
+                let rb = routeBundlePtr(routeBundleIndex)
+                rb.serverState = RouteBundleState.bundling
+                appendRouteEntryPointsIfNotStale(entryPoints, allocator(), routeBundleIndex)
+            }
+
+            if (entryPoints.set.count() > 0) {
+                startAsyncBundle(entryPoints, isReload, timer)
+            }
+
+            nextBundle.routeQueue.clearRetainingCapacity()
+        }
+    }
+
+    // ========================================================================
+    // 文件监视回调
+    // ========================================================================
+
+    /// 当文件发生变化时由 watcher 线程调用
+    /// 对应 Bun: pub fn onFileUpdate(dev, events, changed_files, watchlist)
+    public func onFileUpdate(events: Array<WatcherEvent>, changedFiles: Array<String>, watchlist: Any): Unit {
+        assert(magic == Magic.valid)
+
+        let event = watcherAtomics.watcherAcquireEvent()
+        defer(watcherAtomics.watcherReleaseAndSubmitEvent(event))
+
+        for (ev in events) {
+            match (ev.kind) {
+                case WatcherEventKind.file => {
+                    if (ev.op.delete || ev.op.rename) {
+                        // 文件被删除或重命名
+                    }
+                    event.appendFile(allocator(), ev.filePath)
+                }
+                case WatcherEventKind.directory => {
+                    event.appendDir(allocator(), ev.filePath, ev.subPath)
+                }
+            }
+        }
+    }
+
+    /// 当 watcher 遇到错误时调用
+    /// 对应 Bun: pub fn onWatchError(dev, err)
+    public func onWatchError(err: SystemError): Unit {
+        if (err.path.size > 0) {
+            Output.errGeneric("failed to watch ${err.path} for hot-reloading")
+        } else {
+            Output.errGeneric("failed to watch files for hot-reloading")
+        }
+        Output.warn("The development server is still running, but hot-reloading is disabled until a restart.")
+    }
+
+    // ========================================================================
+    // 解析失败处理
+    // ========================================================================
+
+    /// 处理解析任务失败
+    /// 对应 Bun: pub fn handleParseTaskFailure(dev, err, graph, abs_path, log, bv2)
+    public func handleParseTaskFailure(err: Exception, graph: Graph, absPath: String, log: Log): Unit {
+        graphSafetyLock.lock()
+        defer(graphSafetyLock.unlock())
+
+        if (err.message == "FileNotFound" || err.message == "ModuleNotFound") {
+            // 文件被删除的特殊情况
+            match (graph) {
+                case Graph.server | Graph.ssr => serverGraph.onFileDeleted(absPath)
+                case Graph.client => clientGraph.onFileDeleted(absPath)
+            }
+        } else {
+            match (graph) {
+                case Graph.server => serverGraph.insertFailureByPath(absPath, log, false)
+                case Graph.ssr => serverGraph.insertFailureByPath(absPath, log, true)
+                case Graph.client => clientGraph.insertFailureByPath(absPath, log, false)
+            }
+        }
+    }
+
+    /// 获取解析失败的日志
+    /// 对应 Bun: pub fn getLogForResolutionFailures(dev, abs_path, graph)
+    public func getLogForResolutionFailures(absPath: String, graph: Graph): Log {
+        assert(currentBundle.isSome())
+        let cb = currentBundle.getOrThrow()
+
+        graphSafetyLock.lock()
+        defer(graphSafetyLock.unlock())
+
+        let owner: UInt64 = match (graph) {
+            case Graph.client => UInt64(clientGraph.insertStale(absPath, false).value)
+            case Graph.server | Graph.ssr => UInt64(serverGraph.insertStale(absPath, false).value)
+        }
+
+        return Log()
+    }
+
+    // ========================================================================
+    // 文件缓存检查
+    // ========================================================================
+
+    /// 检查文件是否已缓存（不需要重新 bundle）
+    /// 对应 Bun: pub fn isFileCached(dev, path, side)
+    public func isFileCached(path: String, side: Side): ?CacheEntry {
+        // 桶文件必须始终重新解析
+        if (barrelFilesWithDeferrals.contains(path)) {
+            return None
+        }
+
+        graphSafetyLock.lock()
+        defer(graphSafetyLock.unlock())
+
+        let g = match (side) {
+            case Side.client => clientGraph
+            case Side.server | Side.ssr => serverGraph
+        }
+
+        let index = g.bundledFilesGetIndex(path)
+        if (let Some(idx) <- index) {
+            if (!g.staleFilesIsSet(idx)) {
+                return CacheEntry(fileKind: g.getFileKindByIndex(idx))
+            }
+        }
+        return None
+    }
+
+    // ========================================================================
+    // 路由 bundle 注册
+    // ========================================================================
+
+    /// 获取或创建路由 bundle 索引
+    /// 对应 Bun: fn getOrPutRouteBundle(dev, route)
+    public func getOrPutRouteBundle(route: RouteBundleUnresolvedIndex): RouteBundleIndex {
+        // 检查是否已存在
+        let existingIndex = match (route) {
+            case RouteBundleUnresolvedIndex.framework(routeIndex) =>
+                router.routeBundleIndex(routeIndex)
+            case RouteBundleUnresolvedIndex.html(html) =>
+                html.devServerId()
+        }
+
+        if (let Some(idx) <- existingIndex) {
+            return idx.getOrThrow()
+        }
+
+        graphSafetyLock.lock()
+        defer(graphSafetyLock.unlock())
+
+        let bundleIndex = RouteBundleIndex(UInt32(routeBundles.items.size))
+
+        let rb = RouteBundle()
+        rb.clientScriptGeneration = randomUInt32()
+        rb.serverState = RouteBundleState.unqueued
+
+        match (route) {
+            case RouteBundleUnresolvedIndex.framework(routeIndex) => {
+                rb.data = RouteBundleData()
+                rb.data.framework = RouteBundleFramework()
+                rb.data.framework.routeIndex = routeIndex
+                router.setRouteBundleIndex(routeIndex, bundleIndex)
+            }
+            case RouteBundleUnresolvedIndex.html(html) => {
+                // 在客户端图中插入 HTML 文件
+                let incrementalIndex = clientGraph.insertStaleExtra(html.path(), false, true)
+                rb.data = RouteBundleData()
+                rb.data.html = RouteBundleHTML()
+                rb.data.html.bundledFile = incrementalIndex
+                rb.data.html.htmlBundle = html
+                html.setDevServerId(bundleIndex)
+            }
+        }
+
+        routeBundles.append(rb)
+        return bundleIndex
+    }
+
+    // ========================================================================
+    // 错误序列化与发送
+    // ========================================================================
+
+    /// 发送序列化失败信息到客户端（完整 HTML 错误页面）
+    /// 对应 Bun: fn sendSerializedFailures(dev, resp, failures, kind, inspector_agent)
+    public func sendSerializedFailuresFull(resp: DevResponse,
+                                            failures: Array<SerializedFailure>,
+                                            kind: ErrorPageKind,
+                                            inspectorAgent: ?InspectorAgent): Unit {
+        var buf = ArrayList<Byte>()
+        buf.ensureCapacity(2048)
+
+        // HTML 头部
+        let pageTitle = match (kind) {
+            case ErrorPageKind.bundler => "Build Failed"
+            case ErrorPageKind.evaluation | ErrorPageKind.runtime => "Runtime Error"
+        }
+
+        let htmlHead = "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\" />" +
+            "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />" +
+            "<title>Bun - ${pageTitle}</title>" +
+            "<style>:root{color-scheme:light dark}body{background:light-dark(white,black)}</style>" +
+            "</head><body>" +
+            "<noscript><h1 style=\"font:28px sans-serif;\">${pageTitle}</h1>" +
+            "<p style=\"font:20px sans-serif;\">Bun requires JavaScript enabled in the browser to render this error screen, as well as receive hot reloading events.</p></noscript>" +
+            "<script>let error=Uint8Array.from(atob(\""
+
+        buf.appendSlice(htmlHead)
+
+        // Base64 编码的失败数据
+        var allFailuresData = ArrayList<Byte>()
+        for (fail in failures) {
+            allFailuresData.appendSlice(fail.data)
+        }
+        let encoded = base64Encode(allFailuresData.items.toArray())
+        buf.appendSlice(encoded)
+
+        let pre = "\"),c=>c.charCodeAt(0));let config={bun:\"0.0.0\"};"
+        let post = "</script></body></html>"
+
+        buf.appendSlice(pre)
+        buf.appendSlice(post)
+
+        match (resp) {
+            case DevResponse.http(r) =>
+                r.writeStatus("500 Internal Server Error")
+                r.writeHeader("Content-Type", "text/html")
+                r.end(String.fromUtf8(buf.items.toArray()), false)
+            case DevResponse.none => ()
+        }
+    }
+
+    // ========================================================================
+    // HTML 页面生成
+    // ========================================================================
+
+    /// 生成 HTML payload（包含脚本和样式注入）
+    /// 对应 Bun: fn generateHTMLPayload(dev, route_bundle_index, route_bundle, html)
+    public func generateHTMLPayload(routeBundleIndex: RouteBundleIndex): String {
+        let routeBundle = routeBundlePtr(routeBundleIndex)
+        assert(routeBundle.serverState == RouteBundleState.loaded)
+        let html = routeBundle.data.html
+        assert(html.cachedResponse.isNone())
+
+        let scriptInjectionOffset = html.scriptInjectionOffset.getOrThrow().get()
+        let bundledHtml = html.bundledHtmlText.getOrThrow()
+
+        // 分割 HTML：在 </head> 之前注入脚本和样式
+        let beforeHeadEnd = bundledHtml[0..scriptInjectionOffset]
+        let afterHeadEnd = bundledHtml[scriptInjectionOffset..]
+
+        var displayName = pathBasename(html.htmlBundle.path())
+        if (displayName.endsWith(".html")) {
+            displayName = displayName[0..displayName.size - 5]
+        }
+        if (!isAllASCII(displayName)) {
+            displayName = "page"
+        }
+
+        graphSafetyLock.lock()
+        defer(graphSafetyLock.unlock())
+
+        // 跟踪 CSS 依赖
+        clientGraph.reset()
+        defer(clientGraph.reset())
+
+        var payload = StringBuilder()
+        payload.append(beforeHeadEnd)
+
+        // 插入 CSS 链接标签
+        let cssIds = clientGraph.currentCssFiles.items
+        for (cssId in cssIds) {
+            payload.append("<link rel=\"stylesheet\" href=\"")
+            payload.append(ASSET_PREFIX)
+            payload.append("/")
+            payload.append(bytesToHexUInt64(cssId))
+            payload.append(".css\">")
+        }
+
+        // 插入客户端脚本标签
+        payload.append("<script type=\"module\" crossorigin src=\"")
+        payload.append(CLIENT_PREFIX)
+        payload.append("/")
+        payload.append(displayName)
+        payload.append("-")
+        payload.append(bytesToHexUInt32(routeBundleIndex.get()))
+        payload.append(bytesToHexUInt32(routeBundle.clientScriptGeneration))
+        payload.append(".js\" data-bun-dev-server-script></script>")
+
+        // SourceMap 弱引用脚本
+        payload.append("<script>((a)=>{document.addEventListener('visibilitychange'," +
+            "globalThis[Symbol.for('bun:loadData')]=()=>" +
+            "document.visibilityState==='hidden'&&" +
+            "navigator.sendBeacon('/_bun/unref',a))" +
+            "})(document.querySelector('[data-bun-dev-server-script]').src.slice(-11,-3))</script>")
+
+        payload.append(afterHeadEnd)
+
+        return payload.toString()
+    }
+
+    // ========================================================================
+    // CSS JS 数组生成
+    // ========================================================================
+
+    /// 生成 CSS 文件 URL 的 JS 数组
+    /// 对应 Bun: fn generateCssJSArray(dev, route_bundle)
+    public func generateCssJSArray(routeBundle: RouteBundle): Array<String> {
+        assert(routeBundle.serverState == RouteBundleState.loaded)
+
+        graphSafetyLock.lock()
+        defer(graphSafetyLock.unlock())
+
+        clientGraph.reset()
+
+        let cssIds = clientGraph.currentCssFiles.items
+        var result = Array<String>(cssIds.size, { _ => "" })
+        for (i in 0..cssIds.size) {
+            result[Int64(i)] = "${ASSET_PREFIX}/${bytesToHexUInt64(cssIds[Int64(i)])}.css"
+        }
+        return result
+    }
+
+    // ========================================================================
+    // 导入跟踪
+    // ========================================================================
+
+    /// 跟踪路由的所有导入依赖
+    /// 对应 Bun: fn traceAllRouteImports(dev, route_bundle, gts, goal)
+    public func traceAllRouteImports(routeBundle: RouteBundle,
+                                      gts: GraphTraceState,
+                                      goal: TraceImportGoal): Unit {
+        match (routeBundle.data.kind()) {
+            case RouteBundleDataKind.framework => {
+                let fw = routeBundle.data.framework
+                var route = router.routePtr(fw.routeIndex)
+                let routerType = router.typePtr(route.typeIndex)
+
+                // 框架入口点
+                serverGraph.traceImports(routerType.serverFile, gts, goal)
+                if (routerType.clientFile.isSome()) {
+                    clientGraph.traceImports(routerType.clientFile.getOrThrow(), gts, goal)
+                }
+
+                // 路由文件
+                if (route.filePage.isSome()) {
+                    serverGraph.traceImports(route.filePage.getOrThrow(), gts, goal)
+                }
+
+                // 布局文件
+                while (true) {
+                    if (route.fileLayout.isSome()) {
+                        serverGraph.traceImports(route.fileLayout.getOrThrow(), gts, goal)
+                    }
+                    if (route.parent.isNone()) { break }
+                    route = router.routePtr(route.parent.getOrThrow())
+                }
+            }
+            case RouteBundleDataKind.html => {
+                let html = routeBundle.data.html
+                clientGraph.traceImports(html.bundledFile, gts, goal)
+            }
+        }
+    }
+
+    // ========================================================================
+    // 入口点辅助方法
+    // ========================================================================
+
+    /// 为路由添加入口点（如果尚未过时）
+    /// 对应 Bun: fn appendRouteEntryPointsIfNotStale(dev, entry_points, alloc, rbi)
+    public func appendRouteEntryPointsIfNotStale(entryPoints: EntryPointList,
+                                                   alloc: Allocator,
+                                                   rbi: RouteBundleIndex): Unit {
+        let rb = routeBundlePtr(rbi)
+
+        match (rb.data.kind()) {
+            case RouteBundleDataKind.framework => {
+                let fw = rb.data.framework
+                var route = router.routePtr(fw.routeIndex)
+                let routerType = router.typePtr(route.typeIndex)
+
+                // 添加服务器入口点
+                if (serverGraph.isStale(routerType.serverFile)) {
+                    let path = serverGraph.getFilePath(routerType.serverFile)
+                    entryPoints.appendJs(alloc, path, Graph.server)
+                }
+
+                // 添加客户端入口点
+                if (routerType.clientFile.isSome()) {
+                    let clientId = routerType.clientFile.getOrThrow()
+                    if (clientGraph.isStale(clientId)) {
+                        let path = clientGraph.getFilePath(clientId)
+                        entryPoints.appendJs(alloc, path, Graph.client)
+                    }
+                }
+
+                // 路由页面文件
+                if (route.filePage.isSome()) {
+                    let fileId = route.filePage.getOrThrow()
+                    if (serverGraph.isStale(fileId)) {
+                        let path = serverGraph.getFilePath(fileId)
+                        entryPoints.appendJs(alloc, path, Graph.server)
+                    }
+                }
+
+                // 布局文件
+                if (route.fileLayout.isSome()) {
+                    let fileId = route.fileLayout.getOrThrow()
+                    if (serverGraph.isStale(fileId)) {
+                        let path = serverGraph.getFilePath(fileId)
+                        entryPoints.appendJs(alloc, path, Graph.server)
+                    }
+                }
+            }
+            case RouteBundleDataKind.html => {
+                let html = rb.data.html
+                entryPoints.appendCss(alloc, html.htmlBundle.path())
+            }
+        }
+
+        // Tailwind 插件 hack
+        if (let hack <- hasTailwindPluginHack) {
+            for (absPath in hack.keys()) {
+                let file = clientGraph.getBundledFile(absPath)
+                if (file.isSome() && file.getOrThrow().kind() == FileKind.css) {
+                    entryPoints.appendCss(alloc, absPath)
+                }
+            }
+        }
+    }
+
+    // ========================================================================
+    // 失败索引
+    // ========================================================================
+
+    /// 索引所有失败并通知 WebSocket 客户端
+    /// 对应 Bun: fn indexFailures(dev)
+    public func indexFailures(): Unit {
+        if (incrementalResult.failuresAdded.items.size > 0) {
+            var payload = ArrayList<Byte>()
+            payload.append(MessageId.errors.char())
+            writeInt32LE(payload, Int32(incrementalResult.failuresRemoved.items.size))
+
+            // 移除的失败
+            for (removed in incrementalResult.failuresRemoved.items) {
+                writeInt32LE(payload, Int32(0))
+            }
+
+            // 跟踪新增的失败到路由
+            for (added in incrementalResult.failuresAdded.items) {
+                match (added.getOwner()) {
+                    case SerializedFailureOwnerKind.server(index) =>
+                        serverGraph.traceDependencies(index, null, TraceMode.noStop, index)
+                    case SerializedFailureOwnerKind.client(index) =>
+                        clientGraph.traceDependencies(index, null, TraceMode.noStop, index)
+                    case _ => ()
+                }
+            }
+
+            // 标记受影响的框架路由
+            for (entry in incrementalResult.frameworkRoutesAffected.items) {
+                if (let Some(bundleIndex) <- router.routeBundleIndex(entry.routeIndex)) {
+                    routeBundlePtr(bundleIndex).serverState = RouteBundleState.possible_bundling_failures
+                }
+            }
+
+            // 标记受影响的 HTML 路由
+            for (index in incrementalResult.htmlRoutesSoftAffected.items) {
+                routeBundlePtr(index).serverState = RouteBundleState.possible_bundling_failures
+            }
+            for (index in incrementalResult.htmlRoutesHardAffected.items) {
+                routeBundlePtr(index).serverState = RouteBundleState.possible_bundling_failures
+            }
+
+            publish(HmrTopic.errors, payload.items.toArray(), Opcode.binary)
+        } else if (incrementalResult.failuresRemoved.items.size > 0) {
+            var payload = ArrayList<Byte>()
+            payload.append(MessageId.errors.char())
+            writeInt32LE(payload, Int32(incrementalResult.failuresRemoved.items.size))
+
+            for (removed in incrementalResult.failuresRemoved.items) {
+                writeInt32LE(payload, Int32(0))
+            }
+
+            publish(HmrTopic.errors, payload.items.toArray(), Opcode.binary)
+        }
+
+        incrementalResult.failuresRemoved.clearRetainingCapacity()
+    }
+
+    // ========================================================================
+    // WebSocket 与发布
+    // ========================================================================
+
+    /// 发布消息到 WebSocket 主题
+    /// 对应 Bun: pub fn publish(dev, topic, message, opcode)
+    public func publish(topic: HmrTopic, message: Array<Byte>, opcode: Opcode): Unit {
+        if (server.isSome()) {
+            let srv = server.getOrThrow()
+            srv.publish(topic.toString(), message, opcode)
+        }
+    }
+
+    /// 获取订阅某个主题的 WebSocket 数量
+    /// 对应 Bun: pub fn numSubscribers(dev, topic)
+    public func numSubscribers(topic: HmrTopic): UInt32 {
+        if (server.isSome()) {
+            return activeWebsocketConnections.count()
+        }
+        return UInt32(0)
+    }
+
+    /// WebSocket 连接升级回调
+    /// 对应 Bun: pub fn onWebSocketUpgrade(dev, res, req, upgrade_ctx, id)
+    public func onWebSocketUpgrade(res: AnyResponse, req: UwsRequest): Unit {
+        let dw = HmrSocket(this)
+        activeWebsocketConnections.put(allocator(), dw, ())
+    }
+
+    // ========================================================================
+    // 可视化器消息
+    // ========================================================================
+
+    /// 发送增量可视化器消息（如果需要）
+    /// 对应 Bun: pub fn emitVisualizerMessageIfNeeded(dev)
+    public func emitVisualizerMessageIfNeeded(): Unit {
+        if (emitIncrementalVisualizerEvents == 0) { return }
+        emitMemoryVisualizerMessageIfNeeded()
+    }
+
+    /// 发送内存可视化器消息（如果需要）
+    /// 对应 Bun: pub fn emitMemoryVisualizerMessageIfNeeded(dev)
+    public func emitMemoryVisualizerMessageIfNeeded(): Unit {
+        if (emitMemoryVisualizerEvents == 0) { return }
+        emitMemoryVisualizerMessage()
+    }
+
+    /// 发送内存可视化器消息
+    /// 对应 Bun: pub fn emitMemoryVisualizerMessage(dev)
+    public func emitMemoryVisualizerMessage(): Unit {
+        var payload = ArrayList<Byte>()
+        payload.append(MessageId.memory_visualizer.char())
+        writeMemoryVisualizerMessage(payload)
+        publish(HmrTopic.memory_visualizer, payload.items.toArray(), Opcode.binary)
+    }
+
+    /// 写入内存可视化器消息
+    /// 对应 Bun: pub fn writeMemoryVisualizerMessage(dev, payload)
+    public func writeMemoryVisualizerMessage(payload: ArrayList<Byte>): Unit {
+        let cost = memoryCost()
+        // 写入各组件的内存成本
+        writeInt32LE(payload, Int32(0)) // incremental_graph_client
+        writeInt32LE(payload, Int32(0)) // incremental_graph_server
+        writeInt32LE(payload, Int32(0)) // js_code
+        writeInt32LE(payload, Int32(0)) // source_maps
+        writeInt32LE(payload, Int32(0)) // assets
+        writeInt32LE(payload, Int32(0)) // other
+        writeInt32LE(payload, Int32(cost)) // devserver_tracked
+        writeInt32LE(payload, Int32(0)) // process_used
+        writeInt32LE(payload, Int32(0)) // system_used
+        writeInt32LE(payload, Int32(0)) // system_total
+    }
+
+    // ========================================================================
+    // 客户端 Bundle 生成
+    // ========================================================================
+
+    /// 生成客户端 bundle 脚本
+    /// 对应 Bun: fn generateClientBundle(dev, route_bundle)
+    public func generateClientBundleFull(routeBundle: RouteBundle): String {
+        assert(routeBundle.clientBundle.isNone())
+        assert(routeBundle.serverState == RouteBundleState.loaded)
+
+        graphSafetyLock.lock()
+        defer(graphSafetyLock.unlock())
+
+        // 准备位集
+        var gts = initGraphTraceState(allocator(), 0)
+        defer(gts.deinit(allocator()))
+
+        // 跟踪导入
+        clientGraph.reset()
+        defer(clientGraph.reset())
+
+        traceAllRouteImports(routeBundle, gts, TraceImportGoal.findClientModules)
+
+        // React Fast Refresh
+        var reactFastRefreshId = ""
+        if (framework.reactFastRefresh.isSome()) {
+            let rfr = framework.reactFastRefresh.getOrThrow()
+            let rfrIndex = clientGraph.getFileIndex(rfr.importSource)
+            if (rfrIndex.isSome()) {
+                if (!clientGraph.staleFilesIsSet(rfrIndex.getOrThrow())) {
+                    clientGraph.traceImports(rfrIndex.getOrThrow(), gts, TraceImportGoal.findClientModules)
+                    reactFastRefreshId = rfr.importSource
+                }
+            }
+        }
+
+        // 插入 SourceMap
+        let scriptId = routeBundle.sourceMapId()
+        sourceMaps.putOrIncrementRefCount(scriptId, UInt32(1))
+
+        // 生成 bundle
+        let clientBundle = clientGraph.takeJSBundle(ChunkKind.initial_response,
+            reactFastRefreshId, scriptId, shouldReceiveConsoleLogFromBrowser())
+
+        return clientBundle
+    }
+
+    /// 检查是否应该接收来自浏览器的控制台日志
+    /// 对应 Bun: fn shouldReceiveConsoleLogFromBrowser(dev)
+    public func shouldReceiveConsoleLogFromBrowser(): Bool {
+        return broadcastConsoleLogFromBrowserToServer
+    }
+
+    // ========================================================================
+    // 框架路由集成
+    // ========================================================================
+
+    /// 获取框架路由文件 ID
+    /// 对应 Bun: pub fn getFileIdForRouter(dev, abs_path, associated_route, file_kind)
+    public func getFileIdForRouter(absPath: String, associatedRoute: FrameworkRouterRouteIndex,
+                                    fileKind: RouteFileKind): ?UInt32 {
+        let index = serverGraph.insertStaleExtra(absPath, false, true)
+        routeLookup.put(allocator(), index,
+            RouteIndexAndRecurseFlag(routeIndex: associatedRoute,
+                shouldRecurseWhenVisiting: fileKind == RouteFileKind.layout))
+        return UInt32(index.value)
+    }
+
+    /// 路由器语法错误回调
+    /// 对应 Bun: pub fn onRouterSyntaxError(dev, rel_path, log)
+    public func onRouterSyntaxError(relPath: String, log: String): Unit {
+        Output.errGeneric("Syntax error in ${relPath}: ${log}")
+    }
+
+    /// 路由器冲突错误回调
+    /// 对应 Bun: pub fn onRouterCollisionError(dev, rel_path, other_id, ty)
+    public func onRouterCollisionError(relPath: String, otherId: UInt32, ty: RouteFileKind): Unit {
+        let typeName = match (ty) {
+            case RouteFileKind.page => "pages"
+            case RouteFileKind.layout => "layout"
+        }
+        Output.errGeneric("Multiple ${typeName} matching the same route pattern is ambiguous")
+        Output.prettyError("  - ${relPath}\n")
+        Output.flush()
+    }
+
+    // ========================================================================
+    // 增量图跟踪状态
+    // ========================================================================
+
+    /// 初始化图跟踪状态
+    /// 对应 Bun: fn initGraphTraceState(dev, sfa, extra_client_bits)
+    public func initGraphTraceState(alloc: Allocator, extraClientBits: Int64): GraphTraceState {
+        GraphTraceState()
+    }
+
+    // ========================================================================
+    // Inspector 支持
+    // ========================================================================
+
+    /// 获取 Inspector agent（如果启用）
+    /// 对应 Bun: pub fn inspector(dev)
+    public func inspector(): ?InspectorAgent {
+        // 检查 VM 是否有启用的 debugger
+        None
+    }
+
+    // ========================================================================
+    // 内存使用
+    // ========================================================================
+
+    /// 打印内存使用行
+    /// 对应 Bun: fn printMemoryLine(dev)
+    public func printMemoryLine(): Unit {
+        let cost = memoryCost()
+        Output.prettyError("[d]DevServer tracked ${cost} bytes\n")
+    }
+
+    /// 处理 HTML bundle 的 respond
+    /// 对应 Bun: pub fn respondForHTMLBundle(dev, html, req, resp)
+    public func respondForHTMLBundle(html: HTMLBundleRoute, req: UwsRequest, resp: AnyResponse): Unit {
+        let routeBundleIndex = getOrPutRouteBundle(
+            RouteBundleUnresolvedIndex.html(html))
+        ensureRouteIsBundled(routeBundleIndex, req, resp)
+    }
+
+    /// 处理框架请求（带请求对象匹配）
+    /// 对应 Bun: fn onRequest(dev, req, resp)
+    public func onRequestWithRouteMatching(req: UwsRequest, resp: AnyResponse): Unit {
+        var params = FrameworkRouterMatchedParams()
+        if (let Some(routeIndex) <- router.matchSlow(req.url(), params)) {
+            let routeBundleIndex = getOrPutRouteBundle(
+                RouteBundleUnresolvedIndex.framework(routeIndex))
+            ensureRouteIsBundled(routeBundleIndex, req, resp)
+            return
+        }
+
+        // 404
+        notFound(resp)
+    }
+
+    /// 处理渲染重定向
+    /// 对应 Bun: pub fn handleRenderRedirect(dev, saved_request, render_path, resp)
+    public func handleRenderRedirect(savedRequest: SavedRequest, renderPath: String, resp: AnyResponse): Unit {
+        var params = FrameworkRouterMatchedParams()
+        if (let Some(routeIndex) <- router.matchSlow(renderPath, params)) {
+            let routeBundleIndex = getOrPutRouteBundle(
+                RouteBundleUnresolvedIndex.framework(routeIndex))
+            ensureRouteIsBundled(routeBundleIndex, savedRequest, resp)
+            return
+        }
+        sendBuiltInNotFound(resp)
+    }
+
+    /// 注册 catch-all HTML 路由
+    /// 对应 Bun: fn registerCatchAllHtmlRoute(dev, html)
+    public func registerCatchAllHtmlRoute(html: HTMLBundleRoute): Unit {
+        let bundleIndex = getOrPutRouteBundle(RouteBundleUnresolvedIndex.html(html))
+        htmlRouter.fallback = html
+    }
+
+    /// 标记所有路由子节点为失败
+    /// 对应 Bun: fn markAllRouteChildrenFailed(dev, route_index)
+    public func markAllRouteChildrenFailed(routeIndex: FrameworkRouterRouteIndex): Unit {
+        var next = router.firstChild(routeIndex)
+        while (let Some(childIndex) <- next) {
+            let route = router.routePtr(childIndex)
+            if (let Some(bundleIndex) <- route.bundle) {
+                routeBundlePtr(bundleIndex).serverState = RouteBundleState.possible_bundling_failures
+            }
+            markAllRouteChildrenFailed(childIndex)
+            next = router.nextSibling(childIndex)
+        }
+    }
+
+    /// 将资产放入存储
+    /// 对应 Bun: pub fn putOrOverwriteAsset(dev, path, contents, content_hash)
+    public func putOrOverwriteAsset(pathText: String, contents: AnyBlob,
+                                     ext: String, contentHash: UInt64): Unit {
+        graphSafetyLock.lock()
+        defer(graphSafetyLock.unlock())
+        assets.replacePath(pathText, contents, MimeType.css, contentHash)
     }
 }
 
@@ -1460,10 +2378,18 @@ public enum CheckRouteFailuresResult {
 }
 
 /// 失败种类
-public enum FailureKind {
+/// 对应 Bun: ErrorPageKind
+public enum ErrorPageKind {
+    /// 模块捆绑失败
     | bundler
+    /// 模块评估失败
     | evaluation
+    /// 请求处理器抛出异常
+    | runtime
 }
+
+/// 失败种类（别名）
+public type FailureKind = ErrorPageKind
 
 /// 保存的请求联合类型
 public enum SavedRequestUnion {
@@ -1638,5 +2564,626 @@ public class TestingBatch {
 
     public init() {
         entryPoints = ArrayList<String>()
+    }
+
+    public static let empty: TestingBatch = TestingBatch()
+
+    /// 追加入口点
+    public func append(dev: DevServer, entryPoints: EntryPointList): Unit {
+        for (ep in entryPoints.items) {
+            this.entryPoints.append(ep.path)
+        }
+    }
+}
+
+// ============================================================================
+// 辅助类型和枚举
+// ============================================================================
+
+/// HMR 主题（用于 WebSocket 频道）
+/// 对应 Bun: DevServer.HmrTopic
+public enum HmrTopic {
+    | hot_update       // 'h' = 104
+    | errors           // 'e' = 101
+    | browser_error    // 'E' = 69
+    | incremental_visualizer // 'v' = 118
+    | memory_visualizer     // 'M' = 77
+    | testing_watch_synchronization // 'r' = 114
+
+    public func toString(): String {
+        match (this) {
+            case hot_update => "h"
+            case errors => "e"
+            case browser_error => "E"
+            case incremental_visualizer => "v"
+            case memory_visualizer => "M"
+            case testing_watch_synchronization => "r"
+        }
+    }
+
+    public func char(): Byte {
+        match (this) {
+            case hot_update => 104u8
+            case errors => 101u8
+            case browser_error => 69u8
+            case incremental_visualizer => 118u8
+            case memory_visualizer => 77u8
+            case testing_watch_synchronization => 114u8
+        }
+    }
+}
+
+/// 消息 ID（DevServer → 客户端）
+/// 对应 Bun: DevServer.MessageId
+public enum MessageId {
+    | version                      // 'V' = 86
+    | hot_update                   // 'u' = 117
+    | errors                       // 'e' = 101
+    | browser_message              // 'b' = 98
+    | browser_message_clear        // 'B' = 66
+    | request_handler_error        // 'h' = 104
+    | visualizer                   // 'v' = 118
+    | memory_visualizer            // 'M' = 77
+    | set_url_response             // 'n' = 110
+    | testing_watch_synchronization // 'r' = 114
+
+    public func char(): Byte {
+        match (this) {
+            case MessageId.version => 86u8
+            case MessageId.hot_update => 117u8
+            case MessageId.errors => 101u8
+            case MessageId.browser_message => 98u8
+            case MessageId.browser_message_clear => 66u8
+            case MessageId.request_handler_error => 104u8
+            case MessageId.visualizer => 118u8
+            case MessageId.memory_visualizer => 77u8
+            case MessageId.set_url_response => 110u8
+            case MessageId.testing_watch_synchronization => 114u8
+        }
+    }
+}
+
+/// 传入消息 ID（客户端 → DevServer）
+/// 对应 Bun: DevServer.IncomingMessageId
+public enum IncomingMessageId {
+    | `init`                  // 'i' = 105
+    | subscribe               // 's' = 115
+    | set_url                 // 'n' = 110
+    | testing_batch_events    // 'H' = 72
+    | console_log             // 'l' = 108
+    | unref_source_map        // 'u' = 117
+}
+
+/// 控制台日志种类
+/// 对应 Bun: DevServer.ConsoleLogKind
+public enum ConsoleLogKind {
+    | log   // 'l'
+    | err   // 'e'
+}
+
+/// 跟踪导入目标
+/// 对应 Bun: TraceImportGoal
+public enum TraceImportGoal {
+    | findCss
+    | findClientModules
+    | findErrors
+}
+
+/// 跟踪模式
+public enum TraceMode {
+    | noStop
+    | stopOnFirstError
+}
+
+/// 路由文件种类
+public enum RouteFileKind {
+    | page
+    | layout
+}
+
+/// 路由 bundle 数据种类
+public enum RouteBundleDataKind {
+    | framework
+    | html
+}
+
+/// 序列化失败所有者种类
+public enum SerializedFailureOwnerKind {
+    | none
+    | client(UInt32)
+    | server(UInt32)
+    | route
+}
+
+/// Watcher 事件类型
+public enum WatcherEventKind {
+    | file
+    | directory
+}
+
+/// Watcher 事件
+public class WatcherEvent {
+    public var kind: WatcherEventKind = WatcherEventKind.file
+    public var op: WatcherOp = WatcherOp()
+    public var filePath: String = ""
+    public var subPath: ?String = None
+
+    public init() {}
+}
+
+/// Watcher 操作标志
+public class WatcherOp {
+    public var create: Bool = false
+    public var modify: Bool = false
+    public var delete: Bool = false
+    public var rename: Bool = false
+
+    public init() {}
+}
+
+/// 系统错误
+public class SystemError {
+    public var path: String = ""
+    public var message: String = ""
+    public var code: Int64 = 0
+
+    public init() {}
+    public init(path: String, message: String) {
+        this.path = path
+        this.message = message
+    }
+}
+
+/// DevServer 输出
+/// 对应 Bun: bundle_v2.DevServerOutput
+public class DevServerOutput {
+    public var cssChunkCount: Int64 = 0
+
+    public init() {}
+}
+
+/// 缓存条目
+/// 对应 Bun: CacheEntry
+public class CacheEntry {
+    public var fileKind: FileKind
+
+    public init(fileKind: FileKind) {
+        this.fileKind = fileKind
+    }
+}
+
+/// 路由 bundle 未解析索引
+/// 对应 Bun: RouteBundle.UnresolvedIndex
+public enum RouteBundleUnresolvedIndex {
+    | framework(FrameworkRouterRouteIndex)
+    | html(HTMLBundleRoute)
+}
+
+/// 框架路由器路由索引
+public type FrameworkRouterRouteIndex = UInt32
+
+/// 框架路由器匹配参数
+public class FrameworkRouterMatchedParams {
+    public init() {}
+    public func toJS(global: Any): JsValue { JsValue() }
+}
+
+/// 框架路由器编码模式
+public type FrameworkRouterEncodedPattern = String
+
+/// 检查路由失败结果
+public enum CheckRouteFailuresResult {
+    | stop     // 停止处理（已发送错误）
+    | ok       // 错误已清除或不在此路径
+    | rebuild  // 需要重新构建
+}
+
+/// HTML Bundle 路由
+/// 对应 Bun: HTMLBundle.HTMLBundleRoute
+public class HTMLBundleRoute {
+    public var devServerIdValue: ?RouteBundleIndex = None
+
+    public init() {}
+    public func path(): String { "" }
+    public func devServerId(): ?RouteBundleIndex { devServerIdValue }
+    public func setDevServerId(id: RouteBundleIndex): Unit { devServerIdValue = id }
+}
+
+/// 路由 bundle HTML 数据
+/// 对应 Bun: RouteBundle.HTML
+public class RouteBundleHTML {
+    public var htmlBundle: HTMLBundleRoute = HTMLBundleRoute()
+    public var bundledFile: UInt32 = 0
+    public var scriptInjectionOffset: ?UInt32 = None
+    public var cachedResponse: ?StaticRoute = None
+    public var bundledHtmlText: ?String = None
+
+    public init() {}
+}
+
+/// 框架
+/// 对应 Bun: bake.Framework
+public class Framework {
+    public var fileSystemRouterTypes: Array<FileSystemRouterType> = []
+    public var serverComponents: ?ServerComponents = None
+    public var reactFastRefresh: ?ReactFastRefresh = None
+    public var isBuiltInReact: Bool = false
+
+    public init() {}
+
+    public func initTranspiler(alloc: Allocator, log: Log, mode: Any, side: Side,
+                                transpiler: Transpiler, opts: Any): Unit {}
+    public func resolve(serverResolver: Resolver, clientResolver: Resolver,
+                        arena: Allocator): Framework { this }
+}
+
+/// 文件系统路由类型
+/// 对应 Bun: bake.FileSystemRouterType
+public class FileSystemRouterType {
+    public var root: String = ""
+    public var prefix: String = ""
+    public var extensions: Array<String> = []
+    public var entryServer: String = ""
+    public var entryClient: ?String = None
+    public var style: RouterStyle = RouterStyle.next
+    public var allowLayouts: Bool = true
+    public var ignoreUnderscores: Bool = false
+    public var ignoreDirs: Array<String> = []
+
+    public init() {}
+}
+
+/// 路由器样式
+public enum RouterStyle {
+    | next
+}
+
+/// 服务器组件配置
+/// 对应 Bun: bake.ServerComponents
+public class ServerComponents {
+    public var separateSsrGraph: Bool = false
+    public var clientRegisterServerReference: String = ""
+    public var serverRegisterClientReference: String = ""
+    public var serverRegisterServerReference: String = ""
+    public var serverRuntimeImport: String = ""
+
+    public init() {}
+}
+
+/// React Fast Refresh 配置
+/// 对应 Bun: bake.ReactFastRefresh
+public class ReactFastRefresh {
+    public var importSource: String = ""
+
+    public init() {}
+}
+
+/// 分割 bundler 选项
+/// 对应 Bun: bake.SplitBundlerOptions
+public class SplitBundlerOptions {
+    public var server: BundlerOptions = BundlerOptions()
+    public var client: BundlerOptions = BundlerOptions()
+    public var ssr: BundlerOptions = BundlerOptions()
+    public var plugin: ?JSBundlerPlugin = None
+
+    public init() {}
+}
+
+/// Bundler 选项
+/// 对应 Bun: bake.BundlerOptions
+public class BundlerOptions {
+    public init() {}
+}
+
+/// Route bundle data
+/// 对应 Bun: RouteBundle.Data
+public class RouteBundleData {
+    public var framework: RouteBundleFramework = RouteBundleFramework()
+    public var html: RouteBundleHTML = RouteBundleHTML()
+    public var evaluateFailure: ?Array<Byte> = None
+
+    public init() {}
+
+    public func kind(): RouteBundleDataKind {
+        if (html.htmlBundle != null && html.htmlBundle.path().size > 0) {
+            RouteBundleDataKind.html
+        } else {
+            RouteBundleDataKind.framework
+        }
+    }
+}
+
+/// Route bundle framework data
+/// 对应 Bun: RouteBundle.Framework
+public class RouteBundleFramework {
+    public var routeIndex: FrameworkRouterRouteIndex = 0
+    public var cachedModuleList: ?JsValue = None
+    public var cachedClientBundleUrl: ?JsValue = None
+    public var cachedCssFileArray: ?JsValue = None
+
+    public init() {}
+}
+
+/// Incremental result
+/// 对应 Bun: DevServer.IncrementalResult
+public class IncrementalResult {
+    public var hadAdjustedEdges: Bool = false
+    public var clientComponentsAdded: ArrayList<UInt32> = ArrayList<UInt32>()
+    public var frameworkRoutesAffected: ArrayList<RouteIndexAndRecurseFlag> = ArrayList<RouteIndexAndRecurseFlag>()
+    public var clientComponentsRemoved: ArrayList<UInt32> = ArrayList<UInt32>()
+    public var failuresRemoved: ArrayList<SerializedFailure> = ArrayList<SerializedFailure>()
+    public var clientComponentsAffected: ArrayList<UInt32> = ArrayList<UInt32>()
+    public var failuresAdded: ArrayList<SerializedFailure> = ArrayList<SerializedFailure>()
+    public var htmlRoutesSoftAffected: ArrayList<RouteBundleIndex> = ArrayList<RouteBundleIndex>()
+    public var htmlRoutesHardAffected: ArrayList<RouteBundleIndex> = ArrayList<RouteBundleIndex>()
+
+    public init() {}
+
+    public static let empty: IncrementalResult = IncrementalResult()
+
+    public func reset(): Unit {
+        frameworkRoutesAffected.clear()
+        htmlRoutesSoftAffected.clear()
+        htmlRoutesHardAffected.clear()
+        hadAdjustedEdges = false
+        failuresAdded.clear()
+        clientComponentsAdded.clear()
+        clientComponentsRemoved.clear()
+        clientComponentsAffected.clear()
+    }
+}
+
+/// 路由索引和递归标志
+/// 对应 Bun: RouteIndexAndRecurseFlag
+public struct RouteIndexAndRecurseFlag {
+    public var routeIndex: FrameworkRouterRouteIndex
+    public var shouldRecurseWhenVisiting: Bool
+
+    public init(routeIndex: FrameworkRouterRouteIndex, shouldRecurseWhenVisiting: Bool) {
+        this.routeIndex = routeIndex
+        this.shouldRecurseWhenVisiting = shouldRecurseWhenVisiting
+    }
+}
+
+/// 桶文件和导出跟踪
+/// 对应 Bun: barrel_files_with_deferrals / barrel_needed_exports
+public class BarrelFileTracker {
+    public var filesWithDeferrals: HashSet<String> = HashSet<String>()
+
+    public init() {}
+
+    public func contains(path: String): Bool { filesWithDeferrals.contains(path) }
+}
+
+/// Graph (client/server/ssr)
+/// 对应 Bun: bake.Graph
+public enum Graph {
+    | client
+    | server
+    | ssr
+}
+
+/// Side (client/server/ssr)
+/// 对应 Bun: bake.Side
+public enum Side {
+    | client
+    | server
+    | ssr
+}
+
+/// Deferred request linked list
+/// 对应 Bun: DeferredRequest.List
+public class DeferredRequestList {
+    public var first: ?DeferredRequestNode = None
+
+    public init() {}
+
+    public func prepend(node: DeferredRequestNode): Unit {
+        node.next = first
+        first = node
+    }
+
+    public func popFirst(): ?DeferredRequestNode {
+        if (let Some(node) <- first) {
+            first = node.next
+            return node
+        }
+        return None
+    }
+}
+
+/// Inspector agent
+/// 对应 Bun: BunFrontendDevServerAgent
+public class InspectorAgent {
+    public init() {}
+    public func isEnabled(): Bool { false }
+    public func notifyBundleStart(id: Int64, files: Array<Any>): Unit {}
+    public func notifyBundleComplete(id: Int64, ms: Float64): Unit {}
+    public func notifyBundleFailed(id: Int64, str: Any): Unit {}
+}
+
+/// Log
+/// 对应 Bun: bun.logger.Log
+public class Log {
+    public init() {}
+    public init(alloc: Allocator) {}
+    public func hasErrors(): Bool { false }
+    public func clearAndFree(): Unit {}
+    public func print(writer: Any): Unit {}
+    public func msgs(): Array<Any> { [] }
+}
+
+// ============================================================================
+// 辅助函数
+// ============================================================================
+
+/// 404 处理
+func notFound(resp: AnyResponse): Unit {
+    resp.corked(notFoundCorked, resp)
+}
+
+/// 404 corked 回调
+func notFoundCorked(resp: AnyResponse): Unit {
+    resp.writeStatus("404 Not Found")
+    resp.end("Not Found", false)
+}
+
+/// 内置 404
+/// 对应 Bun: fn sendBuiltInNotFound
+func sendBuiltInNotFound(resp: AnyResponse): Unit {
+    resp.writeStatus("404 Not Found")
+    resp.end("404 Not Found", true)
+}
+
+/// 过期 JS corked 回调
+func onOutdatedJSCorked(resp: AnyResponse): Unit {
+    resp.writeStatus("200 OK")
+    resp.writeHeader("Content-Type", "application/javascript")
+    resp.end("try{location.reload()}catch(_){}addEventListener(\"DOMContentLoaded\",function(event){location.reload()})", false)
+}
+
+/// 包装通用请求处理器
+func wrapGenericRequestHandler(handler: Any, isSsl: Bool): RequestHandler {
+    handler
+}
+
+/// 从 URL 提取路径名
+func extractPathnameFromUrl(url: String): String {
+    let pathStart = url.indexOf('/')
+    if (pathStart.isNone()) { return "/" }
+    let path = url[pathStart.getOrThrow()..]
+    let queryStart = path.indexOf('?')
+    if (queryStart.isSome()) { return path[0..queryStart.getOrThrow()] }
+    let hashStart = path.indexOf('#')
+    if (hashStart.isSome()) { return path[0..hashStart.getOrThrow()] }
+    return path
+}
+
+/// 写入 Int32 小端序
+func writeInt32LE(buf: ArrayList<Byte>, value: Int32): Unit {
+    buf.append(UInt8(value & Int32(0xFF)))
+    buf.append(UInt8((value >> 8) & Int32(0xFF)))
+    buf.append(UInt8((value >> 16) & Int32(0xFF)))
+    buf.append(UInt8((value >> 24) & Int32(0xFF)))
+}
+
+/// 写入 UInt32 小端序
+func writeUInt32LE(buf: ArrayList<Byte>, value: UInt32): Unit {
+    buf.append(UInt8(value & UInt32(0xFF)))
+    buf.append(UInt8((value >> 8) & UInt32(0xFF)))
+    buf.append(UInt8((value >> 16) & UInt32(0xFF)))
+    buf.append(UInt8((value >> 24) & UInt32(0xFF)))
+}
+
+/// 写入 UInt64 小端序
+func writeUInt64LE(buf: ArrayList<Byte>, value: UInt64): Unit {
+    for (i in 0..8) {
+        buf.append(UInt8((value >> (i * 8)) & UInt64(0xFF)))
+    }
+}
+
+/// 将 UInt32 转换为十六进制字符串（小写，8字符）
+func bytesToHexUInt32(value: UInt32): String {
+    var result = ""
+    var v = value
+    var chars = Array<Byte>(8, { _ => 0 })
+    for (i in 0..8) {
+        let nibble = UInt8(v & UInt32(0xF))
+        chars[Int64(7 - i)] = if (nibble < 10) {
+            UInt8(nibble + 48)
+        } else {
+            UInt8(nibble + 87)
+        }
+        v = v >> 4
+    }
+    for (c in chars) {
+        result += String(Char.fromUInt32(UInt32(c)))
+    }
+    return result
+}
+
+/// 将 UInt64 转换为十六进制字符串（小写，16字符）
+func bytesToHexUInt64(value: UInt64): String {
+    var result = ""
+    var v = value
+    var chars = Array<Byte>(16, { _ => 0 })
+    for (i in 0..16) {
+        let nibble = UInt8(v & UInt64(0xF))
+        chars[Int64(15 - i)] = if (nibble < 10) {
+            UInt8(nibble + 48)
+        } else {
+            UInt8(nibble + 87)
+        }
+        v = v >> 4
+    }
+    for (c in chars) {
+        result += String(Char.fromUInt32(UInt32(c)))
+    }
+    return result
+}
+
+/// Base64 编码
+func base64Encode(data: Array<Byte>): String {
+    let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    var result = ""
+    var i: Int64 = 0
+    while (i < data.size) {
+        let b0 = UInt64(data[i])
+        let b1 = if (i + 1 < data.size) { UInt64(data[i + 1]) } else { UInt64(0) }
+        let b2 = if (i + 2 < data.size) { UInt64(data[i + 2]) } else { UInt64(0) }
+
+        let triple = (b0 << 16) | (b1 << 8) | b2
+
+        result += String(chars[Int64((triple >> 18) & 0x3F)])
+        result += String(chars[Int64((triple >> 12) & 0x3F)])
+
+        if (i + 1 < data.size) {
+            result += String(chars[Int64((triple >> 6) & 0x3F)])
+        } else {
+            result += "="
+        }
+        if (i + 2 < data.size) {
+            result += String(chars[Int64(triple & 0x3F)])
+        } else {
+            result += "="
+        }
+        i += 3
+    }
+    return result
+}
+
+/// 路径 basename
+func pathBasename(path: String): String {
+    if (let Some(idx) <- path.lastIndexOf('/')) {
+        return path[idx + 1..]
+    }
+    return path
+}
+
+/// 检查字符串是否全部为 ASCII
+func isAllASCII(s: String): Bool {
+    for (i in 0..s.size) {
+        let ch = Int64(s[i])
+        if (ch > 127) { return false }
+    }
+    return true
+}
+
+/// String builder helper
+public class StringBuilder {
+    private var parts: ArrayList<String> = ArrayList<String>()
+
+    public init() {}
+
+    public func append(s: String): Unit {
+        parts.append(s)
+    }
+
+    public func toString(): String {
+        var result = ""
+        for (part in parts.items) {
+            result += part
+        }
+        return result
     }
 }

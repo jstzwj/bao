@@ -131,7 +131,19 @@ private func sysFstat(fd: FD): ?StatResult {
     return None
 }
 
-private func sysClose(fd: FD): Unit {}
+private func sysClose(fd: FD): Unit {
+    // 翻译自: bun.sys.fd.close(fd) / fd.zig:236
+    //   fd.close() 内部调用 closeAllowingBadFileDescriptor ->
+    //   closeAllowingStandardIo -> syscall.close(fd.native())
+    //   POSIX: 直接调用 libc close(fd)
+    //   不关闭 stdin/stdout/stderr (stdioTag 检查)
+    if (fd >= 0 && fd <= 2) {
+        return  // 不关闭标准 IO
+    }
+    unsafe {
+        let _ = close(fd)
+    }
+}
 
 private func sysIsatty(fd: FD): Bool {
     return false
@@ -145,7 +157,33 @@ private func sysSetNonblocking(fd: FD): Bool {
     return false
 }
 
-private func sysUpdateNonblocking(fd: FD, nonblocking: Bool): Unit {}
+private func sysUpdateNonblocking(fd: FD, nonblocking: Bool): Unit {
+    // 翻译自: bun.sys.updateNonblocking(fd, nonblocking) / sys.zig:3686-3702
+    //   pub fn updateNonblocking(fd: FD, nonblocking: bool) Maybe(void) {
+    //       const current_flags = getFcntlFlags(fd);    // fcntl(fd, F_GETFL, 0)
+    //       const new_flags = if (nonblocking)
+    //           current_flags | O_NONBLOCK
+    //       else
+    //           current_flags & ~O_NONBLOCK;
+    //       if (new_flags != current_flags)
+    //           fcntl(fd, F_SETFL, new_flags);
+    //   }
+    // F_GETFL = 3, F_SETFL = 4, O_NONBLOCK = 0x800
+    unsafe {
+        let currentFlags = fcntl(fd, 3, 0)  // F_GETFL
+        if (currentFlags < 0) {
+            return
+        }
+        let newFlags: Int32 = if (nonblocking) {
+            currentFlags | O_NONBLOCK
+        } else {
+            currentFlags & (^O_NONBLOCK)
+        }
+        if (newFlags != currentFlags) {
+            let _ = fcntl(fd, 4, newFlags)  // F_SETFL
+        }
+    }
+}
 
 private func isFifo(mode: UInt32): Bool {
     return false
@@ -169,5 +207,9 @@ public class StatResult {
 
 // FD 类型别名
 public type FD = Int32
+
+// C FFI 声明由同包其他文件提供:
+//   close(fd: Int32): Int32     -- stub_event_loop.cj
+//   fcntl(fd: Int32, cmd: Int32, arg: Int32): Int32 -- pipe.cj
 
 private let currentResult: ?Int32 = None

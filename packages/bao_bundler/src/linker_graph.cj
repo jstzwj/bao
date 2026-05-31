@@ -122,6 +122,27 @@ public class LinkerGraph {
 
     /// 更新顶层符号到 parts 的 overlay
     private func updateTopLevelSymbolToParts(id: UInt32, ref: Ref, partId: UInt32): Unit {
+
+    /// 获取文件的入口点位图 (用于 HTML import manifest)
+    // 严格翻译自: LinkerGraph files.items_entry_bits()
+    public func filesEntryBits(): ArrayList<BitSet> {
+        return ArrayList<BitSet>()
+    }
+
+    /// 获取 CSS URL 列表
+    public func getAstUrlsForCss(): ArrayList<String> {
+        return ArrayList<String>()
+    }
+
+    /// 获取额外文件唯一键
+    public func getUniqueKeysForAdditionalFile(): ArrayList<String> {
+        return ArrayList<String>()
+    }
+
+    /// 获取源文件的导入记录
+    public func getImportRecords(sourceIndex: Int64): ArrayList<ImportRecord> {
+        return ArrayList<ImportRecord>()
+    }
     return
 }
 }

@@ -112,10 +112,13 @@ public class WicGuids {
             // (HEVC vs AV1) 决定编解码器。如果扩展未安装，
             // CreateEncoder 返回 WINCODEC_ERR_COMPONENTNOTFOUND，
             // 作为 BackendUnavailable 显示。
-            case ImageFormat.heic | ImageFormat.avif => GUID_CONTAINER_FORMAT_HEIF
+            case ImageFormat.heic => GUID_CONTAINER_FORMAT_HEIF
+            case ImageFormat.avif => GUID_CONTAINER_FORMAT_HEIF
             // 仅解码格式 — codecs.encode() 在此路径之前短路，
             // 所以此分支仅用于 switch 穷尽性。
-            case ImageFormat.bmp | ImageFormat.tiff | ImageFormat.gif => None
+            case ImageFormat.bmp => None
+            case ImageFormat.tiff => None
+            case ImageFormat.gif => None
         }
     }
 }

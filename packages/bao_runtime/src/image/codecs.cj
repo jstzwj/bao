@@ -281,9 +281,13 @@ public class Codecs {
                 return CodecBmp.decode(bytes, maxPixels)
             case ImageFormat.gif =>
                 return CodecGif.decode(bytes, maxPixels)
-            case ImageFormat.heic | ImageFormat.avif | ImageFormat.tiff =>
+            case ImageFormat.heic =>
                 // 需要系统后端; 静态编解码器覆盖我们提供的所有内容;
                 // 分析表明 ImageIO 不更快。OS 后端纯粹是能力回退。
+                return None
+            case ImageFormat.avif =>
+                return None
+            case ImageFormat.tiff =>
                 return None
         }
     }
@@ -347,11 +351,6 @@ public class Codecs {
     /// 缩放图像
     /// 对应 Bun: resize
     public static func resize(src: Array<UInt8>, sw: UInt32, sh: UInt32, dw: UInt32, dh: UInt32, f: Filter): ?Array<UInt8> {
-        if (match (backend) { case Backend.system => true case _ => false }) {
-            let systemOut = BackendCoreGraphics.scale(src, sw, sh, dw, dh, f)
-            if (systemOut.isSome()) { return systemOut }
-        }
-
         // bao_jsc 当前只有零填充/元数据型指针存根，没有可用的 Array<UInt8> <-> native 指针桥接。
         // 继续用空 CPointer 调用 native resize 会返回零填充图像伪成功。
         return None

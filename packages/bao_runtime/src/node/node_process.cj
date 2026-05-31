@@ -549,32 +549,159 @@ public class NodeProcess {
     // ========================================================================
     // binding — Load a built-in native module binding
     // Corresponds to Bun: BunProcess.cpp Process_functionBinding
-    // Supports: buffer, config, constants, fs, http_parser, util, uv, etc.
-    // Most bindings throw "not implemented" errors matching Node.js behavior
+    // Supports: buffer, config, constants, fs, http_parser, natives,
+    //           util, uv, tty_wrap, crypto/x509
+    // Not-yet-implemented modules throw descriptive errors matching Node.js/Bun behavior
     // ========================================================================
-    public static func binding(moduleName: String): Unit {
-        // Known modules that are not yet implemented
-        let notImplemented: Array<String> = [
-            "async_wrap", "cares_wrap", "contextify", "crypto",
-            "fs_event_wrap", "icu", "inspector", "js_stream",
-            "os", "pipe_wrap", "process_wrap", "signal_wrap",
-            "spawn_sync", "stream_wrap", "tcp_wrap", "tls_wrap",
-            "udp_wrap", "url", "v8", "zlib"
-        ]
-        for (m in notImplemented) {
-            if (m == moduleName) {
-                throw BaoError(ErrorCode.fromRaw(0),
-                    "process.binding(\"${moduleName}\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
-            }
+    public static func binding(moduleName: String): Any {
+        // --- Implemented bindings ---
+        // Each returns a binding object corresponding to the Node.js native binding
+
+        // process.binding("buffer") — Buffer utilities
+        // Corresponds to Bun: ProcessBindingBuffer.cpp
+        if (moduleName == "buffer") {
+            return ProcessBindingBuffer.create()
         }
-        // Modules with issue tracking
-        let notImplementedWithIssue: Array<String> = ["stream_wrap"]
-        for (m in notImplementedWithIssue) {
-            if (m == moduleName) {
-                throw BaoError(ErrorCode.fromRaw(0),
-                    "process.binding(\"${moduleName}\") is not implemented in Bao. Track the status at https://github.com/nicolo-ribaudo/tc39-proposal-structs/issues")
-            }
+
+        // process.binding("config") — Build configuration
+        // Corresponds to Bun: BunProcess.cpp processBindingConfig
+        if (moduleName == "config") {
+            return ProcessBindingConfig.create()
         }
+
+        // process.binding("constants") — Platform constants (fs, os, signals, etc.)
+        // Corresponds to Bun: ProcessBindingConstants.h
+        if (moduleName == "constants") {
+            return ProcessBindingConstants.create()
+        }
+
+        // process.binding("fs") — File system binding
+        // Corresponds to Bun: ProcessBindingFs.cpp
+        if (moduleName == "fs") {
+            return ProcessBindingFs.create()
+        }
+
+        // process.binding("http_parser") — HTTP parser binding
+        // Corresponds to Bun: ProcessBindingHTTPParser.h
+        if (moduleName == "http_parser") {
+            return ProcessBindingHTTPParser.create()
+        }
+
+        // process.binding("natives") — Built-in module source code registry
+        // Corresponds to Bun: ProcessBindingNatives.cpp
+        if (moduleName == "natives") {
+            return ProcessBindingNatives.create()
+        }
+
+        // process.binding("util") — Utility types (isUint8Array, etc.)
+        // Corresponds to Bun: processBindingUtil -> NodeUtilTypes
+        if (moduleName == "util") {
+            return ProcessBindingUtil.create()
+        }
+
+        // process.binding("uv") — libuv constants and error codes
+        // Corresponds to Bun: Process.bindingUV
+        if (moduleName == "uv") {
+            return ProcessBindingUV.create()
+        }
+
+        // process.binding("tty_wrap") — TTY wrapper
+        // Corresponds to Bun: createNodeTTYWrapObject
+        if (moduleName == "tty_wrap") {
+            return ProcessBindingTTY.create()
+        }
+
+        // process.binding("crypto/x509") — X509 certificate utilities
+        // Corresponds to Bun: createCryptoX509Object
+        if (moduleName == "crypto/x509") {
+            return ProcessBindingCryptoX509.create()
+        }
+
+        // --- Not yet implemented ---
+        // These throw descriptive errors matching Bun/Node.js behavior
+
+        if (moduleName == "async_wrap") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"async_wrap\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "cares_wrap") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"cares_wrap\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "contextify") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"contextify\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "crypto") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"crypto\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "fs_event_wrap") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"fs_event_wrap\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "icu") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"icu\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "inspector") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"inspector\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "js_stream") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"js_stream\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "os") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"os\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "pipe_wrap") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"pipe_wrap\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "process_wrap") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"process_wrap\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "signal_wrap") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"signal_wrap\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "spawn_sync") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"spawn_sync\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "stream_wrap") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"stream_wrap\") is not implemented in Bao. Track the status at https://github.com/nicolo-ribaudo/tc39-proposal-structs/issues")
+        }
+        if (moduleName == "tcp_wrap") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"tcp_wrap\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "tls_wrap") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"tls_wrap\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "udp_wrap") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"udp_wrap\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "url") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"url\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "v8") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"v8\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+        if (moduleName == "zlib") {
+            throw BaoError(ErrorCode.fromRaw(0),
+                "process.binding(\"zlib\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+        }
+
+        // Unknown module
         throw BaoError(ErrorCode.fromRaw(0), "No such module: ${moduleName}")
     }
 
@@ -1096,5 +1223,468 @@ public class NodeProcessSystem {
             args.add(lastArg)
         }
         return args.toArray()
+    }
+}
+
+// ============================================================================
+// Process binding object factories
+// Corresponds to Bun: ProcessBinding*.cpp/h — objects returned by process.binding()
+// Each class creates a binding object matching the Node.js native module API
+// ============================================================================
+
+// process.binding("buffer") — Buffer utilities
+// Corresponds to Bun: ProcessBindingBuffer.cpp
+// Provides: Buffer, SlowBuffer, kMaxLength, byteLengthUtf8, etc.
+public class ProcessBindingBuffer {
+    public static func create(): HashMap<String, Any> {
+        var result = HashMap<String, Any>()
+        result.put("kMaxLength", Int64(2147483647))  // 2^31 - 1 (V8 max typed array length)
+        result.put("kStringMaxLength", Int64(536870888))  // ~512MB
+        result.put("byteLengthUtf8", "")  // TODO: FFI to v8::String::Utf8Length
+        return result
+    }
+}
+
+// process.binding("config") — Build configuration
+// Corresponds to Bun: BunProcess.cpp processBindingConfig
+// Provides: isDebugBuild, hasOpenSSL, fipsMode, hasIntl, etc.
+public class ProcessBindingConfig {
+    public static func create(): HashMap<String, Any> {
+        var result = HashMap<String, Any>()
+        result.put("isDebugBuild", false)
+        result.put("hasOpenSSL", true)
+        result.put("fipsMode", false)
+        result.put("hasIntl", true)
+        result.put("hasTracing", false)
+        result.put("hasNodeOptions", true)
+        result.put("hasInspector", true)
+        result.put("noBrowserGlobals", false)
+        result.put("bits", Int64(64))
+        return result
+    }
+}
+
+// process.binding("constants") — Platform constants
+// Corresponds to Bun: ProcessBindingConstants.h
+// Provides: fs.*, os.*, signals, errno, etc.
+public class ProcessBindingConstants {
+    public static func create(): HashMap<String, Any> {
+        var result = HashMap<String, Any>()
+
+        // fs constants
+        var fs = HashMap<String, Any>()
+        fs.put("UV_DIRENT_UNKNOWN", Int64(0))
+        fs.put("UV_DIRENT_FILE", Int64(1))
+        fs.put("UV_DIRENT_DIR", Int64(2))
+        fs.put("UV_DIRENT_LINK", Int64(3))
+        fs.put("UV_DIRENT_FIFO", Int64(4))
+        fs.put("UV_DIRENT_SOCKET", Int64(5))
+        fs.put("UV_DIRENT_CHAR", Int64(6))
+        fs.put("UV_DIRENT_BLOCK", Int64(7))
+        fs.put("O_RDONLY", Int64(0))
+        fs.put("O_WRONLY", Int64(1))
+        fs.put("O_RDWR", Int64(2))
+        fs.put("O_CREAT", Int64(64))
+        fs.put("O_EXCL", Int64(128))
+        fs.put("O_NOCTTY", Int64(256))
+        fs.put("O_TRUNC", Int64(512))
+        fs.put("O_APPEND", Int64(1024))
+        fs.put("O_DIRECTORY", Int64(65536))
+        fs.put("O_NOATIME", Int64(262144))
+        fs.put("O_NOFOLLOW", Int64(131072))
+        fs.put("O_SYNC", Int64(1052672))
+        fs.put("O_DSYNC", Int64(4096))
+        fs.put("O_DIRECT", Int64(16384))
+        fs.put("O_NONBLOCK", Int64(2048))
+        fs.put("S_IFMT", Int64(61440))
+        fs.put("S_IFREG", Int64(32768))
+        fs.put("S_IFDIR", Int64(16384))
+        fs.put("S_IFCHR", Int64(8192))
+        fs.put("S_IFBLK", Int64(24576))
+        fs.put("S_IFIFO", Int64(4096))
+        fs.put("S_IFLNK", Int64(40960))
+        fs.put("S_IFSOCK", Int64(49152))
+        fs.put("S_IRWXU", Int64(448))
+        fs.put("S_IRUSR", Int64(256))
+        fs.put("S_IWUSR", Int64(128))
+        fs.put("S_IXUSR", Int64(64))
+        fs.put("S_IRWXG", Int64(56))
+        fs.put("S_IRGRP", Int64(32))
+        fs.put("S_IWGRP", Int64(16))
+        fs.put("S_IXGRP", Int64(8))
+        fs.put("S_IRWXO", Int64(7))
+        fs.put("S_IROTH", Int64(4))
+        fs.put("S_IWOTH", Int64(2))
+        fs.put("S_IXOTH", Int64(1))
+        result.put("fs", fs)
+
+        // os constants
+        var os = HashMap<String, Any>()
+        os.put("UV_UDP_REUSEADDR", Int64(4))
+        os.put("signals", signalConstants())
+        os.put("errno", errnoConstants())
+        result.put("os", os)
+
+        // zlib constants
+        var zlib = HashMap<String, Any>()
+        zlib.put("Z_NO_FLUSH", Int64(0))
+        zlib.put("Z_PARTIAL_FLUSH", Int64(1))
+        zlib.put("Z_SYNC_FLUSH", Int64(2))
+        zlib.put("Z_FULL_FLUSH", Int64(3))
+        zlib.put("Z_FINISH", Int64(4))
+        zlib.put("Z_BLOCK", Int64(5))
+        zlib.put("Z_OK", Int64(0))
+        zlib.put("Z_STREAM_END", Int64(1))
+        zlib.put("Z_NEED_DICT", Int64(2))
+        zlib.put("Z_ERRNO", Int64(-1))
+        zlib.put("Z_STREAM_ERROR", Int64(-2))
+        zlib.put("Z_DATA_ERROR", Int64(-3))
+        zlib.put("Z_BUF_ERROR", Int64(-5))
+        zlib.put("Z_NO_COMPRESSION", Int64(0))
+        zlib.put("Z_BEST_SPEED", Int64(1))
+        zlib.put("Z_BEST_COMPRESSION", Int64(9))
+        zlib.put("Z_DEFAULT_COMPRESSION", Int64(-1))
+        zlib.put("Z_FILTERED", Int64(1))
+        zlib.put("Z_HUFFMAN_ONLY", Int64(2))
+        zlib.put("Z_RLE", Int64(3))
+        zlib.put("Z_FIXED", Int64(4))
+        zlib.put("Z_DEFAULT_STRATEGY", Int64(0))
+        zlib.put("Z_DEFLATED", Int64(8))
+        result.put("zlib", zlib)
+
+        return result
+    }
+
+    // POSIX signal constants (Linux)
+    private static func signalConstants(): HashMap<String, Int64> {
+        var signals = HashMap<String, Int64>()
+        signals.put("SIGHUP", Int64(1))
+        signals.put("SIGINT", Int64(2))
+        signals.put("SIGQUIT", Int64(3))
+        signals.put("SIGILL", Int64(4))
+        signals.put("SIGTRAP", Int64(5))
+        signals.put("SIGABRT", Int64(6))
+        signals.put("SIGIOT", Int64(6))
+        signals.put("SIGBUS", Int64(7))
+        signals.put("SIGFPE", Int64(8))
+        signals.put("SIGKILL", Int64(9))
+        signals.put("SIGUSR1", Int64(10))
+        signals.put("SIGSEGV", Int64(11))
+        signals.put("SIGUSR2", Int64(12))
+        signals.put("SIGPIPE", Int64(13))
+        signals.put("SIGALRM", Int64(14))
+        signals.put("SIGTERM", Int64(15))
+        signals.put("SIGCHLD", Int64(17))
+        signals.put("SIGCONT", Int64(18))
+        signals.put("SIGSTOP", Int64(19))
+        signals.put("SIGTSTP", Int64(20))
+        signals.put("SIGTTIN", Int64(21))
+        signals.put("SIGTTOU", Int64(22))
+        signals.put("SIGURG", Int64(23))
+        signals.put("SIGXCPU", Int64(24))
+        signals.put("SIGXFSZ", Int64(25))
+        signals.put("SIGVTALRM", Int64(26))
+        signals.put("SIGPROF", Int64(27))
+        signals.put("SIGWINCH", Int64(28))
+        signals.put("SIGIO", Int64(29))
+        signals.put("SIGSYS", Int64(31))
+        return signals
+    }
+
+    // POSIX errno constants (Linux)
+    private static func errnoConstants(): HashMap<String, Int64> {
+        var errnos = HashMap<String, Int64>()
+        errnos.put("EPERM", Int64(1))
+        errnos.put("ENOENT", Int64(2))
+        errnos.put("ESRCH", Int64(3))
+        errnos.put("EINTR", Int64(4))
+        errnos.put("EIO", Int64(5))
+        errnos.put("ENXIO", Int64(6))
+        errnos.put("E2BIG", Int64(7))
+        errnos.put("ENOEXEC", Int64(8))
+        errnos.put("EBADF", Int64(9))
+        errnos.put("ECHILD", Int64(10))
+        errnos.put("EAGAIN", Int64(11))
+        errnos.put("EWOULDBLOCK", Int64(11))
+        errnos.put("ENOMEM", Int64(12))
+        errnos.put("EACCES", Int64(13))
+        errnos.put("EFAULT", Int64(14))
+        errnos.put("ENOTBLK", Int64(15))
+        errnos.put("EBUSY", Int64(16))
+        errnos.put("EEXIST", Int64(17))
+        errnos.put("EXDEV", Int64(18))
+        errnos.put("ENODEV", Int64(19))
+        errnos.put("ENOTDIR", Int64(20))
+        errnos.put("EISDIR", Int64(21))
+        errnos.put("EINVAL", Int64(22))
+        errnos.put("ENFILE", Int64(23))
+        errnos.put("EMFILE", Int64(24))
+        errnos.put("ENOTTY", Int64(25))
+        errnos.put("ETXTBSY", Int64(26))
+        errnos.put("EFBIG", Int64(27))
+        errnos.put("ENOSPC", Int64(28))
+        errnos.put("ESPIPE", Int64(29))
+        errnos.put("EROFS", Int64(30))
+        errnos.put("EMLINK", Int64(31))
+        errnos.put("EPIPE", Int64(32))
+        errnos.put("EDOM", Int64(33))
+        errnos.put("ERANGE", Int64(34))
+        errnos.put("EDEADLK", Int64(35))
+        errnos.put("ENAMETOOLONG", Int64(36))
+        errnos.put("ENOLCK", Int64(37))
+        errnos.put("ENOSYS", Int64(38))
+        errnos.put("ENOTEMPTY", Int64(39))
+        errnos.put("ELOOP", Int64(40))
+        errnos.put("EOVERFLOW", Int64(75))
+        errnos.put("EADDRINUSE", Int64(98))
+        errnos.put("EADDRNOTAVAIL", Int64(99))
+        errnos.put("ENETDOWN", Int64(100))
+        errnos.put("ENETUNREACH", Int64(101))
+        errnos.put("ENETRESET", Int64(102))
+        errnos.put("ECONNABORTED", Int64(103))
+        errnos.put("ECONNRESET", Int64(104))
+        errnos.put("ENOBUFS", Int64(105))
+        errnos.put("EISCONN", Int64(106))
+        errnos.put("ENOTCONN", Int64(107))
+        errnos.put("ETIMEDOUT", Int64(110))
+        errnos.put("ECONNREFUSED", Int64(111))
+        errnos.put("EHOSTUNREACH", Int64(113))
+        errnos.put("EALREADY", Int64(114))
+        errnos.put("EINPROGRESS", Int64(115))
+        return errnos
+    }
+}
+
+// process.binding("fs") — File system binding
+// Corresponds to Bun: ProcessBindingFs.cpp
+// Provides: open, read, write, close, stat, etc. as FFI stubs
+public class ProcessBindingFs {
+    public static func create(): HashMap<String, Any> {
+        var result = HashMap<String, Any>()
+        // FS stat types
+        result.put("S_IFMT", Int64(61440))
+        result.put("S_IFREG", Int64(32768))
+        result.put("S_IFDIR", Int64(16384))
+        result.put("S_IFCHR", Int64(8192))
+        result.put("S_IFBLK", Int64(24576))
+        result.put("S_IFIFO", Int64(4096))
+        result.put("S_IFLNK", Int64(40960))
+        result.put("S_IFSOCK", Int64(49152))
+        // FFI wrappers for file operations are handled by NodeFsSystem
+        result.put("open", "")    // TODO: delegate to NodeFsSystem
+        result.put("read", "")    // TODO: delegate to NodeFsSystem
+        result.put("write", "")   // TODO: delegate to NodeFsSystem
+        result.put("close", "")   // TODO: delegate to NodeFsSystem
+        result.put("stat", "")    // TODO: delegate to NodeFsSystem
+        result.put("fstat", "")   // TODO: delegate to NodeFsSystem
+        result.put("lstat", "")   // TODO: delegate to NodeFsSystem
+        result.put("chmod", "")   // TODO: delegate to NodeFsSystem
+        result.put("chown", "")   // TODO: delegate to NodeFsSystem
+        result.put("utimes", "")  // TODO: delegate to NodeFsSystem
+        return result
+    }
+}
+
+// process.binding("http_parser") — HTTP parser constants
+// Corresponds to Bun: ProcessBindingHTTPParser.h
+// Provides: HTTPParser methods and status codes
+public class ProcessBindingHTTPParser {
+    public static func create(): HashMap<String, Any> {
+        var result = HashMap<String, Any>()
+        var methods = HashMap<String, Int64>()
+        methods.put("DELETE", Int64(0))
+        methods.put("GET", Int64(1))
+        methods.put("HEAD", Int64(2))
+        methods.put("POST", Int64(3))
+        methods.put("PUT", Int64(4))
+        methods.put("PATCH", Int64(5))
+        methods.put("CONNECT", Int64(6))
+        methods.put("OPTIONS", Int64(7))
+        methods.put("TRACE", Int64(8))
+        result.put("methods", methods)
+        var allMethods = ArrayList<String>()
+        allMethods.add("DELETE")
+        allMethods.add("GET")
+        allMethods.add("HEAD")
+        allMethods.add("POST")
+        allMethods.add("PUT")
+        allMethods.add("PATCH")
+        allMethods.add("CONNECT")
+        allMethods.add("OPTIONS")
+        allMethods.add("TRACE")
+        result.put("allMethods", allMethods.toArray())
+        return result
+    }
+}
+
+// process.binding("natives") — Built-in module source code registry
+// Corresponds to Bun: ProcessBindingNatives.cpp
+// Returns a map of module name -> source code (currently empty stubs)
+public class ProcessBindingNatives {
+    public static func create(): HashMap<String, Any> {
+        var result = HashMap<String, Any>()
+        // In Bun, natives returns built-in module source code for legacy compatibility
+        // Most are empty strings since Bun doesn't include Node.js C++ sources
+        result.put("config", "")
+        result.put("module", "")
+        result.put("path", "")
+        result.put("fs", "")
+        result.put("http", "")
+        result.put("https", "")
+        result.put("net", "")
+        result.put("os", "")
+        result.put("stream", "")
+        result.put("url", "")
+        result.put("util", "")
+        result.put("zlib", "")
+        result.put("events", "")
+        result.put("assert", "")
+        result.put("buffer", "")
+        result.put("child_process", "")
+        result.put("cluster", "")
+        result.put("crypto", "")
+        result.put("dgram", "")
+        result.put("dns", "")
+        result.put("domain", "")
+        result.put("inspector", "")
+        result.put("perf_hooks", "")
+        result.put("punycode", "")
+        result.put("querystring", "")
+        result.put("readline", "")
+        result.put("repl", "")
+        result.put("string_decoder", "")
+        result.put("sys", "")
+        result.put("timers", "")
+        result.put("tls", "")
+        result.put("tty", "")
+        result.put("v8", "")
+        result.put("vm", "")
+        result.put("worker_threads", "")
+        return result
+    }
+}
+
+// process.binding("util") — Utility types
+// Corresponds: Bun: processBindingUtil -> InternalModuleRegistry::NodeUtilTypes
+// Provides: isUint8Array, isAnyArrayBuffer, etc. type check utilities
+public class ProcessBindingUtil {
+    public static func create(): HashMap<String, Any> {
+        var result = HashMap<String, Any>()
+        // These are typically JS functions; in Bao they are placeholder strings
+        // The actual implementation would need to return callable JS objects
+        result.put("isUint8Array", "isUint8Array")
+        result.put("isAnyArrayBuffer", "isAnyArrayBuffer")
+        result.put("isArgumentsObject", "isArgumentsObject")
+        result.put("isBoxedPrimitive", "isBoxedPrimitive")
+        result.put("isArrayBufferView", "isArrayBufferView")
+        result.put("isAsyncFunction", "isAsyncFunction")
+        result.put("isGeneratorFunction", "isGeneratorFunction")
+        result.put("isGeneratorObject", "isGeneratorObject")
+        result.put("isMap", "isMap")
+        result.put("isMapIterator", "isMapIterator")
+        result.put("isModuleNamespaceObject", "isModuleNamespaceObject")
+        result.put("isNativeError", "isNativeError")
+        result.put("isNumberObject", "isNumberObject")
+        result.put("isPromise", "isPromise")
+        result.put("isProxy", "isProxy")
+        result.put("isRegExp", "isRegExp")
+        result.put("isSet", "isSet")
+        result.put("isSetIterator", "isSetIterator")
+        result.put("isSharedArrayBuffer", "isSharedArrayBuffer")
+        result.put("isStringObject", "isStringObject")
+        result.put("isSymbolObject", "isSymbolObject")
+        result.put("isTypedArray", "isTypedArray")
+        result.put("isWeakMap", "isWeakMap")
+        result.put("isWeakSet", "isWeakSet")
+        result.put("isDate", "isDate")
+        return result
+    }
+}
+
+// process.binding("uv") — libuv constants and error codes
+// Corresponds to Bun: Process.bindingUV
+// Provides: UV_* constants used by Node.js internals
+public class ProcessBindingUV {
+    public static func create(): HashMap<String, Any> {
+        var result = HashMap<String, Any>()
+        // UV error codes
+        result.put("UV_E2BIG", Int64(-7))
+        result.put("UV_EACCES", Int64(-13))
+        result.put("UV_EADDRINUSE", Int64(-98))
+        result.put("UV_EADDRNOTAVAIL", Int64(-99))
+        result.put("UV_EAFNOSUPPORT", Int64(-97))
+        result.put("UV_EAGAIN", Int64(-11))
+        result.put("UV_EALREADY", Int64(-114))
+        result.put("UV_EBADF", Int64(-9))
+        result.put("UV_EBUSY", Int64(-16))
+        result.put("UV_ECANCELED", Int64(-125))
+        result.put("UV_ECONNABORTED", Int64(-103))
+        result.put("UV_ECONNREFUSED", Int64(-111))
+        result.put("UV_ECONNRESET", Int64(-104))
+        result.put("UV_EDESTADDRREQ", Int64(-89))
+        result.put("UV_EEXIST", Int64(-17))
+        result.put("UV_EFAULT", Int64(-14))
+        result.put("UV_EFBIG", Int64(-27))
+        result.put("UV_EHOSTUNREACH", Int64(-113))
+        result.put("UV_EINTR", Int64(-4))
+        result.put("UV_EINVAL", Int64(-22))
+        result.put("UV_EIO", Int64(-5))
+        result.put("UV_EISCONN", Int64(-106))
+        result.put("UV_EISDIR", Int64(-21))
+        result.put("UV_ELOOP", Int64(-40))
+        result.put("UV_EMFILE", Int64(-24))
+        result.put("UV_EMSGSIZE", Int64(-90))
+        result.put("UV_ENAMETOOLONG", Int64(-36))
+        result.put("UV_ENETDOWN", Int64(-100))
+        result.put("UV_ENETUNREACH", Int64(-101))
+        result.put("UV_ENFILE", Int64(-23))
+        result.put("UV_ENOBUFS", Int64(-105))
+        result.put("UV_ENODEV", Int64(-19))
+        result.put("UV_ENOENT", Int64(-2))
+        result.put("UV_ENOMEM", Int64(-12))
+        result.put("UV_ENONET", Int64(-64))
+        result.put("UV_ENOSPC", Int64(-28))
+        result.put("UV_ENOSYS", Int64(-38))
+        result.put("UV_ENOTCONN", Int64(-107))
+        result.put("UV_ENOTDIR", Int64(-20))
+        result.put("UV_ENOTEMPTY", Int64(-39))
+        result.put("UV_ENOTSOCK", Int64(-88))
+        result.put("UV_ENOTSUP", Int64(-95))
+        result.put("UV_EOVERFLOW", Int64(-75))
+        result.put("UV_EPERM", Int64(-1))
+        result.put("UV_EPIPE", Int64(-32))
+        result.put("UV_EPROTO", Int64(-71))
+        result.put("UV_EPROTONOSUPPORT", Int64(-93))
+        result.put("UV_EPROTOTYPE", Int64(-91))
+        result.put("UV_ERANGE", Int64(-34))
+        result.put("UV_EROFS", Int64(-30))
+        result.put("UV_ESHUTDOWN", Int64(-108))
+        result.put("UV_ESPIPE", Int64(-29))
+        result.put("UV_ESRCH", Int64(-3))
+        result.put("UV_ETIMEDOUT", Int64(-110))
+        result.put("UV_ETXTBSY", Int64(-26))
+        result.put("UV_EXDEV", Int64(-18))
+        result.put("UV_UNKNOWN", Int64(-4094))
+        return result
+    }
+}
+
+// process.binding("tty_wrap") — TTY wrapper constants
+// Corresponds to Bun: createNodeTTYWrapObject
+public class ProcessBindingTTY {
+    public static func create(): HashMap<String, Any> {
+        var result = HashMap<String, Any>()
+        result.put("isTTY", "")  // TODO: implement isatty() check via FFI
+        return result
+    }
+}
+
+// process.binding("crypto/x509") — X509 certificate utilities
+// Corresponds to Bun: createCryptoX509Object
+public class ProcessBindingCryptoX509 {
+    public static func create(): HashMap<String, Any> {
+        var result = HashMap<String, Any>()
+        result.put("isX509Certificate", "isX509Certificate")  // TODO: JS function
+        return result
     }
 }

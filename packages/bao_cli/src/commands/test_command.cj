@@ -2838,7 +2838,7 @@ public class ParallelRunner {
     /// 对应 Bun: buildWorkerArgv()
     private static func buildWorkerArgv(ctx: TestCommandContext): Array<String> {
         let argv = ArrayList<String>()
-        argv.append("/proc/self/exe") // TODO: use Sys.getSelfExePath() when available
+        argv.append(Sys.getExecutablePath()) // 通过 readlink("/proc/self/exe") 获取当前可执行文件路径
         argv.append("test")
         argv.append("--test-worker")
         argv.append("--isolate")

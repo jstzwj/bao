@@ -11,6 +11,7 @@ import bao_io.*
 import bao_path.*
 import bao_sys.*
 import bao_threading.*
+import bao_hash.*
 import std.random.*
 
 // ============================================================================
@@ -207,10 +208,26 @@ public class CssChunkContent {
     public var importsInOrder: ArrayList<CssImportOrder>
     /// 压缩后的 CSS 内容
     public var content: String
+    /// 准备好的 CSS AST 列表 (与 importsInOrder 一一对应)
+    // 严格翻译自: asts
+    public var asts: ArrayList<CssStylesheetRef>
+    /// 按类型分类的导入条目
+    // 严格翻译自: imports_in_chunk_in_order (使用丰富的 CSSImportOrderKind 类型)
+    public var typedImports: ArrayList<CSSImportOrderEntry>
 
     public init() {
         this.importsInOrder = ArrayList<CssImportOrder>()
         this.content = ""
+        this.asts = ArrayList<CssStylesheetRef>()
+        this.typedImports = ArrayList<CSSImportOrderEntry>()
+    }
+
+    /// 设置指定索引的 AST
+    public func setAst(index: Int64, ast: CssStylesheetRef): Unit {
+        while (asts.size <= index) {
+            asts.append(CssStylesheetRef())
+        }
+        asts[Int64(index)] = ast
     }
 }
 
@@ -312,6 +329,16 @@ public class Chunk {
 
     /// 重命名器 (符号重命名映射)
     public var renames: HashMap<String, String>
+    /// 编译结果列表 (每个导入条目一个)
+    public var compileResults: ArrayList<CompileResult>
+    /// 占位符哈希 (包含引用 chunk 的哈希, 用于 HTML etag)
+    public var placeholderHash: UInt64
+    /// 是否为来自服务端构建的浏览器 chunk
+    public var isBrowserChunkFromServerBuild: Bool
+
+    /// 预构建的 metafile JSON 片段 (在并行 chunk 生成期间填充)
+    // 严格翻译自: Chunk.zig metafile_chunk_json
+    public var metafileChunkJson: String
 
     public init() {
         this.uniqueKey = generateUniqueKey()
@@ -330,6 +357,10 @@ public class Chunk {
         this.isolatedHash = 0
         this.enableSourceMap = false
         this.renames = HashMap<String, String>()
+        this.compileResults = ArrayList<CompileResult>()
+        this.placeholderHash = 0
+        this.isBrowserChunkFromServerBuild = false
+        this.metafileChunkJson = ""
     }
 
     /// 判断是否为入口 chunk
@@ -854,8 +885,34 @@ public class ChunkBuilder {
     }
 
     /// 哈希模块列表
+    // 使用 Wyhash (final4) 对模块列表计算内容哈希
     private func hashModules(modules: ArrayList<String>): String {
-        return "00000000"
+        var h = Wyhash(UInt64(0))
+        for (mod in modules) {
+            h.update(mod.toArray())
+        }
+        let hashValue = h.finalize()
+        // 取低 32 位转 8 字符 hex
+        let u32val = UInt32(hashValue & UInt64(0xFFFFFFFF))
+        return u32ToHex8(u32val)
+    }
+
+    /// UInt32 转 8 字符十六进制字符串
+    private static func u32ToHex8(value: UInt32): String {
+        let hexChars = "0123456789abcdef"
+        var sb = StringBuilder()
+        var v = value
+        var chars = ArrayList<UInt8>()
+        for (_ in 0..8) {
+            chars.add(UInt8(v & UInt32(0xF)))
+            v = v >> 4
+        }
+        var i = chars.size - 1
+        while (i >= 0) {
+            sb.append(hexChars[Int64(chars[i])])
+            i -= 1
+        }
+        return sb.toString()
     }
 
     /// 获取共享模块提取结果

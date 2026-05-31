@@ -1,13 +1,20 @@
 // FileReader - 文件读取器
-// 严格翻译自: src/runtime/webcore/FileReader.rs (1130 lines)
+// 严格翻译自: src/runtime/webcore/FileReader.zig (682 lines) + FileReader.rs (1170 lines)
+// 对应 Bun: src/runtime/webcore/FileReader.zig
 //   Bun 的 FileReader 模块:
-//   - FileReader: 流式读取器, 包含 IOReader (BufferedReader), done, pending, fd, startOffset, maxSize, totalReaded, started, waitingForOnReaderDone, eventLoop, lazy, buffered, readInsideOnPull, highwaterMark, flowing
+//   - FileReader struct: 流式读取器
+//     字段: reader (IOReader/BufferedReader), done, pending, pending_value, pending_view,
+//           fd, start_offset, max_size, total_readed, started, waiting_for_on_reader_done,
+//           event_loop, lazy, buffered, read_inside_on_pull, highwater_mark, flowing
 //   - ReadDuringJSOnPullResult: JS pull 期间读取结果 (None/Js/AmountRead/Temporary/UseBuffered)
 //   - Lazy: 延迟打开 (None/Blob(StoreRef))
-//   - OpenedFileBlob: 打开的文件结果 (fd, pollable, nonblocking, fileType)
-//   - SourceContext trait impl: onStart, onPull, onReadChunk, onReaderDone, onReaderError, onCancel, drain, setRefOrUnref, setFlowing, memoryCost, setRawMode, deinit
+//   - OpenedFileBlob: 打开的文件结果 (fd, pollable, nonblocking, file_type)
+//   - Lazy.openFileBlob: 从 Blob.Store.File 打开文件描述符
+//   - SourceContext trait impl: onStart, onPull, onReadChunk, onReaderDone, onReaderError,
+//     onCancel, drain, setRefOrUnref, setFlowing, memoryCost, setRawMode, deinit, finalizeDetach
 //   - Source = readable_stream::NewSource<FileReader>
-//   - parent(): 从 context 字段反推 *Source (fieldParentPtr)
+//   - parent(): 从 context 字段反推 *Source (fieldParentPtr via @fieldParentPtr)
+//   - isSliceInVecCapacity: 检查 slice 是否在 Vec 的分配范围内
 //   仓颉: 提供兼容的文件流式读取器
 package bao_runtime.webcore
 

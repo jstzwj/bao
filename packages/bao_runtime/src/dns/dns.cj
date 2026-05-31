@@ -7,6 +7,8 @@ package bao_runtime.dns
 import bao_jsc.*
 import bao_collections.ArrayList
 import bao_sys.{SysModule}
+import bao_sys.{getaddrinfo, freeaddrinfo, gai_strerror, malloc, free, memset, unsafeNewCString, unsafeCStringToString}
+import bao_sys.{open, read, close}
 
 // ============================================================================
 // 常量
@@ -516,12 +518,15 @@ public class GetAddrInfoRequest {
     public var cache: CacheConfig = CacheConfig()
     public var head: DNSLookup
     public var tail: DNSLookup
+    public var query: ?GetAddrInfo = None
+    public var libcResult: LibcResult = LibcResult.error(0)
 
     public init(cacheHit: CacheHit, backend: DnsBackend, resolver: ?DnsResolver, query: GetAddrInfo, globalThis: JsObject, cacheField: String) {
         let pollRef = KeepAlive()
         pollRef.ref(globalThis)
 
         this.backend = backend
+        this.query = query
         this.hash = query.hash()
         head = DNSLookup(resolver, globalThis, pollRef, JsPromise())
         tail = head
@@ -552,17 +557,175 @@ public class GetAddrInfoRequest {
     }
 
     /// run - 在工作线程执行
-    /// 对应 Bun: GetAddrInfoRequest.run
+    /// 对应 Bun: GetAddrInfoRequest.Backend.libc.run
+    /// 调用 libc 的 getaddrinfo 系统调用进行 DNS 解析
     public func run(): Unit {
-        // libc 后端: 执行 getaddrinfo
-        // 简化实现
+        // 仅在 libc/system 后端下执行；c-ares 后端通过 onCaresComplete 回调
+        if (backend != DnsBackend.libc && backend != DnsBackend.system) {
+            return
+        }
+        libcResult = performGetAddrInfo()
     }
 
     /// then - 在 JS 线程处理结果
     /// 对应 Bun: GetAddrInfoRequest.then
     public func then(): Unit {
-        // 处理成功结果
-        // 简化实现
+        let result = libcResult
+        match (result) {
+            case LibcResult.success(addrInfoList) =>
+                let any = DnsResultAny.addrinfo(addrInfoList)
+                if (resolverForCaching.isSome()) {
+                    if (cache.pendingCache) {
+                        resolverForCaching.getOrThrow().drainPendingHostNative(
+                            cache.posInPending, head.globalThis, 0, any)
+                        return
+                    }
+                }
+                head.onCompleteNative(any)
+            case LibcResult.error(errCode) =>
+                getAddrInfoAsyncCallback(errCode, None)
+        }
+    }
+
+    /// 执行实际的 getaddrinfo 系统调用
+    /// 对应 Bun: GetAddrInfoRequest.Backend.libc.run 中的 std.c.getaddrinfo 调用
+    private func performGetAddrInfo(): LibcResult {
+        let q = query.getOrThrow()
+        unsafe {
+            let nodePtr = unsafeNewCString(q.name)
+
+            // 构造 service 字符串 (端口号)
+            let servicePtr = if (q.port > 0) {
+                unsafeNewCString(q.port.toString())
+            } else {
+                CPointer<Int8>()
+            }
+
+            // 构造 hints (struct addrinfo)
+            // Linux x86_64: struct addrinfo { ai_flags(4), ai_family(4), ai_socktype(4),
+            //   ai_protocol(4), ai_addrlen(4+pad->8), ai_addr(8), ai_canonname(8), ai_next(8) }
+            let hintsPtr = malloc(UIntNative(48))
+            memset(hintsPtr, 0, UIntNative(48))
+
+            // 设置 AI_ADDRCONFIG | AI_V4MAPPED
+            let flagsPtr = CPointer<Int32>(hintsPtr)
+            flagsPtr.write(Int32(0x0028))  // AI_ADDRCONFIG(0x0020) | AI_V4MAPPED(0x0008)
+
+            // 设置 ai_family
+            let familyPtr = CPointer<Int32>(hintsPtr) + Int64(1)
+            familyPtr.write(familyToNative(q.options.family))
+
+            // 设置 ai_socktype = SOCK_STREAM
+            let sockTypePtr = CPointer<Int32>(hintsPtr) + Int64(2)
+            sockTypePtr.write(Int32(1))  // SOCK_STREAM
+
+            let resPtr = malloc(UIntNative(8))
+
+            let rc = getaddrinfo(nodePtr, servicePtr, hintsPtr,
+                                  CPointer<CPointer<Unit>>(resPtr))
+            free(hintsPtr)
+
+            // 释放 service 字符串（如果有）
+            if (!servicePtr.isNull()) {
+                free(CPointer<Unit>(servicePtr))
+            }
+            free(CPointer<Unit>(nodePtr))
+
+            if (rc != 0) {
+                free(resPtr)
+                return LibcResult.error(rc)
+            }
+
+            // 遍历 addrinfo 链表，构建结果列表
+            var results = ArrayList<AddrInfoNode>()
+            var currentPtr = CPointer<Unit>(CPointer<CPointer<Unit>>(resPtr).read())
+            var count = 0
+            while (!currentPtr.isNull() && count < 128) {
+                // 读取 ai_family (offset 4)
+                let familyPtr2 = CPointer<Int32>(currentPtr) + Int64(1)
+                let afamily = familyPtr2.read()
+
+                // 读取 ai_addr (offset 24 on 64-bit)
+                let addrPtrPtr = CPointer<CPointer<Unit>>(currentPtr) + Int64(3)
+                let addrPtr = addrPtrPtr.read()
+
+                var addressStr = ""
+                var familyCode: Int64 = 2  // AF_INET
+
+                if (!addrPtr.isNull()) {
+                    if (afamily == 2) {
+                        // AF_INET: sin_addr at offset 4, 4 bytes
+                        familyCode = 2
+                        let a = UInt8(Int32((CPointer<UInt8>(addrPtr) + Int64(4)).read()) & 0xFF)
+                        let b = UInt8(Int32((CPointer<UInt8>(addrPtr) + Int64(5)).read()) & 0xFF)
+                        let c = UInt8(Int32((CPointer<UInt8>(addrPtr) + Int64(6)).read()) & 0xFF)
+                        let d = UInt8(Int32((CPointer<UInt8>(addrPtr) + Int64(7)).read()) & 0xFF)
+                        addressStr = "${a}.${b}.${c}.${d}"
+                    } else if (afamily == 10) {
+                        // AF_INET6: sin6_addr at offset 8, 16 bytes
+                        familyCode = 10
+                        var parts = ArrayList<String>()
+                        // Format as standard IPv6 hex groups
+                        var i = 0
+                        while (i < 16) {
+                            let high = Int32((CPointer<UInt8>(addrPtr) + Int64(8 + i)).read()) & 0xFF
+                            let low = Int32((CPointer<UInt8>(addrPtr) + Int64(8 + i + 1)).read()) & 0xFF
+                            let val = high * 256 + low
+                            parts.append(val.toString())
+                            i += 2
+                        }
+                        addressStr = String.join(parts.toOwnedSlice(), delimiter: ":")
+                        if (addressStr.size == 0) {
+                            addressStr = "::1"
+                        }
+                    }
+                }
+
+                if (addressStr.size > 0) {
+                    let netAddr = NetworkAddress(familyCode, addressStr)
+                    results.append(AddrInfoNode(netAddr, 0))
+                }
+
+                // 读取 ai_next (offset 40 on 64-bit)
+                let nextPtrPtr = CPointer<CPointer<Unit>>(currentPtr) + Int64(5)
+                currentPtr = nextPtrPtr.read()
+                count += 1
+            }
+
+            // 释放 addrinfo 链表
+            freeaddrinfo(CPointer<Unit>(CPointer<CPointer<Unit>>(resPtr).read()))
+            free(resPtr)
+
+            if (results.size == 0) {
+                return LibcResult.error(8)  // EAI_NONAME
+            }
+
+            // 构建链表
+            var firstNode: ?AddrInfoNode = None
+            for (i in 0..results.size) {
+                let node = results[i]
+                if (firstNode.isNone()) {
+                    firstNode = node
+                } else {
+                    var tail = firstNode.getOrThrow()
+                    while (tail.next.isSome()) {
+                        tail = tail.next.getOrThrow()
+                    }
+                    tail.next = node
+                }
+            }
+
+            return LibcResult.success(AddrInfo(firstNode))
+        }
+    }
+
+    /// 将 DnsFamily 转为 native ai_family 值
+    private func familyToNative(family: DnsFamily): Int32 {
+        match (family) {
+            case DnsFamily.unspecified => 0   // AF_UNSPEC
+            case DnsFamily.inet => 2          // AF_INET
+            case DnsFamily.inet6 => 10        // AF_INET6
+        }
     }
 
     /// c-ares 完成回调
@@ -1465,11 +1628,66 @@ public class DnsResolver {
     // ========================================================================
 
     /// 获取 DNS 服务器列表
-    /// 对应 Bun: Resolver.getServers
+    /// 对应 Bun: Resolver.getServers / getChannelServers
+    /// 读取 /etc/resolv.conf 获取系统配置的 DNS 服务器
     public static func getGlobalServers(globalThis: JsObject, args: ArrayList<JsValue>): JsValue {
         let arr = ArrayList<JsValue>()
-        // 简化实现：返回空数组
+        let servers = readServersFromResolvConf()
+        for (server in servers) {
+            arr.append(JsValue(server))
+        }
         return JsValue.array(arr)
+    }
+
+    /// 从 /etc/resolv.conf 读取 DNS 服务器列表
+    /// 对应 Bun: c-ares 初始化时读取 /etc/resolv.conf
+    public static func readServersFromResolvConf(): ArrayList<String> {
+        let servers = ArrayList<String>()
+        unsafe {
+            let pathPtr = unsafeNewCString("/etc/resolv.conf")
+            let fd = open(pathPtr, 0, UInt32(0))  // O_RDONLY = 0
+            free(CPointer<Unit>(pathPtr))
+            if (fd < 0) {
+                servers.append("127.0.0.1")
+                return servers
+            }
+
+            let bufSize: UIntNative = UIntNative(4096)
+            let buf = malloc(bufSize)
+            let bytesRead = read(fd, buf, bufSize)
+            close(fd)
+
+            if (Int64(bytesRead) <= 0) {
+                free(buf)
+                servers.append("127.0.0.1")
+                return servers
+            }
+
+            let content = unsafeCStringToString(CPointer<Int8>(buf))
+            free(buf)
+
+            let lines = content.split("\n")
+            for (line in lines) {
+                let trimmed = line.trim()
+                if (trimmed.startsWith("nameserver")) {
+                    let parts = trimmed.split(" ")
+                    var i = 1
+                    while (i < parts.size) {
+                        let part = parts[Int64(i)].trim()
+                        if (part.size > 0) {
+                            servers.append(part)
+                            break
+                        }
+                        i += 1
+                    }
+                }
+            }
+        }
+
+        if (servers.size == 0) {
+            servers.append("127.0.0.1")
+        }
+        return servers
     }
 
     /// 设置 DNS 服务器列表
@@ -1843,4 +2061,19 @@ extend Int32 {
 public class VirtualMachine {
     public init() {}
     public static func get(): VirtualMachine { VirtualMachine() }
+}
+
+// ============================================================================
+// LibcResult - getaddrinfo 系统调用的结果类型
+// 对应 Bun: GetAddrInfoRequest.Backend.libc 的 union(enum)
+//   success: GetAddrInfo.Result.List
+//   err: i32
+//   query: GetAddrInfo
+// ============================================================================
+
+/// getaddrinfo 系统调用的结果
+/// 对应 Bun: GetAddrInfoRequest.Backend.libc (success | err 分支)
+public enum LibcResult {
+    | success(AddrInfo)
+    | error(Int32)
 }

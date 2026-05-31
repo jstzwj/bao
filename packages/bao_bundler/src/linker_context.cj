@@ -9,6 +9,7 @@ import bao_io.*
 import bao_path.*
 import bao_sys.*
 import bao_threading.*
+import bao_hash.*
 
 // ============================================================================
 // 链接器上下文
@@ -373,6 +374,8 @@ public class LinkerContext {
     public var hasAnyCssLocals: Bool
     /// 符号重命名映射 (CSS modules 等)
     public var mangledProps: HashMap<Int64, String>
+    /// Dev server 引用 (非 None 表示 dev server 模式)
+    public var devServer: ?Object
 
     public init() {
         parseGraph = Graph()
@@ -392,6 +395,7 @@ public class LinkerContext {
         pendingTaskCount = 0
         hasAnyCssLocals = false
         mangledProps = HashMap<Int64, String>()
+        devServer = None
     }
 
     /// 执行链接
@@ -503,8 +507,44 @@ public class LinkerContext {
     }
 
     /// 计算 hash
+    // 严格翻译自: LinkerContext.zig generateIsolatedHash
+    // 使用 XxHash64 (与 Bun 的 ContentHasher 一致) 对模块列表计算内容哈希
     private func computeHash(modules: ArrayList<String>): String {
-        return "0"
+        // 将所有模块连接后用 XxHash64 一次性计算
+        var allBytes = ArrayList<UInt8>()
+        for (mod in modules) {
+            let bytes = mod.toArray()
+            // 先写入长度前缀 (匹配 Bun ContentHasher.write 的行为)
+            let lenStr = bytes.size.toString()
+            for (c in lenStr) {
+                allBytes.add(UInt8(UInt32(c)))
+            }
+            for (b in bytes) {
+                allBytes.add(b)
+            }
+        }
+        let hashValue = XxHash64.hash(allBytes.toArray())
+        // 取低 32 位转 8 字符 hex
+        let u32val = UInt32(hashValue & UInt64(0xFFFFFFFF))
+        return u32ToHex8(u32val)
+    }
+
+    /// UInt32 转 8 字符十六进制字符串
+    private static func u32ToHex8(value: UInt32): String {
+        let hexChars = "0123456789abcdef"
+        var sb = StringBuilder()
+        var v = value
+        var chars = ArrayList<UInt8>()
+        for (_ in 0..8) {
+            chars.add(UInt8(v & UInt32(0xF)))
+            v = v >> 4
+        }
+        var i = chars.size - 1
+        while (i >= 0) {
+            sb.append(hexChars[Int64(chars[i])])
+            i -= 1
+        }
+        return sb.toString()
     }
 
     /// 是否是外部动态导入
@@ -620,6 +660,8 @@ public class Graph {
         deferredPending = 0
         buildGraphs = HashMap<String, PathToSourceIndexMap>()
         cssFileCount = 0
+        htmlImports = HtmlImports()
+        additionalOutputFiles = ArrayList<OutputFileInfo>()
     }
 
     /// 获取路径到源索引的映射
@@ -643,6 +685,73 @@ public class Graph {
         }
         return false
     }
+
+    // ========== HTML Import Manifest 支持方法 ==========
+
+    /// HTML 导入跟踪
+    public var htmlImports: HtmlImports
+
+    /// 额外输出文件
+    public var additionalOutputFiles: ArrayList<OutputFileInfo>
+
+    /// 获取 HTML 导入的浏览器源文件索引
+    public func getHTMLSourceIndex(index: UInt32): Int64 {
+        if (index < htmlImports.htmlSourceIndices.size) {
+            return Int64(htmlImports.htmlSourceIndices[Int64(index)])
+        }
+        return -1
+    }
+
+    /// 获取 HTML 导入的服务端源文件索引
+    public func getHTMLServerSourceIndex(index: UInt32): Int64 {
+        if (index < htmlImports.serverSourceIndices.size) {
+            return Int64(htmlImports.serverSourceIndices[Int64(index)])
+        }
+        return -1
+    }
+
+    /// 获取 HTML 导入数量
+    public func getHTMLImportCount(): Int64 {
+        return htmlImports.htmlSourceIndices.size
+    }
+
+    /// 获取 bundle 选项
+    public func getBundleOptions(): LinkerContextOptions {
+        return LinkerContextOptions()
+    }
+
+    /// 获取项目根目录
+    public func getTopLevelDir(): String {
+        return ""
+    }
+
+    /// 获取额外输出文件列表
+    public func getAdditionalOutputFiles(): ArrayList<OutputFileInfo> {
+        return additionalOutputFiles
+    }
+
+    /// 获取 CSS AST 列表
+    public func getCssAsts(): ArrayList<CssStylesheetRef> {
+        return ArrayList<CssStylesheetRef>()
+    }
+
+    /// 获取 CSS URL 映射
+    public func getAstUrlsForCss(): ArrayList<String> {
+        return ArrayList<String>()
+    }
+
+    /// 获取额外文件唯一键
+    public func getUniqueKeysForAdditionalFile(): ArrayList<String> {
+        return ArrayList<String>()
+    }
+
+    /// 获取源文件的导入记录
+    public func getImportRecords(sourceIndex: Int64): ArrayList<ImportRecord> {
+        if (sourceIndex >= 0 && sourceIndex < asts.size) {
+            return asts[Int64(sourceIndex)].importRecords
+        }
+        return ArrayList<ImportRecord>()
+    }
 }
 
 /// 输入文件
@@ -650,6 +759,8 @@ public class Graph {
 public class InputFile {
     /// 源文件路径
     public var source: String
+    /// 文件内容
+    public var contents: String
     /// 次要路径 (如类型声明)
     public var secondaryPath: String
     /// 加载器类型
@@ -660,14 +771,18 @@ public class InputFile {
     public var isPluginFile: Bool
     /// 是否是 export * 目标
     public var isExportStarTarget: Bool
+    /// 附加文件的唯一键
+    public var uniqueKeyForAdditionalFile: String
 
     public init(source: String) {
         this.source = source
+        this.contents = ""
         this.secondaryPath = ""
         this.loader = Loader.Js
         this.sideEffects = SideEffects.HasSideEffects
         this.isPluginFile = false
         this.isExportStarTarget = false
+        this.uniqueKeyForAdditionalFile = ""
     }
 }
 
@@ -728,6 +843,23 @@ public class BitSet {
 
     public func clear(): Unit {
         bits.clear()
+    }
+
+    /// 检查两个位集合是否有交集
+    public func hasIntersection(other: BitSet): Bool {
+        for (bit in bits) {
+            if (other.bits.contains(bit)) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// 添加所有位
+    public func union(other: BitSet): Unit {
+        for (bit in other.bits) {
+            bits.put(bit)
+        }
     }
 }
 
@@ -837,3 +969,36 @@ public class Prop {
 // StmtTag and ExprTag are defined in bao_ast - use those directly
 // StmtTag.Other -> StmtTag.Empty
 // ExprTag.Other -> ExprTag.Missing
+
+// ============================================================================
+// HTML Import Manifest 支持类型
+// ============================================================================
+
+/// HTML 导入跟踪
+public class HtmlImports {
+    public var htmlSourceIndices: ArrayList<Int64>
+    public var serverSourceIndices: ArrayList<Int64>
+
+    public init() {
+        htmlSourceIndices = ArrayList<Int64>()
+        serverSourceIndices = ArrayList<Int64>()
+    }
+}
+
+/// 输出文件信息 (用于 HTML import manifest)
+public class OutputFileInfo {
+    public var sourceIndex: ?Int64
+    public var destPath: String
+    public var hash: UInt64
+    public var loader: String
+    public var isEntryPoint: Bool
+
+    public init() {
+        sourceIndex = None
+        destPath = ""
+        hash = 0
+        loader = "file"
+        isEntryPoint = false
+    }
+}
+

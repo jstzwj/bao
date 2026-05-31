@@ -217,8 +217,28 @@ public class Global {
     ///     @branchHint(.cold);
     ///     Output.panic("Not implemented yet!!!!!", .{});
     /// }
+    ///
+    /// 在 Bun 中, notimpl() 是 noreturn, 调用 Output.panic() 终止进程。
+    /// 在仓颉中, 通过抛出异常实现等价语义。
+    /// 调用此函数的代码路径应被视为 "编译器/运行时内部不应到达的分支",
+    /// 类似于 Zig 的 unreachable 但带有诊断信息。
+
+    /// 无上下文的 notimpl - 用于明确不应到达的代码路径
     public static func notimpl(): Unit {
         throw BaoError(ErrorCode.NotImplemented, "Not implemented yet!")
+    }
+
+    /// 带上下文的 notimpl - 提供具体的调用位置或功能描述
+    /// 用于标注 "此功能尚未移植, 但有明确的移植目标"
+    public static func notimpl(context: String): Unit {
+        throw BaoError(ErrorCode.NotImplemented, "Not implemented: ${context}")
+    }
+
+    /// 带源文件和行号的 notimpl - 由调用方提供定位信息
+    /// Bun 的 Output.panic 会自动附加调用栈, 仓颉异常也有栈跟踪,
+    /// 但显式标注有助于在 FFI 边界等栈跟踪不完整的位置快速定位
+    public static func notimpl(sourceFile: String, line: Int64, description: String): Unit {
+        throw BaoError(ErrorCode.NotImplemented, "Not implemented at ${sourceFile}:${line}: ${description}")
     }
 
     /// 崩溃退出 - 对应 Bun crash()

@@ -43,14 +43,14 @@ class GifBits {
                 this.eof = true
                 break
             }
-            this.acc = this.acc | (UInt32(this.src[this.i]) << Int64(this.nbits))
+            this.acc = this.acc | (UInt32(this.src[this.i]) << this.nbits)
             this.i += 1
             this.block -= 1
             this.nbits += 8
         }
-        let mask: UInt32 = if (n >= 32) { UInt32.Max } else { (UInt32(1) << n) - 1 }
+        let mask: UInt32 = if (n >= 32) { UInt32.Max } else { (UInt32(1) << n) - UInt32(1) }
         let v: UInt16 = UInt16(this.acc & mask)
-        this.acc >>= n
+        this.acc = this.acc >> n
         if (this.nbits >= n) {
             this.nbits -= n
         } else {
@@ -233,13 +233,13 @@ public class CodecGif {
 
             var first: UInt8 = 0
             if (code < avail) {
-                let (n, f) = dict.emit(code, clear, idx, written, scratch)
-                written += n
-                first = f
+                let emitResult = dict.emit(code, clear, idx, written, scratch)
+                written += emitResult[0]
+                first = emitResult[1]
             } else if (code == avail && prev >= 0) {
-                let (n, f) = dict.emit(UInt16(prev), clear, idx, written, scratch)
-                written += n
-                first = f
+                let emitResult = dict.emit(UInt16(prev), clear, idx, written, scratch)
+                written += emitResult[0]
+                first = emitResult[1]
                 if (written < npix) {
                     idx[written] = first
                     written += 1

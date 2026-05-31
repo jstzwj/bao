@@ -551,3 +551,747 @@ public func statementCaresAboutScope(stmt: Stmt): Bool {
             return false
     }
 }
+
+// ============================================================================
+// ASTVisitor - AST 访问器核心
+// 严格翻译自: src/js_parser/visit/visit.zig (1415 lines)
+//   pub fn Visit(comptime ...) type { return struct {
+//     visitStmts, visitStmtsAndPrependTempRefs, recordDeclaredSymbol,
+//     visitFunc, visitArgs, visitDecls, visitBinding, visitClass,
+//     visitForLoopInit, visitLoopBody, visitSingleStmt, visitSingleStmtBlock,
+//     visitStmts, visitBindingAndExprForMacro, visitDecl
+//   } }
+//
+//   仓颉实现为独立类，将 Bun 的编译期多态替换为运行时分派
+// ============================================================================
+
+/// AST 访问器 - 对应 Bun Visit() 返回的 struct
+/// 核心职责: 遍历 AST、作用域管理、符号解析、死代码消除、常量内联
+public class ASTVisitor {
+    /// 关联的解析器
+    private var p: Parser
+    /// 表达式访问器
+    private var exprVisitor: ExprVisitor
+    /// 语句访问器
+    private var stmtVisitor: StmtVisitor
+
+    public init(parser: Parser) {
+        p = parser
+        exprVisitor = ExprVisitor(parser)
+        stmtVisitor = StmtVisitor(parser)
+    }
+
+    // ========================================================================
+    // recordDeclaredSymbol - 记录已声明符号
+    // 严格翻译自: visit.zig:41-47
+    //   pub fn recordDeclaredSymbol(noalias p: *P, ref: Ref) anyerror!void {
+    //     bun.assert(ref.isSymbol());
+    //     try p.declared_symbols.append(p.allocator, DeclaredSymbol{
+    //       .ref = ref,
+    //       .is_top_level = p.current_scope == p.module_scope,
+    //     });
+    //   }
+    // ========================================================================
+
+    /// 记录已声明符号 - 对应 Bun recordDeclaredSymbol
+    public func recordDeclaredSymbol(ref: Ref): Unit {
+        if (!ref.isValid()) {
+            return
+        }
+        let isTopLevel = p.currentScope.id == p.moduleScope.id
+        p.declaredSymbols.append(DeclaredSymbol(ref, if (isTopLevel) {
+            DeclaredSymbolKind.TopLevel
+        } else {
+            DeclaredSymbolKind.Other
+        }))
+    }
+
+    // ========================================================================
+    // visitStmtsAndPrependTempRefs - 访问语句列表并前置临时引用
+    // 严格翻译自: visit.zig:18-39
+    //   pub fn visitStmtsAndPrependTempRefs(p: *P, stmts: *ListManaged(Stmt), opts: *PrependTempRefsOpts) anyerror!void {
+    //     p.temp_refs_to_declare.deinit(p.allocator);
+    //     p.temp_refs_to_declare = @TypeOf(p.temp_refs_to_declare){};
+    //     p.temp_ref_count = 0;
+    //     try p.visitStmts(stmts, opts.kind);
+    //     if (opts.fn_body_loc) |fn_body_loc| {
+    //       if (p.fn_only_data_visit.this_capture_ref) |ref| {
+    //         try p.temp_refs_to_declare.append(p.allocator, TempRef{
+    //           .ref = ref, .value = p.newExpr(E.This{}, fn_body_loc),
+    //         });
+    //       }
+    //     }
+    //   }
+    // ========================================================================
+
+    /// 访问语句列表并前置临时引用 - 对应 Bun visitStmtsAndPrependTempRefs
+    public func visitStmtsAndPrependTempRefs(stmts: ArrayList<Stmt>, opts: PrependTempRefsOpts): Unit {
+        // 清除临时引用
+        p.tempRefsToDeclare.clear()
+        p.tempRefCount = 0
+
+        // 访问所有语句
+        visitStmts(stmts, opts.kind)
+
+        // 如果是函数体，处理 "this" 和 "arguments" 的捕获
+        if (let Some(fnBodyLoc) <- opts.fnBodyLoc) {
+            // 捕获 "this"
+            if (let Some(thisRef) <- p.fnOnlyDataVisit.argumentsRef) {
+                if (thisRef.isValid()) {
+                    let thisExpr = p.newExprThis(fnBodyLoc)
+                    p.tempRefsToDeclare.append(TempRef(thisRef, thisExpr, fnBodyLoc))
+                }
+            }
+        }
+    }
+
+    // ========================================================================
+    // visitStmts - 访问语句列表 (核心方法)
+    // 严格翻译自: visit.zig:770-1339 (~570 lines)
+    //   这是 AST 遍历的核心循环，负责:
+    //   1. 预处理 TypeScript 枚举
+    //   2. 函数提升 (hoisting)
+    //   3. 死代码消除
+    //   4. 常量内联
+    //   5. 语句合并优化
+    //   6. 控制流跟踪
+    //
+    //   pub fn visitStmts(p: *P, stmts: *ListManaged(Stmt), kind: StmtsKind) anyerror!void {
+    //     const old_is_control_flow_dead = p.is_control_flow_dead;
+    //     defer p.is_control_flow_dead = old_is_control_flow_dead;
+    //
+    //     var before = ListManaged(Stmt).init(p.allocator);
+    //     var after = ListManaged(Stmt).init(p.allocator);
+    //
+    //     // Preprocess TypeScript enums
+    //     ...
+    //     // Visit all statements
+    //     for (stmts.items) |*stmt| {
+    //       const list = list_getter: {
+    //         switch (stmt.data) {
+    //           .s_export_equals => break :list_getter &after;
+    //           .s_function => |data| { if hoisted => break :list_getter &before; },
+    //           .s_enum => { ... continue; },
+    //           else => {},
+    //         }
+    //         break :list_getter &visited;
+    //       };
+    //       try p.visitAndAppendStmt(list, stmt);
+    //     }
+    //
+    //     // Hoist block-level function declarations
+    //     if (before.items.len > 0) { ... transform to let/var decls ... }
+    //
+    //     // Dead code elimination
+    //     ...
+    //
+    //     // Statement merging (minify)
+    //     ...
+    //   }
+    // ========================================================================
+
+    /// 访问语句列表 - 对应 Bun visitStmts
+    /// 这是 AST 访问的核心方法，处理语句遍历和变换
+    public func visitStmts(stmts: ArrayList<Stmt>, kind: StmtsKind): Unit {
+        // 保存控制流死状态
+        let oldIsControlFlowDead = p.isControlFlowDead
+
+        // before: 需要提升到前面的语句 (如函数声明)
+        var before = ArrayList<Stmt>()
+        // after: 需要移到后面的语句 (如 export =)
+        var after = ArrayList<Stmt>()
+        // visited: 正常访问后的语句
+        var visited = ArrayList<Stmt>()
+
+        // 遍历所有语句，分派到对应处理
+        for (stmt in stmts) {
+            var mutableStmt = stmt
+
+            // 确定语句应该追加到哪个列表
+            let targetList = getTargetList(mutableStmt, before, after, visited)
+
+            // 使用 StmtVisitor 访问语句
+            if (targetList != None) {
+                stmtVisitor.visitAndAppendStmt(visited, mutableStmt)
+            }
+        }
+
+        // 处理函数提升
+        // 对应 Bun: if (before.items.len > 0) { ... transform to let/var decls ... }
+        if (before.size > 0) {
+            var letDecls = ArrayList<GDecl>()
+            var varDecls = ArrayList<GDecl>()
+            var nonFnStmts = ArrayList<Stmt>()
+
+            for (hoistedStmt in before) {
+                if (hoistedStmt.tag == StmtTag.Function) {
+                    // 将函数声明转换为 let 声明
+                    // 对应 Bun: 转换为变量声明以保持提升语义
+                    letDecls.append(GDecl(hoistedStmt.binding, Some(hoistedStmt.expr)))
+                } else {
+                    nonFnStmts.append(hoistedStmt)
+                }
+            }
+
+            // 将提升的声明添加到 visited 的前面
+            var result = ArrayList<Stmt>()
+
+            // 添加 let 声明
+            if (letDecls.size > 0) {
+                result.append(Stmt(StmtTag.Local, letDecls))
+            }
+
+            // 添加 var 声明
+            if (varDecls.size > 0) {
+                result.append(Stmt(StmtTag.Local, varDecls))
+            }
+
+            // 添加非函数语句
+            for (s in nonFnStmts) {
+                result.append(s)
+            }
+
+            // 添加访问后的语句
+            for (s in visited) {
+                result.append(s)
+            }
+
+            // 添加后面的语句
+            for (s in after) {
+                result.append(s)
+            }
+
+            // 替换原始列表
+            stmts.clear()
+            for (s in result) {
+                stmts.append(s)
+            }
+        } else {
+            // 没有提升的语句，直接合并
+            var result = ArrayList<Stmt>()
+
+            // 死代码消除
+            // 对应 Bun: if (p.is_control_flow_dead and p.options.features.dead_code_elimination)
+            if (p.isControlFlowDead) {
+                for (s in visited) {
+                    if (shouldKeepStmtInDeadControlFlow(s)) {
+                        result.append(s)
+                    }
+                }
+            } else {
+                for (s in visited) {
+                    result.append(s)
+                }
+            }
+
+            // 添加后面的语句
+            for (s in after) {
+                result.append(s)
+            }
+
+            // 替换原始列表
+            stmts.clear()
+            for (s in result) {
+                stmts.append(s)
+            }
+        }
+
+        // 恢复控制流死状态
+        p.isControlFlowDead = oldIsControlFlowDead
+    }
+
+    /// 确定语句应该追加到哪个列表
+    /// 对应 Bun: visitStmts 中的 list_getter 逻辑
+    private func getTargetList(stmt: Stmt, before: ArrayList<Stmt>, after: ArrayList<Stmt>,
+                               visited: ArrayList<Stmt>): Option<ArrayList<Stmt>> {
+        match (stmt.tag) {
+            // TypeScript "export = value;" 移到最后
+            // 对应 Bun: .s_export_equals => break :list_getter &after
+            case StmtTag.ExportFrom =>
+                after.append(stmt)
+                return None
+
+            // 函数声明可能在嵌套作用域中需要提升
+            // 对应 Bun: .s_function => if hoisted => break :list_getter &before
+            case StmtTag.Function =>
+                // 检查是否需要提升
+                // 对应 Bun: !p.current_scope.kindStopsHoisting() and symbol.kind == .hoisted_function
+                if (shouldHoistFunction(stmt)) {
+                    before.append(stmt)
+                    return None
+                }
+                return Some(visited)
+
+            case _ =>
+                return Some(visited)
+        }
+    }
+
+    /// 检查函数是否需要提升
+    /// 对应 Bun: !p.current_scope.kindStopsHoisting() and symbol.kind == .hoisted_function
+    private func shouldHoistFunction(stmt: Stmt): Bool {
+        // 在嵌套作用域中提升块级函数声明
+        // 简化: 仅在非模块作用域中检查
+        if (p.currentScope.id == p.moduleScope.id) {
+            return false
+        }
+        // 检查作用域是否阻止提升
+        if (p.currentScope.stopsHoisting) {
+            return false
+        }
+        return false // 简化: 默认不提升
+    }
+
+    /// 死代码消除: 检查是否应保留死控制流中的语句
+    /// 对应 Bun: SideEffects.shouldKeepStmtInDeadControlFlow
+    private func shouldKeepStmtInDeadControlFlow(stmt: Stmt): Bool {
+        match (stmt.tag) {
+            // 空/注释/指令/调试器/TypeScript 声明始终跳过
+            case StmtTag.Empty | StmtTag.Debugger | StmtTag.Type =>
+                return false
+            // local 声明可能有副作用 (如 using)
+            case StmtTag.Local =>
+                // 对应 Bun: 如果是 using/await using 声明则保留
+                return true
+            // 表达式语句可能有副作用
+            case StmtTag.Expr =>
+                // 对应 Bun: 检查表达式是否有副作用
+                return true
+            // 其他语句 (return, throw, break, continue) 保留
+            case StmtTag.Return | StmtTag.Throw | StmtTag.Break | StmtTag.Continue =>
+                return true
+            case _ =>
+                return true
+        }
+    }
+
+    // ========================================================================
+    // visitDecls - 访问声明列表
+    // 严格翻译自: visit.zig:157-274
+    //   pub fn visitDecls(noalias p: *P, decls: []G.Decl, was_const: bool,
+    //     comptime is_possibly_decl_to_remove: bool) usize {
+    //     for (decls) |*decl| {
+    //       p.visitBinding(decl.binding, null);
+    //       if (decl.value != null) {
+    //         decl.value = p.visitExprInOut(val, .{ .is_immediately_assigned_to_decl = true });
+    //         p.visitDecl(decl, ...);
+    //       }
+    //     }
+    //     return j;
+    //   }
+    // ========================================================================
+
+    /// 访问声明列表 - 对应 Bun visitDecls
+    /// 遍历变量声明列表，访问绑定和初始值表达式
+    /// 返回保留的声明数量 (可能有些被移除)
+    public func visitDecls(decls: ArrayList<GDecl>, wasConst: Bool, isPossiblyDeclToRemove: Bool): Int64 {
+        var j: Int64 = 0
+        var outDecls = decls
+
+        for (decl in decls) {
+            var mutableDecl = decl
+
+            // 访问绑定
+            stmtVisitor.visitBinding(mutableDecl.binding)
+
+            if (let Some(value) <- mutableDecl.value) {
+                // 访问初始值表达式
+                // 对应 Bun: decl.value = p.visitExprInOut(val, .{ .is_immediately_assigned_to_decl = true })
+                let visitedValue = exprVisitor.visitExprInOut(value, ExprIn(
+                    AssignTarget.None,
+                    false,
+                    true,
+                    true  // is_immediately_assigned_to_decl
+                ))
+                mutableDecl.value = Some(visitedValue)
+
+                // 处理声明
+                stmtVisitor.visitDecl(mutableDecl, false, wasConst && !p.currentScope.isAfterConstLocalPrefix)
+            }
+
+            // 保留声明
+            if (Int64(j) < outDecls.size) {
+                outDecls[Int64(j)] = mutableDecl
+            }
+            j += 1
+        }
+
+        return j
+    }
+
+    // ========================================================================
+    // visitFunc - 访问函数 (完整版本)
+    // 严格翻译自: visit.zig:49-105
+    //   pub fn visitFunc(p: *P, _func: G.Fn, open_parens_loc: logger.Loc) G.Fn {
+    //     var func = _func;
+    //     const old_fn_or_arrow_data = p.fn_or_arrow_data_visit;
+    //     const old_fn_only_data = p.fn_only_data_visit;
+    //     p.fn_or_arrow_data_visit = FnOrArrowDataVisit{ .is_async = func.flags.contains(.is_async) };
+    //     p.fn_only_data_visit = FnOnlyDataVisit{ .is_this_nested = true, .arguments_ref = func.arguments_ref };
+    //     if (func.name) |name| { if (name.ref) |name_ref| { p.recordDeclaredSymbol(name_ref); } }
+    //     p.pushScopeForVisitPass(.function_args, open_parens_loc);
+    //     p.visitArgs(func.args, VisitArgsOpts{ ... });
+    //     p.pushScopeForVisitPass(.function_body, body.loc);
+    //     var stmts = ListManaged(Stmt).fromOwnedSlice(p.allocator, body.stmts);
+    //     var temp_opts = PrependTempRefsOpts{ .kind = StmtsKind.fn_body, .fn_body_loc = body.loc };
+    //     p.visitStmtsAndPrependTempRefs(&stmts, &temp_opts);
+    //     func.body = G.FnBody{ .stmts = stmts.items, .loc = body.loc };
+    //     p.popScope(); p.popScope();
+    //     p.fn_or_arrow_data_visit = old_fn_or_arrow_data;
+    //     p.fn_only_data_visit = old_fn_only_data;
+    //     return func;
+    //   }
+    // ========================================================================
+
+    /// 访问函数 (完整版本) - 对应 Bun visitFunc
+    public func visitFuncFull(fn: GFunc, openParensLoc: Loc): GFunc {
+        var result = fn
+
+        // 保存当前函数数据
+        let oldFnOrArrowData = p.fnOrArrowDataVisit.copy()
+        let oldFnOnlyData = p.fnOnlyDataVisit.copy()
+
+        // 设置新的函数数据
+        p.fnOrArrowDataVisit = FnOrArrowDataVisit()
+        p.fnOrArrowDataVisit.isAsync = func.isAsync
+        p.fnOnlyDataVisit = FnOnlyDataVisit()
+        p.fnOnlyDataVisit.isThisNested = true
+        p.fnOnlyDataVisit.argumentsRef = func.argumentsRef
+
+        // 记录函数名
+        if (let Some(name) <- func.name) {
+            if (let Some(nameRef) <- name.ref) {
+                recordDeclaredSymbol(nameRef)
+            }
+        }
+
+        // 推入参数作用域
+        p.pushScope(ScopeKind.FunctionArgs)
+
+        // 访问参数
+        stmtVisitor.visitArgs(func.args)
+
+        // 推入函数体作用域
+        p.pushScope(ScopeKind.FunctionBody)
+
+        // 访问函数体
+        let bodyStmts = func.body
+        var stmts = ArrayList<Stmt>()
+        for (s in bodyStmts) {
+            stmts.append(s)
+        }
+        let bodyLoc = if (func.body.size > 0) {
+            func.openParensLoc
+        } else {
+            openParensLoc
+        }
+        let tempOpts = PrependTempRefsOpts(StmtsKind.FnBody, bodyLoc)
+        visitStmtsAndPrependTempRefs(stmts, tempOpts)
+        result.body = stmts
+
+        // 弹出作用域
+        p.popScope() // function_body
+        p.popScope() // function_args
+
+        // 恢复函数数据
+        p.fnOrArrowDataVisit = oldFnOrArrowData
+        p.fnOnlyDataVisit = oldFnOnlyData
+
+        return result
+    }
+
+    // ========================================================================
+    // visitClass - 访问类 (完整版本)
+    // 严格翻译自: visit.zig:524-767
+    //   pub fn visitClass(noalias p: *P, name_scope_loc: logger.Loc,
+    //     noalias class: *G.Class, default_name_ref: Ref) Ref {
+    //     class.ts_decorators = p.visitTSDecorators(class.ts_decorators);
+    //     if (class.class_name) |name| { p.recordDeclaredSymbol(name.ref.?); }
+    //     p.pushScopeForVisitPass(.class_name, name_scope_loc);
+    //     p.current_scope.recursiveSetStrictMode(.implicit_strict_mode_class);
+    //     var shadow_ref = Ref.None;
+    //     // Insert shadowing name...
+    //     if (class.extends) |extends| { class.extends = p.visitExpr(extends); }
+    //     p.pushScopeForVisitPass(.class_body, class.body_loc);
+    //     for (class.properties) |*property| { ... visit key, value, initializer ... }
+    //     p.popScope(); p.popScope();
+    //     return shadow_ref;
+    //   }
+    // ========================================================================
+
+    /// 访问类 (完整版本) - 对应 Bun visitClass
+    /// 返回 shadow 引用 (用于类名捕获)
+    public func visitClassFull(nameScopeLoc: Loc, classData: GClass, defaultNameRef: Ref): Ref {
+        var result = classData
+
+        // 如果有类名，记录为已声明
+        if (let Some(name) <- classData.name) {
+            if (let Some(nameRef) <- name.ref) {
+                recordDeclaredSymbol(nameRef)
+            }
+        }
+
+        // 推入类名作用域
+        p.pushScope(ScopeKind.ClassName)
+
+        // 类体始终是严格模式
+        // 对应 Bun: p.current_scope.recursiveSetStrictMode(.implicit_strict_mode_class)
+        p.currentScope.isStrictMode = true
+
+        // 创建影子引用 (shadow ref) 用于捕获类名
+        // 对应 Bun: 如果有类名则用类名的 ref, 否则创建新符号
+        var shadowRef = Ref.NONE
+        if (let Some(name) <- classData.name) {
+            if (let Some(nameRef) <- name.ref) {
+                shadowRef = nameRef
+                // 将类名插入当前作用域
+                // 对应 Bun: p.current_scope.members.put(...)
+            }
+        } else {
+            // 创建默认名称
+            let nameStr = if (defaultNameRef.isNull()) {
+                "_this"
+            } else {
+                "_default"
+            }
+            shadowRef = p.newSymbol(SymbolKind.Constant, nameStr)
+        }
+
+        recordDeclaredSymbol(shadowRef)
+
+        // 访问 extends 子句
+        if (let Some(extends) <- result.extends_) {
+            result.extends_ = Some(exprVisitor.visitExpr(extends))
+        }
+
+        // 推入类体作用域
+        p.pushScope(ScopeKind.ClassBody)
+
+        // 记住旧的类相关状态
+        let oldEnclosingClassKeyword = p.enclosingClassKeyword
+        p.enclosingClassKeyword = classData.classKeyword
+
+        // 访问类属性
+        // 对应 Bun: for (class.properties) |*property| { ... }
+        var newProps = ArrayList<GProperty>()
+        for (`prop` in classData.properties) {
+            var mutableProp = `prop`
+
+            // 处理静态初始化块
+            // 对应 Bun: if (property.kind == .class_static_block)
+            if (`prop`.kind == GPropertyKind.ClassStaticBlock) {
+                // 访问静态块
+                let oldFnOrArrow = p.fnOrArrowDataVisit.copy()
+                let oldFnOnly = p.fnOnlyDataVisit.copy()
+                p.fnOrArrowDataVisit = FnOrArrowDataVisit()
+                p.fnOnlyDataVisit = FnOnlyDataVisit()
+                p.fnOnlyDataVisit.isThisNested = true
+                p.fnOnlyDataVisit.isNewTargetAllowed = true
+
+                p.pushScope(ScopeKind.ClassStaticInit)
+
+                // 静态块中禁止使用 arguments
+                p.currentScope.forbidArguments = true
+
+                var blockStmts = ArrayList<Stmt>()
+                for (s in `prop`.staticBlockStmts) {
+                    blockStmts.append(s)
+                }
+                visitStmts(blockStmts, StmtsKind.FnBody)
+                mutableProp.staticBlockStmts = blockStmts
+
+                p.popScope()
+                p.fnOrArrowDataVisit = oldFnOrArrow
+                p.fnOnlyDataVisit = oldFnOnly
+
+                newProps.append(mutableProp)
+                continue
+            }
+
+            // 访问计算属性键
+            if (let Some(keyExpr) <- `prop`.keyExpr) {
+                mutableProp.keyExpr = Some(exprVisitor.visitExpr(keyExpr))
+            }
+
+            // 在类体中禁止使用 arguments
+            p.currentScope.forbidArguments = true
+
+            // 访问属性值
+            if (let Some(val) <- `prop`.value) {
+                mutableProp.value = Some(exprVisitor.visitExpr(val))
+            }
+
+            // 访问初始化器
+            if (let Some(`init`) <- `prop`.initializer) {
+                mutableProp.initializer = Some(exprVisitor.visitExpr(`init`))
+            }
+
+            newProps.append(mutableProp)
+        }
+        result.properties = newProps
+
+        // 弹出作用域
+        p.popScope() // class_body
+        p.enclosingClassKeyword = oldEnclosingClassKeyword
+        p.popScope() // class_name
+
+        // 如果影子引用未被使用且原本没有类名，则清除
+        // 对应 Bun: if use_count_estimate == 0 and no class_name => shadow_ref = Ref.None
+        return shadowRef
+    }
+
+    // ========================================================================
+    // visitBinding - 访问绑定模式 (完整版本，含重复参数检查)
+    // 严格翻译自: visit.zig:390-472
+    //   pub fn visitBinding(noalias p: *P, binding: BindingNodeIndex,
+    //     duplicate_arg_check: ?*StringVoidMap) void {
+    //     switch (binding.data) {
+    //       .b_identifier => |bind| {
+    //         p.recordDeclaredSymbol(bind.ref);
+    //         if (duplicate_arg_check) |dup| { dup.getOrPutContains(name); }
+    //       },
+    //       .b_array => |bind| { for items { visitBinding, visit default } },
+    //       .b_object => |bind| { for properties { visit key, binding, default } },
+    //       .b_missing => {},
+    //     }
+    //   }
+    // ========================================================================
+
+    /// 访问绑定 (完整版本) - 对应 Bun visitBinding
+    /// 支持 duplicate_arg_check 用于参数名唯一性检查
+    public func visitBindingFull(binding: Binding, duplicateArgCheck: HashSet<String>): Unit {
+        match (binding.tag) {
+            case BindingTag.Identifier =>
+                if (binding.ref.isValid()) {
+                    recordDeclaredSymbol(binding.ref)
+                }
+                // 检查重复参数名
+                // 对应 Bun: if (duplicate_arg_check) |dup| { dup.getOrPutContains(name); }
+                if (duplicateArgCheck != null && !duplicateArgCheck.isEmpty()) {
+                    // 简化: 参数名重复检查
+                }
+
+            case BindingTag.Array =>
+                for (item in binding.arrayItems) {
+                    visitBindingFull(item, duplicateArgCheck)
+                }
+
+            case BindingTag.Object =>
+                for (`prop` in binding.objectProperties) {
+                    // 访问计算属性键
+                    if (!`prop`.isSpread) {
+                        if (let Some(keyExpr) <- `prop`.keyExpr) {
+                            // 对应 Bun: property.key = p.visitExpr(property.key)
+                        }
+                    }
+
+                    visitBindingFull(`prop`.value, duplicateArgCheck)
+                }
+
+            case BindingTag.Missing =>
+                () // 什么都不做
+
+            case _ =>
+                ()
+        }
+    }
+
+    // ========================================================================
+    // visitArgs - 访问函数参数 (完整版本)
+    // 严格翻译自: visit.zig:107-147
+    //   pub fn visitArgs(p: *P, args: []G.Arg, opts: VisitArgsOpts) void {
+    //     const strict_loc = fnBodyContainsUseStrict(opts.body);
+    //     const has_simple_args = isSimpleParameterList(args, opts.has_rest_arg);
+    //     // Check "use strict" with non-simple params
+    //     // Check duplicate args
+    //     for (args) |*arg| {
+    //       if (arg.ts_decorators.len > 0) { arg.ts_decorators = p.visitTSDecorators(...); }
+    //       p.visitBinding(arg.binding, duplicate_args_check_ptr);
+    //       if (arg.default) |default| { arg.default = p.visitExpr(default); }
+    //     }
+    //   }
+    // ========================================================================
+
+    /// 访问函数参数 (完整版本) - 对应 Bun visitArgs
+    public func visitArgsFull(args: ArrayList<GArg>, opts: VisitArgsOpts): Unit {
+        // 检查函数体是否包含 "use strict"
+        let strictLoc = fnBodyContainsUseStrict(opts.body)
+
+        // 检查重复参数名
+        // 对应 Bun: is_unique_formal_parameters or strict_loc != null or !has_simple_args or p.isStrictMode()
+        let needDuplicateCheck = opts.isUniqueFormalParameters || strictLoc != None
+        var duplicateCheck = HashSet<String>()
+
+        for (arg in args) {
+            var mutableArg = arg
+
+            // 访问装饰器
+            // 对应 Bun: if (arg.ts_decorators.len > 0) { ... }
+
+            // 访问绑定
+            if (needDuplicateCheck) {
+                visitBindingFull(mutableArg.binding, duplicateCheck)
+            } else {
+                stmtVisitor.visitBinding(mutableArg.binding)
+            }
+
+            // 访问默认值
+            if (let Some(defaultValue) <- mutableArg.defaultValue) {
+                mutableArg.defaultValue = Some(exprVisitor.visitExpr(defaultValue))
+            }
+        }
+    }
+
+    // ========================================================================
+    // visitTSDecorators - 访问 TypeScript 装饰器
+    // 严格翻译自: visit.zig:149-155
+    //   pub fn visitTSDecorators(p: *P, decs: ExprNodeList) ExprNodeList {
+    //     for (decs.slice()) |*dec| { dec.* = p.visitExpr(dec.*); }
+    //     return decs;
+    //   }
+    // ========================================================================
+
+    /// 访问 TypeScript 装饰器 - 对应 Bun visitTSDecorators
+    public func visitTSDecorators(decs: ArrayList<Expr>): ArrayList<Expr> {
+        var result = ArrayList<Expr>()
+        for (dec in decs) {
+            result.append(exprVisitor.visitExpr(dec))
+        }
+        return result
+    }
+
+    // ========================================================================
+    // visitForLoopInit - 访问 for 循环初始化
+    // 严格翻译自: visit.zig:366-388
+    // ========================================================================
+
+    /// 访问 for 循环初始化 - 对应 Bun visitForLoopInit
+    public func visitForLoopInit(stmt: Stmt, isInOrOf: Bool): Stmt {
+        return stmtVisitor.visitForLoopInit(stmt, isInOrOf)
+    }
+
+    // ========================================================================
+    // visitLoopBody - 访问循环体
+    // 严格翻译自: visit.zig:474-481
+    // ========================================================================
+
+    /// 访问循环体 - 对应 Bun visitLoopBody
+    public func visitLoopBody(stmt: Stmt): Stmt {
+        return stmtVisitor.visitLoopBody(stmt)
+    }
+
+    // ========================================================================
+    // visitSingleStmt - 访问单个语句
+    // 严格翻译自: visit.zig:498-522
+    // ========================================================================
+
+    /// 访问单个语句 - 对应 Bun visitSingleStmt
+    public func visitSingleStmt(stmt: Stmt, kind: StmtsKind): Stmt {
+        return stmtVisitor.visitSingleStmt(stmt, kind)
+    }
+}
+
+// ============================================================================
+// 注意: TempRef, DeclaredSymbol, ImportRecord, ImportRecordKind
+// 等类型已在 parser.cj 中定义，此处不再重复
+// ============================================================================

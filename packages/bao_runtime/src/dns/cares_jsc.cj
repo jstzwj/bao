@@ -7,6 +7,7 @@ package bao_runtime.dns
 
 import bao_jsc.*
 import bao_collections.*
+import bao_sys.{malloc, free, unsafeNewCString, unsafeCStringToString}
 
 // ============================================================================
 // struct_hostent -> JS 响应
@@ -584,11 +585,41 @@ public func canonicalizeIP(globalThis: JsObject, args: ArrayList<JsValue>): JsVa
 }
 
 /// 尝试解析并格式化 IP 地址
+/// 使用 FFI 调用 inet_pton/inet_ntop 进行规范化
 func tryParseAndFormatIp(addr: String): ?String {
-    // 简化实现：实际应通过 FFI 调用 inet_pton/inet_ntop
-    // 此处返回输入地址的规范化形式
-    return Some(addr)
+    let isV6 = addr.contains(":")
+    let af: Int32 = if (isV6) { 10 } else { 2 }
+    let storageSize = if (isV6) { 16 } else { 4 }
+    unsafe {
+        let srcPtr = unsafeNewCString(addr)
+        let dstBuf = malloc(UIntNative(storageSize))
+        let result = inet_pton(af, srcPtr, dstBuf)
+        free(CPointer<Unit>(srcPtr))
+        if (result != 1) {
+            free(dstBuf)
+            return None
+        }
+        // 将二进制地址转回字符串以获得规范形式
+        let outBufSize: UIntNative = UIntNative(46)
+        let outBuf = malloc(outBufSize)
+        let outStr = inet_ntop(af, dstBuf, CPointer<Int8>(outBuf), outBufSize)
+        free(dstBuf)
+        if (outStr.isNull()) {
+            free(outBuf)
+            return Some(addr)
+        }
+        let normalized = unsafeCStringToString(outStr)
+        free(outBuf)
+        return Some(normalized)
+    }
 }
+
+// C FFI declarations for IP address conversion
+@C
+foreign func inet_pton(af: Int32, src: CPointer<Int8>, dst: CPointer<Unit>): Int32
+@C
+foreign func inet_ntop(af: Int32, src: CPointer<Unit>, dst: CPointer<Int8>,
+                        size: UIntNative): CPointer<Int8>
 
 // ============================================================================
 // c-ares 数据类型定义
@@ -637,10 +668,32 @@ public enum DnsError {
         }
     }
 
+    /// 从 getaddrinfo 返回的 EAI 错误码创建 DnsError
+    /// 对应 Bun: c_ares.Error.initEAI
+    /// Linux EAI 错误码:
+    ///   EAI_BADFLAGS  = -1  (ai_flags 无效)
+    ///   EAI_NONAME    = -2  (名称或服务未知)
+    ///   EAI_AGAIN     = -3  (临时故障)
+    ///   EAI_FAIL      = -4  (永久故障)
+    ///   EAI_FAMILY    = -6  (不支持的地址族)
+    ///   EAI_SOCKTYPE  = -7  (不支持的套接字类型)
+    ///   EAI_SERVICE   = -8  (服务不支持该套接字类型)
+    ///   EAI_MEMORY    = -10 (内存分配失败)
+    ///   EAI_SYSTEM    = -11 (系统错误)
+    ///   EAI_OVERFLOW  = -12 (参数缓冲区溢出)
     public static func initEAI(status: Int32): ?DnsError {
         match (status) {
             case 0 => None
-            case _ => Some(DnsError.UNKNOWN)
+            case -1 => Some(DnsError.EAI_FAIL)       // EAI_BADFLAGS
+            case -2 => Some(DnsError.EAI_NONAME)     // EAI_NONAME
+            case -3 => Some(DnsError.EAI_AGAIN)      // EAI_AGAIN
+            case -4 => Some(DnsError.EAI_FAIL)       // EAI_FAIL
+            case -6 => Some(DnsError.EAI_FAMILY)     // EAI_FAMILY
+            case -7 => Some(DnsError.EAI_SOCKTYPE)   // EAI_SOCKTYPE
+            case -8 => Some(DnsError.EAI_SERVICE)    // EAI_SERVICE
+            case -10 => Some(DnsError.EAI_MEMORY)    // EAI_MEMORY
+            case -11 => Some(DnsError.EAI_SYSTEM)    // EAI_SYSTEM
+            case _ => Some(DnsError.ENOTFOUND)
         }
     }
 }

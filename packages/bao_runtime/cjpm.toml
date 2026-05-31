@@ -62,6 +62,7 @@ bao_collections = { path = "../bao_collections" }
 bao_bun_alloc = { path = "../bao_bun_alloc" }
 bao_bundler = { path = "../bao_bundler" }
 bao_boringssl = { path = "../bao_boringssl" }
+bao_boringssl_sys = { path = "../bao_boringssl_sys" }
 bao_base64 = { path = "../bao_base64" }
 bao_ptr = { path = "../bao_ptr" }
 bao_watcher = { path = "../bao_watcher" }
