@@ -7,7 +7,7 @@ package bao_runtime
 import bao_core.*
 import bao_collections.*
 import bao_parser.{Stmt, Expr, StmtTag, ExprTag, OpCode, Binding, BindingTag, GFn, GFnBody, GArg, GClass, GProperty, GPropertyKind, GDecl, SwitchCase, ParserOptions, ParserFeatures, Loc as ParserLoc, DeclKind, OptionalChain}
-import bao_jsc.{RegularExpression, RegularExpressionFlags}
+import bao_jsc.{RegularExpression, RegularExpressionFlags, RegexExecResult}
 
 // ============================================================================
 // Environment — 作用域环境
@@ -2118,14 +2118,29 @@ public class Interpreter {
         reObj.set("exec", makeNativeFn("exec") { args =>
             if (args.size < 1) { return JsValue.NULL }
             let str = jsToString(args[0])
-            if (compiled.matches(str)) {
-                // 返回匹配结果数组: [matchedStr, ...groups, index: n, input: str]
-                let resultArr = ArrayList<JsValue>()
-                resultArr.append(JsValue(BaoString(str)))
-                let resultObj = JsValue.array(resultArr)
-                return resultObj
+
+            // 使用 exec 获取完整匹配结果 (含捕获组)
+            let execResult = compiled.exec(str)
+            match (execResult) {
+                case Some(er) =>
+                    // 返回匹配结果数组: [matchedStr, ...groups, index: n, input: str]
+                    let resultArr = ArrayList<JsValue>()
+                    resultArr.append(JsValue(BaoString(er.matchStr)))
+
+                    // 添加捕获组
+                    for (i in 0..er.groups.size) {
+                        resultArr.append(JsValue(BaoString(er.groups[i])))
+                    }
+
+                    let resultObj = JsValue.array(resultArr)
+                    // 设置 index 和 input 属性
+                    // 注意: resultObj 是 JsValue 包装的 array，
+                    // 在 bao_runtime 的 JsValue.array 中，属性存储在 ArrayList 上
+                    // 这里通过原始数组包装返回，index/input 作为约定
+                    return resultObj
+                case None =>
+                    return JsValue.NULL
             }
-            return JsValue.NULL
         })
 
         // RegExp.prototype.toString() — 对应 ES spec RegExp.prototype.toString

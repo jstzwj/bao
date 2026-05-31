@@ -8,6 +8,7 @@ package bao_runtime
 import bao_core.*
 import bao_collections.*
 import bao_sys.*
+import bao_jsc.{RegularExpression, RegularExpressionFlags, RegexExecResult}
 import std.random.*
 
 // ============================================================================
@@ -882,6 +883,9 @@ public class RegExpObject {
     /// 上次匹配后的位置 - 对应 lastIndex
     public var lastIndex: Int64
 
+    // 编译后的正则引擎实例
+    private var compiledRegex: ?RegularExpression = None
+
     /// 从模式和标志创建 RegExp - 对应 new RegExp(pattern, flags)
     public init(pattern: String, flags: String) {
         this.source = pattern
@@ -893,6 +897,10 @@ public class RegExpObject {
         this.unicode = flags.contains("u")
         this.sticky = flags.contains("y")
         this.lastIndex = 0
+
+        // 编译正则表达式
+        let regexFlags = RegularExpression.parseFlags(flags)
+        this.compiledRegex = RegularExpression.initFunc(pattern, regexFlags)
     }
 
     /// 测试字符串是否匹配 - 对应 RegExp.prototype.test()
@@ -905,9 +913,47 @@ public class RegExpObject {
     }
 
     /// 执行匹配 - 对应 RegExp.prototype.exec()
-    /// 简化实现: 仅支持基本模式匹配
+    /// 返回匹配结果数组或 null
+    /// 支持 global/sticky 模式下的 lastIndex 更新
     public func exec(text: String): ?RegExpResult {
-        return None
+        if (let Some(re) <- compiledRegex) {
+            // 根据 lastIndex 和标志决定搜索起始位置
+            var searchStart: Int64 = 0
+            if (global || sticky) {
+                searchStart = lastIndex
+            }
+
+            var execResult: ?RegexExecResult = None
+            if (searchStart > 0 && searchStart <= text.size) {
+                execResult = re.execFrom(text, searchStart)
+            } else if (searchStart == 0) {
+                execResult = re.exec(text)
+            }
+
+            match (execResult) {
+                case Some(er) =>
+                    let result = RegExpResult(er.matchStr, Int64(er.startIndex), text)
+
+                    // 提取捕获组
+                    for (i in 0..er.groups.size) {
+                        result.groups.append(er.groups[i])
+                    }
+
+                    // 更新 lastIndex
+                    if (global || sticky) {
+                        lastIndex = Int64(er.startIndex) + Int64(er.length)
+                    }
+
+                    return Some(result)
+                case None =>
+                    // 没有匹配: 对于 global/sticky 重置 lastIndex
+                    if (global || sticky) {
+                        lastIndex = 0
+                    }
+                    return None
+            }
+        }
+        None
     }
 
     /// 转为字符串 - 对应 RegExp.prototype.toString()
@@ -918,7 +964,17 @@ public class RegExpObject {
     /// 转义正则表达式特殊字符 - 对应静态辅助
     /// 将字符串中所有正则元字符转义为字面量
     public static func escape(str: String): String {
-        return str
+        let sb = BaoStringBuilder()
+        for (c in str) {
+            match (c) {
+                case '^' | '$' | '\\' | '.' | '*' | '+' | '?' | '(' | ')' | '|' | '[' | ']' | '{' | '}' =>
+                    sb.appendString("\\")
+                    sb.appendString(String(Rune(c)))
+                case _ =>
+                    sb.appendString(String(Rune(c)))
+            }
+        }
+        sb.build().toString()
     }
 }
 
