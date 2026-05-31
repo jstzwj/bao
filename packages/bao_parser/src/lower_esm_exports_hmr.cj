@@ -710,7 +710,7 @@ public class ConvertESMExportsForHmr {
         }
 
         lastPart.stmts = stmts
-        lastPart.tag = PartTag.None
+        lastPart.tag = PartTag.PartNone
     }
 
     // ========================================================================

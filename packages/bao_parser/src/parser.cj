@@ -25,9 +25,9 @@ import bao_unicode.*
 
 /// JSX 转换类型 - 对应 Bun JSXTransformType
 public enum JsxTransformType {
-    | None     // 不启用 JSX
-    | Automatic // 自动运行时
-    | Classic   // 经典运行时
+    | JsxNone     // 不启用 JSX
+    | Automatic   // 自动运行时
+    | Classic     // 经典运行时
 }
 
 /// React Fast Refresh 上下文 - 对应 Bun Parser.react_refresh
@@ -544,7 +544,7 @@ public class Parser {
         hasEsModuleSyntax = false
         hasTopLevelReturn = false
         hasImportMeta = false
-        exportsKind = ExportsKind.None
+        exportsKind = ExportsKind.ExportsNone
         strictModeKind = StrictModeKind.SloppyMode
 
         // CommonJS

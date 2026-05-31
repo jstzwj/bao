@@ -6,9 +6,9 @@ package bao_runtime.api
 import bao_jsc.{JsGlobalObject, JsValue, JsCallFrame, JsObject, ZigString, JsFunction}
 import bao_collections.ArrayList
 import bao_core.{Allocator, Output}
-import bao_libarchive_sys.types.{StructArchive, StructArchiveEntry}
-import bao_libarchive_sys.types.{LaInt64T, LaSsizeT, ModeT}
-import bao_libarchive_sys.bindings.*
+import bao_libarchive_sys.{StructArchive, StructArchiveEntry}
+import bao_libarchive_sys.{LaInt64T, LaSsizeT, ModeT}
+import bao_libarchive_sys.*
 
 // ============================================================================
 // C 内存分配函数声明

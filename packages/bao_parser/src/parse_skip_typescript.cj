@@ -22,7 +22,7 @@ import bao_collections.*
 
 /// 跳过类型选项 - 对应 Bun SkipTypeOptions
 public enum SkipTypeOptions {
-    | None
+    | SkipNone
     | IsReturnType  // 跳过的是返回类型
     | IsArray       // 跳过的是数组类型
     | IsConditional // 跳过的是条件类型

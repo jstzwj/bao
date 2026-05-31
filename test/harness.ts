@@ -45,7 +45,7 @@ export const isVerbose = process.env.DEBUG === "1";
 // test.todoIf(isFlaky && isMacOS)("this test is flaky");
 export const isFlaky = isCI;
 export const isBroken = isCI;
-export const isASAN = basename(process.execPath).includes("bun-asan") || basename(process.execPath).includes("bao-asan");
+export const isASAN = basename(process.execPath).includes("bun-asan");
 
 export const bunEnv: NodeJS.Dict<string> = {
   ...process.env,
@@ -104,9 +104,8 @@ if (isDebug) {
 }
 
 export function bunExe() {
-  const exe = process.env.BAO_EXE || process.env.BUN_EXE || process.execPath;
-  if (isWindows) return exe.replaceAll("\\", "/");
-  return exe;
+  if (isWindows) return process.execPath.replaceAll("\\", "/");
+  return process.execPath;
 }
 
 export function nodeExe(): string | null {
@@ -1665,7 +1664,7 @@ export class VerdaccioRegistry {
     this.process = fork(require.resolve("verdaccio/bin/verdaccio"), ["-c", this.configPath, "-l", `${this.port}`], {
       silent,
       // Prefer using a release build of Bun since it's faster
-      execPath: isCI ? bunExe() : Bun.which("bao") || Bun.which("bun") || bunExe(),
+      execPath: isCI ? bunExe() : Bun.which("bun") || bunExe(),
       env: {
         ...(bunEnv as any),
         NODE_NO_WARNINGS: "1",

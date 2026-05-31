@@ -50,7 +50,7 @@ public enum OutputFormat {
 
 /// 服务端组件模式 - 对应 Bun ServerComponentsMode
 public enum ServerComponentsMode {
-    | None                             // 未启用
+    | ScNone                           // 未启用
     | WrapAnonServerFunctions          // 包装匿名服务端函数
     | WrapExportsForClientReference    // 包装客户端引用的导出
     | WrapExportsForServerReference    // 包装服务端引用的导出
@@ -395,7 +395,7 @@ public class ParseStatementOptions {
 
 /// 包装模式 - 对应 Bun WrapMode
 public enum WrapMode {
-    | None           // 不包装
+    | WrapNone       // 不包装
     | Cjs            // 包装为 CommonJS
     | Esm            // 包装为 ESM
     | Ignore         // 忽略
@@ -480,7 +480,7 @@ public class SourceMapEntry {
 
 /// 类型参数标志 - 对应 Bun TypeParameterFlag
 public enum TypeParameterFlag {
-    | None
+    | TpNone
     | AllowConstModifier  // 允许 const 修饰符
 }
 

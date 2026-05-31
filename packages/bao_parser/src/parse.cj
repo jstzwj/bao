@@ -60,7 +60,7 @@ public class ParseResult {
         ast = None
     }
 
-    public static func alreadyBundled(bundledKind: AlreadyBundledKind): ParseResult {
+    public static func makeAlreadyBundled(bundledKind: AlreadyBundledKind): ParseResult {
         let r = ParseResult(ParseResultKind.AlreadyBundled)
         r.alreadyBundled = bundledKind
         return r
@@ -70,7 +70,7 @@ public class ParseResult {
         return ParseResult(ParseResultKind.Cached)
     }
 
-    public static func ast(ast: Ast): ParseResult {
+    public static func makeAst(ast: Ast): ParseResult {
         let r = ParseResult(ParseResultKind.Ast)
         r.ast = Some(ast)
         return r

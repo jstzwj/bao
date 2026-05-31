@@ -10,6 +10,18 @@ public enum ColumnIdType {
     | name       // 按名称
     | index      // 按索引
     | duplicate  // 重复列
+
+    public operator func ==(right: ColumnIdType): Bool {
+        match (this) {
+            case name => match (right) { case name => true case _ => false }
+            case index => match (right) { case index => true case _ => false }
+            case duplicate => match (right) { case duplicate => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ColumnIdType): Bool {
+        !(this == right)
+    }
 }
 
 /// SQL 列标识符
@@ -47,15 +59,15 @@ public class ColumnIdentifier {
         var mightBeInt = true
         var intVal: UInt64 = 0
         for (byte in slice) {
-            if (byte >= UInt8(UInt8('0')) && byte <= UInt8(UInt8('9'))) {
-                intVal = intVal * 10 + UInt64(byte - UInt8('0'))
+            if (byte >= UInt8(Rune('0')) && byte <= UInt8(Rune('9'))) {
+                intVal = intVal * 10 + UInt64(Int64(byte) - Int64(UInt8(Rune('0'))))
             } else {
                 mightBeInt = false
                 break
             }
         }
 
-        if (mightBeInt && len >= 1 && intVal < UInt32.MaxValue) {
+        if (mightBeInt && len >= 1 && intVal < UInt32.Max) {
             let id = ColumnIdentifier()
             id.idType = ColumnIdType.index
             id.index = UInt32(intVal)

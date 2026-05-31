@@ -33,7 +33,7 @@ public class SQLData {
         mode = SQLStorageMode.empty
         ownedData = Array<UInt8>()
         tempRef = Array<UInt8>()
-        inlineBuf = Array<UInt8>(15, item: 0)
+        inlineBuf = Array<UInt8>(15, item: UInt8(0))
         inlineLen = 0
     }
 
@@ -64,7 +64,7 @@ public class SQLData {
 
     /// 从字符串创建自有数据
     public static func fromString(s: String): SQLData {
-        if (s.isEmpty) {
+        if (s.isEmpty()) {
             return SQLData.empty()
         }
         let bytes = s.toArray()
@@ -100,10 +100,11 @@ public class SQLData {
         // 拷贝为自有
         let d = SQLData()
         d.mode = SQLStorageMode.owned
-        d.ownedData = Array<UInt8>()
+        let buf = ArrayList<UInt8>()
         for (b in bytes) {
-            d.ownedData.append(b)
+            buf.append(b)
         }
+        d.ownedData = buf.toArray()
         return d
     }
 
@@ -148,11 +149,11 @@ public class SQLData {
             case SQLStorageMode.temporary => tempRef
             case SQLStorageMode.empty => Array<UInt8>()
             case SQLStorageMode.inlineStorage =>
-                let result = Array<UInt8>()
+                let result = ArrayList<UInt8>()
                 for (i in 0..inlineLen) {
                     result.append(inlineBuf[i])
                 }
-                return result
+                return result.toArray()
         }
     }
 
@@ -161,30 +162,30 @@ public class SQLData {
     public func substring(startIndex: Int64, endIndex: Int64): SQLData {
         match (mode) {
             case SQLStorageMode.owned =>
-                let sub = Array<UInt8>()
+                let sub = ArrayList<UInt8>()
                 for (i in startIndex..endIndex) {
                     if (i < ownedData.size) {
                         sub.append(ownedData[i])
                     }
                 }
-                return SQLData.fromTemporary(sub)
+                return SQLData.fromTemporary(sub.toArray())
             case SQLStorageMode.temporary =>
-                let sub = Array<UInt8>()
+                let sub = ArrayList<UInt8>()
                 for (i in startIndex..endIndex) {
                     if (i < tempRef.size) {
                         sub.append(tempRef[i])
                     }
                 }
-                return SQLData.fromTemporary(sub)
+                return SQLData.fromTemporary(sub.toArray())
             case SQLStorageMode.empty => SQLData.empty()
             case SQLStorageMode.inlineStorage =>
-                let sub = Array<UInt8>()
+                let sub = ArrayList<UInt8>()
                 for (i in startIndex..endIndex) {
                     if (i < inlineLen) {
                         sub.append(inlineBuf[i])
                     }
                 }
-                return SQLData.fromTemporary(sub)
+                return SQLData.fromTemporary(sub.toArray())
         }
     }
 
@@ -209,10 +210,11 @@ public class SQLData {
         let bytes = slice()
         let d = SQLData()
         d.mode = SQLStorageMode.owned
-        d.ownedData = Array<UInt8>()
+        let buf = ArrayList<UInt8>()
         for (b in bytes) {
-            d.ownedData.append(b)
+            buf.append(b)
         }
+        d.ownedData = buf.toArray()
         return d
     }
 }

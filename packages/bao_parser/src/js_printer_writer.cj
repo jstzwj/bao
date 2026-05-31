@@ -206,7 +206,7 @@ public class Ast {
         parts = ArrayList<Part>()
         symbols = ArrayList<Symbol>()
         namedExports = HashMap<String, NamedExport>()
-        exportsKind = ExportsKind.None
+        exportsKind = ExportsKind.ExportsNone
         usesRequireRef = false
         usesExportsRef = false
         usesModuleRef = false
@@ -226,7 +226,7 @@ public class Ast {
 
 /// Part - AST 部分
 public enum PartTag {
-    | None
+    | PartNone
     | DeadDueToInlining
     | Normal
 }
@@ -244,7 +244,7 @@ public class Part {
         symbolUses = HashMap<Ref, Int64>()
         declaredSymbols = ArrayList<Ref>()
         importRecordIndices = ArrayList<UInt32>()
-        tag = PartTag.None
+        tag = PartTag.PartNone
         dependencies = ArrayList<PartDependency>()
     }
 }

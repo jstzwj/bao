@@ -29,7 +29,7 @@ import bao_collections.*
 
 /// TypeScript 类型元数据标签 - 对应 Bun Metadata 联合体标签
 public enum TSMetadataTag {
-    | None
+    | TsNone
     | Never
     | Unknown
     | Any
@@ -50,9 +50,36 @@ public enum TSMetadataTag {
 
     public func isNone(): Bool {
         match (this) {
-            case None => true
+            case TsNone => true
             case _ => false
         }
+    }
+
+    public operator func ==(right: TSMetadataTag): Bool {
+        match (this) {
+            case TsNone => match (right) { case TsNone => true case _ => false }
+            case Never => match (right) { case Never => true case _ => false }
+            case Unknown => match (right) { case Unknown => true case _ => false }
+            case Any => match (right) { case Any => true case _ => false }
+            case Void => match (right) { case Void => true case _ => false }
+            case Null => match (right) { case Null => true case _ => false }
+            case Undefined => match (right) { case Undefined => true case _ => false }
+            case Function => match (right) { case Function => true case _ => false }
+            case Array => match (right) { case Array => true case _ => false }
+            case Boolean => match (right) { case Boolean => true case _ => false }
+            case String => match (right) { case String => true case _ => false }
+            case Object => match (right) { case Object => true case _ => false }
+            case Number => match (right) { case Number => true case _ => false }
+            case BigInt => match (right) { case BigInt => true case _ => false }
+            case Symbol => match (right) { case Symbol => true case _ => false }
+            case Promise => match (right) { case Promise => true case _ => false }
+            case Identifier => match (right) { case Identifier => true case _ => false }
+            case Dot => match (right) { case Dot => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: TSMetadataTag): Bool {
+        return !(this == right)
     }
 }
 
@@ -64,7 +91,7 @@ public class TSMetadata {
     public var refs: ArrayList<Ref>
 
     public init() {
-        tag = TSMetadataTag.None
+        tag = TSMetadataTag.TsNone
         refs = ArrayList<Ref>()
     }
 
@@ -110,7 +137,7 @@ public class TSMetadata {
             case Unknown | Any | Object =>
                 return Some(TSMetadata(TSMetadataTag.Object))
             case Never | Null | Undefined =>
-                tag = TSMetadataTag.None
+                tag = TSMetadataTag.TsNone
                 return None
             case _ =>
                 return None
@@ -181,7 +208,7 @@ public class TSMetadata {
             case Any | Object =>
                 return Some(TSMetadata(TSMetadataTag.Object))
             case Unknown | Null | Undefined =>
-                tag = TSMetadataTag.None
+                tag = TSMetadataTag.TsNone
                 return None
             case _ =>
                 return None
@@ -341,7 +368,7 @@ public enum TSIdentifierKind {
             case PrimitiveBoolean => TSMetadataTag.Boolean
             case PrimitiveBigInt => TSMetadataTag.BigInt
             case PrimitiveSymbol => TSMetadataTag.Symbol
-            case _ => TSMetadataTag.None
+            case _ => TSMetadataTag.TsNone
         }
     }
 }

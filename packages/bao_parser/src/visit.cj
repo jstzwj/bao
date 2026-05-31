@@ -16,7 +16,7 @@ import bao_collections.*
 
 /// 语句列表类型 - 对应 Bun StmtsKind
 public enum StmtsKind {
-    | None           // 普通上下文
+    | StmtsNone      // 普通上下文
     | FnBody         // 函数体
     | LoopBody       // 循环体
     | SwitchStmt     // switch 语句
@@ -202,7 +202,7 @@ public class FnOnlyDataVisit {
 
 /// 访问标志 - 用于控制 visitor 行为
 public enum VisitFlag {
-    | None                              // 无标志
+    | VisitNone                         // 无标志
     | SkipDeadCode                      // 跳过死代码
     | FoldConstants                     // 折叠常量
     | MinifySyntax                      // 压缩语法
@@ -215,7 +215,7 @@ public enum VisitFlag {
 
     public func has(flag: VisitFlag): Bool {
         match (this) {
-            case None => match (flag) { case None => true case _ => false }
+            case VisitNone => match (flag) { case VisitNone => true case _ => false }
             case SkipDeadCode => match (flag) { case SkipDeadCode => true case _ => false }
             case FoldConstants => match (flag) { case FoldConstants => true case _ => false }
             case MinifySyntax => match (flag) { case MinifySyntax => true case _ => false }

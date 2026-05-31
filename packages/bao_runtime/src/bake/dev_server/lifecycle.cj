@@ -58,15 +58,13 @@ public func onFileUpdate(
         let kind = watchlist.kinds[Int64(ev.index)]
 
         match (kind) {
-            case WatchItemKind.file => {
+            case WatchItemKind.file =>
                 // 文件删除或重命名时移除监视
                 if (ev.op.delete || ev.op.rename) {
                     // 对应 Bun: dev.bun_watcher.removeAtIndex(event.index, 0, &.{}, .file)
                 }
-
                 event.appendFile(dev.allocator(), filePath)
-            }
-            case WatchItemKind.directory => {
+            case WatchItemKind.directory =>
                 // INotifyWatcher 将子路径存储在 changed_files 中
                 // 其他平台似乎不向 changed_files 写入任何内容
                 if (ev.names.size > 0) {
@@ -76,7 +74,6 @@ public func onFileUpdate(
                 } else {
                     event.appendDir(dev.allocator(), filePath, None)
                 }
-            }
         }
     }
 }

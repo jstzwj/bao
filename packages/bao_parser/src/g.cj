@@ -373,7 +373,7 @@ public class GRecord {
     public init() {
         imports = ArrayList<GImport>()
         exports = ArrayList<GExport>()
-        exportsKind = ExportsKind.None
+        exportsKind = ExportsKind.ExportsNone
         hasStarExport = false
         hasDefaultExport = false
     }
@@ -402,7 +402,7 @@ public class GRecord {
         }
 
         // 更新 exportsKind
-        if (match (exportsKind) { case ExportsKind.None => true case _ => false }) {
+        if (match (exportsKind) { case ExportsKind.ExportsNone => true case _ => false }) {
             exportsKind = ExportsKind.Esm
         }
 
@@ -509,7 +509,7 @@ public class GRecord {
     public func reset(): Unit {
         imports.clear()
         exports.clear()
-        exportsKind = ExportsKind.None
+        exportsKind = ExportsKind.ExportsNone
         hasStarExport = false
         hasDefaultExport = false
     }
@@ -550,7 +550,7 @@ public class GModule {
         this.source = Source(path, "")
         this.record = GRecord()
         ast = None
-        exportsKind = ExportsKind.None
+        exportsKind = ExportsKind.ExportsNone
         isEntryPoint = false
     }
 
@@ -559,7 +559,7 @@ public class GModule {
         this.source = source
         this.record = GRecord()
         ast = None
-        exportsKind = ExportsKind.None
+        exportsKind = ExportsKind.ExportsNone
         isEntryPoint = false
     }
 
@@ -568,7 +568,7 @@ public class GModule {
         this.source = source
         this.record = GRecord()
         ast = None
-        exportsKind = ExportsKind.None
+        exportsKind = ExportsKind.ExportsNone
         this.isEntryPoint = isEntryPoint
     }
 

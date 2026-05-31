@@ -598,7 +598,7 @@ public enum OpLevel {
 
 /// 模块导出类型 - 对应 Bun ExportsKind
 public enum ExportsKind {
-    | None                           // 无导出
+    | ExportsNone                    // 无导出
     | Cjs                            // CommonJS
     | Esm                            // ES Module
     | EsmWithDynamicFallback         // ESM + 动态回退
@@ -607,7 +607,7 @@ public enum ExportsKind {
     public func isDynamic(): Bool {
         match (this) {
             case Cjs | EsmWithDynamicFallback | EsmWithDynamicFallbackFromCjs => true
-            case None | Esm => false
+            case ExportsNone | Esm => false
         }
     }
 }
@@ -653,13 +653,13 @@ public enum OptionalChain {
 
 /// 赋值目标 - 对应 Bun AssignTarget
 public enum AssignTarget {
-    | None      // 0
+    | AssignNone      // 0
     | Replace   // a = b
     | Update    // a += b
 
     public operator func ==(right: AssignTarget): Bool {
         match (this) {
-            case None => match (right) { case None => true case _ => false }
+            case AssignNone => match (right) { case AssignNone => true case _ => false }
             case Replace => match (right) { case Replace => true case _ => false }
             case Update => match (right) { case Update => true case _ => false }
         }
