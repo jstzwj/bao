@@ -177,7 +177,7 @@ private func sysUpdateNonblocking(fd: FD, nonblocking: Bool): Unit {
         let newFlags: Int32 = if (nonblocking) {
             currentFlags | O_NONBLOCK
         } else {
-            currentFlags & (^O_NONBLOCK)
+            currentFlags & (!O_NONBLOCK)
         }
         if (newFlags != currentFlags) {
             let _ = fcntl(fd, 4, newFlags)  // F_SETFL

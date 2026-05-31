@@ -108,11 +108,11 @@ public class XxHash32 {
 /// xxHash64 - 对应 Bun 使用的 xxhash 库
 /// 高性能64位哈希, 适用于缓存和哈希表
 public class XxHash64 {
-    private static let PRIME1: UInt64 = (UInt64(0x9E3779B1) << UInt64(32)) | UInt64(0x85EBCA87)
-    private static let PRIME2: UInt64 = (UInt64(0xC2B2AE3D) << UInt64(32)) | UInt64(0x27D4EB4F)
-    private static let PRIME3: UInt64 = UInt64(0x165667B19E3779F9)
-    private static let PRIME4: UInt64 = (UInt64(0x85EBCA77) << UInt64(32)) | UInt64(0xC2B2AE63)
-    private static let PRIME5: UInt64 = UInt64(0x27D4EB2F165667C5)
+    private static let PRIME1: UInt64 = (0x9E3779B1u64 << UInt64(32)) | 0x85EBCA87u64
+    private static let PRIME2: UInt64 = (0xC2B2AE3Du64 << UInt64(32)) | 0x27D4EB4Fu64
+    private static let PRIME3: UInt64 = 0x165667B19E3779F9u64
+    private static let PRIME4: UInt64 = (0x85EBCA77u64 << UInt64(32)) | 0xC2B2AE63u64
+    private static let PRIME5: UInt64 = 0x27D4EB2F165667C5u64
 
     /// 计算哈希 (种子为0)
     public static func hash(data: Array<UInt8>): UInt64 {
@@ -230,23 +230,23 @@ public class XxHash3 {
     // 翻译自 xxHash 参考实现中的 kSecret
     private static let SECRET: Array<UInt64> = [
         // 0..32
-        UInt64(0xb8fe6c39ae3d2823), UInt64(0x14a80a24cf4e8af5),
-        UInt64(0x0cda0872c8076e0a), UInt64(0x4c65c1aa656c3e1c),
+        0xb8fe6c39ae3d2823u64, 0x14a80a24cf4e8af5u64,
+        0x0cda0872c8076e0au64, 0x4c65c1aa656c3e1cu64,
         // 32..64
-        UInt64(0x3682be8bc7e1f8b0), UInt64(0xab08362893dacf7a),
-        UInt64(0x7f292f5dc3f3d8a1), UInt64(0x597be8627eeabb30),
+        0x3682be8bc7e1f8b0u64, 0xab08362893dacf7au64,
+        0x7f292f5dc3f3d8a1u64, 0x597be8627eeabb30u64,
         // 64..96
-        UInt64(0x8d3e063a34309890), UInt64(0x054907b602d67e88),
-        UInt64(0xe8e0689efd5f7a5a), UInt64(0xa35e23b9d12e5d8f),
+        0x8d3e063a34309890u64, 0x054907b602d67e88u64,
+        0xe8e0689efd5f7a5au64, 0xa35e23b9d12e5d8fu64,
         // 96..128
-        UInt64(0xaf419ce06e267433), UInt64(0xe2a22f6a08d5b6eb),
-        UInt64(0xe9a4d3c0b2578be5), UInt64(0x1c3f5a7a5e12dc30),
+        0xaf419ce06e267433u64, 0xe2a22f6a08d5b6ebu64,
+        0xe9a4d3c0b2578be5u64, 0x1c3f5a7a5e12dc30u64,
         // 128..160
-        UInt64(0x38f3c2bb5c90cfc0), UInt64(0xda0e7186b04435a0),
-        UInt64(0x54189e6c42ed0584), UInt64(0xfb06d2f0e06e3e1a),
+        0x38f3c2bb5c90cfc0u64, 0xda0e7186b04435a0u64,
+        0x54189e6c42ed0584u64, 0xfb06d2f0e06e3e1au64,
         // 160..192
-        UInt64(0x539c44682f2e3ac0), UInt64(0xb9e322aee9e32552),
-        UInt64(0x58424e6c1d3ed19c), UInt64(0x7bf19f8ffc9a97d0)
+        0x539c44682f2e3ac0u64, 0xb9e322aee9e32552u64,
+        0x58424e6c1d3ed19cu64, 0x7bf19f8ffc9a97d0u64
     ]
 
     // XXH3 条带大小 (64 字节 = 8 个 UInt64)
@@ -502,13 +502,13 @@ public class XxHash3 {
     // ========================================================================
 
     // XXH3 常量
-    private static let PRIME64_1: UInt64 = (UInt64(0x9E3779B1) << UInt64(32)) | UInt64(0x85EBCA87)
-    private static let PRIME64_2: UInt64 = (UInt64(0xC2B2AE3D) << UInt64(32)) | UInt64(0x27D4EB4F)
-    private static let PRIME64_3: UInt64 = UInt64(0x165667B19E3779F9)
-    private static let PRIME64_4: UInt64 = (UInt64(0x85EBCA77) << UInt64(32)) | UInt64(0xC2B2AE63)
-    private static let PRIME64_5: UInt64 = UInt64(0x27D4EB2F165667C5)
-    private static let PRIME_MX1: UInt64 = (UInt64(0x165667B1) << UInt64(32)) | UInt64(0x9E3779F9)
-    private static let PRIME_MX2: UInt64 = (UInt64(0x9FB21C65) << UInt64(32)) | UInt64(0x1E7C9BD4)
+    private static let PRIME64_1: UInt64 = (0x9E3779B1u64 << UInt64(32)) | 0x85EBCA87u64
+    private static let PRIME64_2: UInt64 = (0xC2B2AE3Du64 << UInt64(32)) | 0x27D4EB4Fu64
+    private static let PRIME64_3: UInt64 = 0x165667B19E3779F9u64
+    private static let PRIME64_4: UInt64 = (0x85EBCA77u64 << UInt64(32)) | 0xC2B2AE63u64
+    private static let PRIME64_5: UInt64 = 0x27D4EB2F165667C5u64
+    private static let PRIME_MX1: UInt64 = (0x165667B1u64 << UInt64(32)) | 0x9E3779F9u64
+    private static let PRIME_MX2: UInt64 = (0x9FB21C65u64 << UInt64(32)) | 0x1E7C9BD4u64
 
     /// mix16B: 处理 16 字节块
     /// XXH3_mix16B: mul128x64(data ^ secret ^ seed, data+8 ^ secret+8 ^ seed)
@@ -608,9 +608,9 @@ private func readLE32(data: Array<UInt8>, offset: Int64): UInt32 {
 /// 128 位乘法: (a * b) -> (低 64 位, 高 64 位)
 /// 使用 32 位分块乘法模拟 128 位结果
 private func mul128x64(a: UInt64, b: UInt64): (UInt64, UInt64) {
-    let aLo = a & UInt64(0xFFFFFFFF)
+    let aLo = a & 0xFFFFFFFFu64
     let aHi = a >> UInt64(32)
-    let bLo = b & UInt64(0xFFFFFFFF)
+    let bLo = b & 0xFFFFFFFFu64
     let bHi = b >> UInt64(32)
 
     let p0 = aLo * bLo
@@ -618,9 +618,9 @@ private func mul128x64(a: UInt64, b: UInt64): (UInt64, UInt64) {
     let p2 = aLo * bHi
     let p3 = aHi * bHi
 
-    let midCarry = (p0 >> UInt64(32)) + (p1 & UInt64(0xFFFFFFFF)) + (p2 & UInt64(0xFFFFFFFF))
+    let midCarry = (p0 >> UInt64(32)) + (p1 & 0xFFFFFFFFu64) + (p2 & 0xFFFFFFFFu64)
     let hi = p3 + (p1 >> UInt64(32)) + (p2 >> UInt64(32)) + (midCarry >> UInt64(32))
-    let lo = (midCarry << UInt64(32)) | (p0 & UInt64(0xFFFFFFFF))
+    let lo = (midCarry << UInt64(32)) | (p0 & 0xFFFFFFFFu64)
 
     return (lo, hi)
 }
@@ -633,18 +633,18 @@ private func rotl64(x: UInt64, r: Int64): UInt64 {
 /// 秘钥值来自 xxHash 参考实现中的 XXH3_kSecret
 private func XxHash3_SECRET_ACCESS(idx: Int64): UInt64 {
     let SECRET: Array<UInt64> = [
-        UInt64(0xb8fe6c39ae3d2823), UInt64(0x14a80a24cf4e8af5),
-        UInt64(0x0cda0872c8076e0a), UInt64(0x4c65c1aa656c3e1c),
-        UInt64(0x3682be8bc7e1f8b0), UInt64(0xab08362893dacf7a),
-        UInt64(0x7f292f5dc3f3d8a1), UInt64(0x597be8627eeabb30),
-        UInt64(0x8d3e063a34309890), UInt64(0x054907b602d67e88),
-        UInt64(0xe8e0689efd5f7a5a), UInt64(0xa35e23b9d12e5d8f),
-        UInt64(0xaf419ce06e267433), UInt64(0xe2a22f6a08d5b6eb),
-        UInt64(0xe9a4d3c0b2578be5), UInt64(0x1c3f5a7a5e12dc30),
-        UInt64(0x38f3c2bb5c90cfc0), UInt64(0xda0e7186b04435a0),
-        UInt64(0x54189e6c42ed0584), UInt64(0xfb06d2f0e06e3e1a),
-        UInt64(0x539c44682f2e3ac0), UInt64(0xb9e322aee9e32552),
-        UInt64(0x58424e6c1d3ed19c), UInt64(0x7bf19f8ffc9a97d0)
+        0xb8fe6c39ae3d2823u64, 0x14a80a24cf4e8af5u64,
+        0x0cda0872c8076e0au64, 0x4c65c1aa656c3e1cu64,
+        0x3682be8bc7e1f8b0u64, 0xab08362893dacf7au64,
+        0x7f292f5dc3f3d8a1u64, 0x597be8627eeabb30u64,
+        0x8d3e063a34309890u64, 0x054907b602d67e88u64,
+        0xe8e0689efd5f7a5au64, 0xa35e23b9d12e5d8fu64,
+        0xaf419ce06e267433u64, 0xe2a22f6a08d5b6ebu64,
+        0xe9a4d3c0b2578be5u64, 0x1c3f5a7a5e12dc30u64,
+        0x38f3c2bb5c90cfc0u64, 0xda0e7186b04435a0u64,
+        0x54189e6c42ed0584u64, 0xfb06d2f0e06e3e1au64,
+        0x539c44682f2e3ac0u64, 0xb9e322aee9e32552u64,
+        0x58424e6c1d3ed19cu64, 0x7bf19f8ffc9a97d0u64
     ]
     if (idx >= 0 && idx < 24) {
         return SECRET[idx]

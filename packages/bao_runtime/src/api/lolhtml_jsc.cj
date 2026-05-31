@@ -8,6 +8,14 @@ import bao_core.*
 import bao_lolhtml_sys.{HTMLString as RawHTMLString}
 import bao_sys.SysMaybe
 
+// Local FFI declarations for lol_html string/error/rewriter functions used in this bridge
+// These call the C functions from the lolhtml library via the bao_lolhtml_sys package
+@C foreign func lol_html_str_free(str: RawHTMLString): Unit
+@C foreign func lol_html_take_last_error(): RawHTMLString
+@C foreign func lol_html_rewriter_write(rewriter: CPointer<Unit>, chunk: CPointer<UInt8>, chunk_len: UIntNative): Int32
+@C foreign func lol_html_rewriter_end(rewriter: CPointer<Unit>): Int32
+@C foreign func lol_html_rewriter_free(rewriter: CPointer<Unit>): Unit
+
 // ============================================================================
 // HTMLString - HTML 字符串包装器
 // 对应 Bun: bun.LOLHTML.HTMLString
@@ -43,8 +51,18 @@ public class HTMLString {
         if (raw.ptr.isNull() || raw.len == UIntNative(0)) {
             return ""
         }
-        // TODO: proper String.fromUtf8 with pointer conversion
-        return ""
+        // 从 C 指针和长度构造仓颉 String
+        // 对应 Bun: this.ptr[0..this.len]
+        let len = Int64(raw.len)
+        var bytes = Array<UInt8>(len, { _ => UInt8(0) })
+        unsafe {
+            var i: Int64 = 0
+            while (i < len) {
+                bytes[i] = (raw.ptr + UIntNative(i)).read()
+                i++
+            }
+        }
+        return String.fromUtf8(bytes)
     }
 
     /// toString - 转为 String
@@ -57,7 +75,9 @@ public class HTMLString {
     /// 对应 Bun: HTMLString.deinit() -> 调用 lol_html_str_free
     public func deinit(): Unit {
         if (!raw.ptr.isNull()) {
-            // TODO: lol_html_str_free FFI binding
+            // 调用 C 释放函数释放 lol_html_str
+            // 对应 Bun: lol_html_str_free(this)
+            unsafe { lol_html_str_free(raw) }
             raw = RawHTMLString()
         }
     }
@@ -72,9 +92,13 @@ public class HTMLString {
 
     /// lastError - 获取最后的错误字符串
     /// 对应 Bun: LOLHTML.HTMLString.lastError()
+    /// 调用 C 函数 lol_html_take_last_error 获取最后一次错误
     public static func lastError(): HTMLString {
-        // TODO: lol_html_take_last_error FFI binding
-        return HTMLString()
+        // lol_html_take_last_error 是 C variadic 函数，在 lolhtml C 库中
+        // 实际上不接受任何参数（Zig 中声明为 pub extern fn lol_html_take_last_error(...) HTMLString）
+        // 在仓颉中通过 lol_html_take_last_error 的 FFI 绑定调用
+        let errRaw = unsafe { lol_html_take_last_error() }
+        return HTMLString(raw: errRaw)
     }
 
     /// isEmpty - 检查是否为空

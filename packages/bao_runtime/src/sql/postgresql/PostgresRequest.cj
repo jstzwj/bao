@@ -297,9 +297,9 @@ public class PostgresRequestDispatcher {
                 case UInt8('n') => connection.onNoData(reader)
                 case UInt8('K') => connection.onBackendKeyData(reader)
                 case UInt8('E') => connection.onErrorResponse(reader)
-                case UInt8('s') => {} // PortalSuspended - TODO
+                case UInt8('s') => connection.onPortalSuspended(reader)
                 case UInt8('3') => connection.onCloseComplete(reader)
-                case UInt8('G') => {} // CopyInResponse - TODO
+                case UInt8('G') => connection.onCopyInResponse(reader)
                 case UInt8('N') => {
                     if (connection.isWaitingForTLS()) {
                         connection.tlsStatus = TLSStatus.SSLNotAvailable
@@ -312,9 +312,9 @@ public class PostgresRequestDispatcher {
                     }
                 }
                 case UInt8('I') => connection.onEmptyQueryResponse(reader)
-                case UInt8('H') => {} // CopyOutResponse - TODO
-                case UInt8('c') => {} // CopyDone - TODO
-                case UInt8('W') => {} // CopyBothResponse - TODO
+                case UInt8('H') => connection.onCopyOutResponse(reader)
+                case UInt8('c') => connection.onCopyDone(reader)
+                case UInt8('W') => connection.onCopyBothResponse(reader)
                 case _ => {
                     // 未知消息，跳过
                     let toSkip = reader.remainingLength() - 1
@@ -642,6 +642,11 @@ public interface PGConnectionRef {
     func onCloseComplete(reader: ProtocolReader)
     func onNoticeResponse(reader: ProtocolReader)
     func onEmptyQueryResponse(reader: ProtocolReader)
+    func onPortalSuspended(reader: ProtocolReader)
+    func onCopyInResponse(reader: ProtocolReader)
+    func onCopyOutResponse(reader: ProtocolReader)
+    func onCopyDone(reader: ProtocolReader)
+    func onCopyBothResponse(reader: ProtocolReader)
 
     var tlsStatus: TLSStatus { get set }
     var sslMode: SSLMode { get }

@@ -77,6 +77,7 @@ bao_shell_parser = { path = "../bao_shell_parser" }
 bao_zlib = { path = "../bao_zlib" }
 bao_zstd = { path = "../bao_zstd" }
 bao_glob = { path = "../bao_glob" }
+bao_hash = { path = "../bao_hash" }
 bao_libarchive = { path = "../bao_libarchive" }
 bao_http_jsc = { path = "../bao_http_jsc" }
 bao_csrf = { path = "../bao_csrf" }
@@ -87,3 +88,7 @@ bao_standalone_graph = { path = "../bao_standalone_graph" }
 bao_picohttp = { path = "../bao_picohttp" }
 bao_brotli = { path = "../bao_brotli" }
 bao_zlib_sys = { path = "../bao_zlib_sys" }
+bao_libarchive_sys = { path = "../bao_libarchive_sys" }
+bao_brotli_sys = { path = "../bao_brotli_sys" }
+bao_cares_sys = { path = "../bao_cares_sys" }
+bao_sql = { path = "../bao_sql" }

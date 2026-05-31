@@ -197,4 +197,6 @@ foreign func lol_html_doctype_source_location_bytes(doctype: CPointer<Unit>): So
 
 // --- HTMLString ---
 foreign func lol_html_str_free(str: HTMLString): Unit
-foreign func lol_html_take_last_error(dummy: CPointer<Unit>, ...): HTMLString
+// lol_html_take_last_error 在 C 库中是 variadic (实际无参数)
+// 在仓颉中声明为零参数版本以匹配 C ABI
+foreign func lol_html_take_last_error(): HTMLString

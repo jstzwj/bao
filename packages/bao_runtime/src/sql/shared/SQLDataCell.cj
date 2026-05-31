@@ -8,7 +8,7 @@ package bao_runtime.sql.shared
 /// 对应 Bun SQLDataCell.Tag (enum u8)
 public enum SQLDataCellTag {
     | Null
-    | String
+    | String_
     | Float8
     | Int4
     | Int8_
@@ -17,7 +17,7 @@ public enum SQLDataCellTag {
     | DateWithTimeZone
     | Bytea
     | Json
-    | Array
+    | Array_
     | TypedArray
     | Raw
     | UInt4_
@@ -87,7 +87,7 @@ public class SQLDataCell {
     /// 从字符串创建
     public static func fromString(s: ?String): SQLDataCell {
         let cell = SQLDataCell()
-        cell.tag = SQLDataCellTag.String
+        cell.tag = SQLDataCellTag.String_
         cell.stringValue = s
         cell.freeValue = 1
         return cell
@@ -121,7 +121,7 @@ public class SQLDataCell {
     public static func fromBool(b: Bool): SQLDataCell {
         let cell = SQLDataCell()
         cell.tag = SQLDataCellTag.Bool_
-        cell.boolValue = if (b) { 1 } else { 0 }
+        cell.boolValue = if (b) { UInt8(1) } else { UInt8(0) }
         return cell
     }
 
@@ -161,17 +161,15 @@ public class SQLDataCell {
     /// 从原始数据创建
     /// 对应 Bun SQLDataCell.raw()
     public static func fromRaw(data: ?Array<UInt8>): SQLDataCell {
-        let cell = SQLDataCell()
-        match (data) {
-            case Some(bytes) => {
-                cell.tag = SQLDataCellTag.Raw
-                cell.rawValue = SQLDataCellRaw(bytes)
-            }
-            case None => {
-                cell.tag = SQLDataCellTag.Null
-                cell.nullValue = 0
-            }
+        if (let Some(bytes) <- data) {
+            let cell = SQLDataCell()
+            cell.tag = SQLDataCellTag.Raw
+            cell.rawValue = SQLDataCellRaw(bytes)
+            return cell
         }
+        let cell = SQLDataCell()
+        cell.tag = SQLDataCellTag.Null
+        cell.nullValue = UInt8(0)
         return cell
     }
 
@@ -182,26 +180,20 @@ public class SQLDataCell {
             return
         }
         match (tag) {
-            case SQLDataCellTag.String => {
-                // 字符串由 GC 管理
+            case SQLDataCellTag.String_ =>
                 stringValue = None
-            }
-            case SQLDataCellTag.Json => {
+            case SQLDataCellTag.Json =>
                 jsonValue = None
-            }
-            case SQLDataCellTag.Bytea => {
+            case SQLDataCellTag.Bytea =>
                 byteaPtr = Array<UInt8>()
-            }
-            case SQLDataCellTag.Array => {
+            case SQLDataCellTag.Array_ =>
                 for (cell in arrayValue.cells) {
                     cell.deinit()
                 }
                 arrayValue.deinit()
-            }
-            case SQLDataCellTag.TypedArray => {
+            case SQLDataCellTag.TypedArray =>
                 typedArrayValue.deinit()
-            }
-            case _ => {}
+            case _ => ()
         }
         freeValue = 0
     }
@@ -211,30 +203,28 @@ public class SQLDataCell {
     public func toJSValue(): JSCellValue {
         match (tag) {
             case SQLDataCellTag.Null => JSCellValue.Null
-            case SQLDataCellTag.String => {
+            case SQLDataCellTag.String_ =>
                 match (stringValue) {
-                    case Some(s) => JSCellValue.String(s)
-                    case None => JSCellValue.String("")
+                    case Some(s) => JSCellValue.String_(s)
+                    case None => JSCellValue.String_("")
                 }
-            }
-            case SQLDataCellTag.Float8 => JSCellValue.Float64(float8Value)
-            case SQLDataCellTag.Int4 => JSCellValue.Int32(int4Value)
-            case SQLDataCellTag.Int8_ => JSCellValue.Int64(int8Value)
-            case SQLDataCellTag.Bool_ => JSCellValue.Bool(boolValue != 0)
+            case SQLDataCellTag.Float8 => JSCellValue.Float64_(float8Value)
+            case SQLDataCellTag.Int4 => JSCellValue.Int32_(int4Value)
+            case SQLDataCellTag.Int8_ => JSCellValue.Int64_(int8Value)
+            case SQLDataCellTag.Bool_ => JSCellValue.Bool_(boolValue != UInt8(0))
             case SQLDataCellTag.Date => JSCellValue.Date(dateValue)
             case SQLDataCellTag.DateWithTimeZone => JSCellValue.DateWithTimeZone(dateWithTimeZoneValue)
             case SQLDataCellTag.Bytea => JSCellValue.Bytea(byteaPtr)
-            case SQLDataCellTag.Json => {
+            case SQLDataCellTag.Json =>
                 match (jsonValue) {
                     case Some(s) => JSCellValue.Json(s)
                     case None => JSCellValue.Null
                 }
-            }
-            case SQLDataCellTag.Array => JSCellValue.Array(arrayValue)
+            case SQLDataCellTag.Array_ => JSCellValue.Array_(arrayValue)
             case SQLDataCellTag.TypedArray => JSCellValue.TypedArray(typedArrayValue)
             case SQLDataCellTag.Raw => JSCellValue.Raw(rawValue)
-            case SQLDataCellTag.UInt4_ => JSCellValue.UInt32(uint4Value)
-            case SQLDataCellTag.UInt8_ => JSCellValue.UInt64(uint8Value)
+            case SQLDataCellTag.UInt4_ => JSCellValue.UInt32_(uint4Value)
+            case SQLDataCellTag.UInt8_ => JSCellValue.UInt64_(uint8Value)
         }
     }
 }
@@ -347,18 +337,18 @@ public class SQLDataCellFlags {
 /// 表示 SQL 数据在 JS 世界中的表现形式
 public enum JSCellValue {
     | Null
-    | String(String)
-    | Float64(Float64)
-    | Int32(Int32)
-    | Int64(Int64)
-    | Bool(Bool)
+    | String_(String)
+    | Float64_(Float64)
+    | Int32_(Int32)
+    | Int64_(Int64)
+    | Bool_(Bool)
     | Date(Float64)
     | DateWithTimeZone(Float64)
     | Bytea(Array<UInt8>)
     | Json(String)
-    | Array(SQLDataCellArray)
+    | Array_(SQLDataCellArray)
     | TypedArray(SQLDataCellTypedArray)
     | Raw(SQLDataCellRaw)
-    | UInt32(UInt32)
-    | UInt64(UInt64)
+    | UInt32_(UInt32)
+    | UInt64_(UInt64)
 }

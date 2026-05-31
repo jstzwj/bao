@@ -1,7 +1,8 @@
 // 严格翻译自: src/runtime/api/Archive.classes.ts
+// Archive 的 JSC 绑定 — 连接到 archive.cj 中的 libarchive FFI 实现
 package bao_runtime.api
 
-import bao_jsc.{JsGlobalObject, JsValue, JsCallFrame}
+import bao_jsc.{JsGlobalObject, JsValue, JsCallFrame, JsObject}
 
 // ============================================================================
 // Archive.classes.ts 类绑定定义
@@ -13,6 +14,7 @@ import bao_jsc.{JsGlobalObject, JsValue, JsCallFrame}
 
 /// Archive JSC 绑定
 /// Bun: Bun.Archive — tar/tgz 打包与解包
+/// 委托到 Archive 类实例方法实现 libarchive 操作
 public class ArchiveClasses {
 
     // ========================================================================
@@ -21,11 +23,11 @@ public class ArchiveClasses {
 
     /// static write fn
     /// 严格翻译自: klass.write { fn: "write", length: 2 }
-    /// 参数: (archive: Archive, outputPath: string)
+    /// 参数: (outputPath: string, data: Archive | Blob | TypedArray | object, options?)
     /// 返回: Promise<void>
+    /// 委托到 Archive.write() 静态方法
     public static func write(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): JsValue {
-        // 将 Archive 写入磁盘
-        return JsValue.jsUndefined()
+        Archive.write(jsGlobalObject, callframe)
     }
 
     // ========================================================================
@@ -34,34 +36,60 @@ public class ArchiveClasses {
 
     /// extract fn
     /// 严格翻译自: proto.extract { fn: "extract", length: 2 }
-    /// 参数: (archiveData: Blob | Uint8Array, options?: ArchiveExtractOptions)
-    /// 返回: Promise<Archive>
+    /// 参数: (path: string, options?: ArchiveExtractOptions)
+    /// 返回: Promise<number> — 提取的文件数
+    /// 委托到 Archive 实例的 extract() 方法，使用 libarchive FFI 提取归档
     public static func extract(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): JsValue {
-        // 从 tar/tgz 数据中提取文件
-        return JsValue.jsUndefined()
+        // 从 thisValue 获取 Archive 实例
+        let archiveOpt = Archive.fromJS(thisValue)
+        match (archiveOpt) {
+            case Some(archive) => archive.extract(jsGlobalObject, callframe)
+            case None =>
+                // 如果无法获取 Archive 实例，尝试创建临时实例
+                let tmpArchive = Archive()
+                tmpArchive.extract(jsGlobalObject, callframe)
+        }
     }
 
     /// blob fn
     /// 严格翻译自: proto.blob { fn: "blob", length: 0 }
-    /// 返回: Blob
+    /// 返回: Promise<Blob>
+    /// 委托到 Archive 实例的 blob() 方法
     public static func blob(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): JsValue {
-        // 返回 Archive 的 Blob 表示
-        return JsValue.jsUndefined()
+        let archiveOpt = Archive.fromJS(thisValue)
+        match (archiveOpt) {
+            case Some(archive) => archive.blob(jsGlobalObject, callframe)
+            case None =>
+                let tmpArchive = Archive()
+                tmpArchive.blob(jsGlobalObject, callframe)
+        }
     }
 
     /// bytes fn
     /// 严格翻译自: proto.bytes { fn: "bytes", length: 0 }
-    /// 返回: Uint8Array
+    /// 返回: Promise<Uint8Array>
+    /// 委托到 Archive 实例的 bytes() 方法
     public static func bytes(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): JsValue {
-        // 返回 Archive 的 Uint8Array 表示
-        return JsValue.jsUndefined()
+        let archiveOpt = Archive.fromJS(thisValue)
+        match (archiveOpt) {
+            case Some(archive) => archive.bytes(jsGlobalObject, callframe)
+            case None =>
+                let tmpArchive = Archive()
+                tmpArchive.bytes(jsGlobalObject, callframe)
+        }
     }
 
     /// files fn
     /// 严格翻译自: proto.files { fn: "files", length: 0 }
-    /// 返回: Map<string, ArchiveFile>
+    /// 返回: Promise<Map<string, ArchiveFile>>
+    /// 委托到 Archive 实例的 files() 方法，使用 libarchive FFI 遍历文件
     public static func files(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): JsValue {
-        // 返回 Archive 中所有文件的映射
-        return JsValue.jsUndefined()
+        let archiveOpt = Archive.fromJS(thisValue)
+        match (archiveOpt) {
+            case Some(archive) => archive.files(jsGlobalObject, callframe)
+            case None =>
+                let tmpArchive = Archive()
+                tmpArchive.files(jsGlobalObject, callframe)
+        }
     }
 }

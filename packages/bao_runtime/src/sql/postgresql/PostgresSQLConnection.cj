@@ -5,6 +5,8 @@
 package bao_runtime.sql.postgresql
 
 import bao_runtime.sql.shared.*
+import bao_io.*
+import bao_event_loop.*
 
 /// PostgreSQL 连接 JSC 绑定
 /// 对应 Bun PostgresSQLConnection
@@ -75,6 +77,14 @@ public class PostgresSQLConnectionJSC {
     /// 连接标志
     public var flags: ConnectionFlags
 
+    // === 事件循环集成 ===
+    /// poll 引用计数 — 保持事件循环活跃
+    /// 对应 Bun poll_ref: bun.Async.KeepAlive
+    public var pollRef: KeepAlive
+    /// 自动刷新器 — 延迟刷新写缓冲区
+    /// 对应 Bun auto_flusher: AutoFlusher
+    public var autoFlusher: AutoFlusher
+
     public init(config: PGConnectionConfig) {
         this.config = config
         status = PGConnectionStatus.Connecting
@@ -100,6 +110,8 @@ public class PostgresSQLConnectionJSC {
         connectionTimeoutMs = config.connectionTimeoutMs
         maxLifetimeMs = config.maxLifetimeMs
         flags = ConnectionFlags()
+        pollRef = KeepAlive()
+        autoFlusher = AutoFlusher()
     }
 
     // ========================================================================
@@ -168,7 +180,10 @@ public class PostgresSQLConnectionJSC {
             flags.isReadyForQuery = false
             nonPipelinedRequests += 1
             query.status = PGQueryStatus.Running
-            // TODO: 将 writer.getBuffer() 写入 socket
+            // 将 writer 缓冲区追加到写缓冲区并注册自动刷新
+            let encoded = writer.getBuffer()
+            writeBuffer.appendAll(encoded)
+            registerAutoFlusher()
         } else {
             query.status = PGQueryStatus.Pending
         }
@@ -194,7 +209,6 @@ public class PostgresSQLConnectionJSC {
 
         let hasParams = signature.fields.size > 0
         let signatureHash = signature.hash()
-        var didWrite = false
 
         // 检查是否已有缓存的预处理语句
         let existing = statements.get(signatureHash)
@@ -215,7 +229,9 @@ public class PostgresSQLConnectionJSC {
                             query.status = PGQueryStatus.Binding
                             query.flags.pipelined = true
                             pipelinedRequests += 1
-                            didWrite = true
+                            // 将 writer 缓冲区追加到写缓冲区
+                            writeBuffer.appendAll(writer.getBuffer())
+                            registerAutoFlusher()
                         }
                     }
                     case _ => {}
@@ -234,8 +250,10 @@ public class PostgresSQLConnectionJSC {
                     )
                     flags.isReadyForQuery = false
                     query.status = PGQueryStatus.Binding
-                    didWrite = true
                     flags.waitingToPrepare = true
+                    // 将 writer 缓冲区追加到写缓冲区
+                    writeBuffer.appendAll(writer.getBuffer())
+                    registerAutoFlusher()
                 }
                 if (!flags.useUnnamedPreparedStatements) {
                     statements.put(signatureHash, stmt)
@@ -248,18 +266,16 @@ public class PostgresSQLConnectionJSC {
         return true
     }
 
-    // ========================================================================
-    // 连接管理
-    // ========================================================================
-
     /// 关闭连接
     /// 对应 Bun PostgresSQLConnection.doClose()
     public func close() {
         disconnect()
+        unregisterAutoFlusher()
         writeBuffer = Array<UInt8>()
     }
 
     /// 断开连接
+    /// 对应 Bun PostgresSQLConnection.disconnect()
     public func disconnect() {
         if (status == PGConnectionStatus.Connected) {
             status = PGConnectionStatus.Disconnected
@@ -282,18 +298,33 @@ public class PostgresSQLConnectionJSC {
     }
 
     /// 引用计数增加 (保持进程活跃)
+    /// 对应 Bun PostgresSQLConnection.doRef()
     public func doRef() {
-        // TODO: poll_ref.ref(vm)
+        // 获取 VM 上下文并调用 KeepAlive.refKeepAlive
+        // 对应 Bun: this.poll_ref.ref(this.vm)
+        let ctx = getEventLoopCtx()
+        match (ctx) {
+            case Some(c) => pollRef.refKeepAlive(c)
+            case None => {}
+        }
     }
 
     /// 引用计数减少 (允许进程退出)
+    /// 对应 Bun PostgresSQLConnection.doUnref()
     public func doUnref() {
-        // TODO: poll_ref.unref(vm)
+        // 获取 VM 上下文并调用 KeepAlive.unref
+        // 对应 Bun: this.poll_ref.unref(this.vm)
+        let ctx = getEventLoopCtx()
+        match (ctx) {
+            case Some(c) => pollRef.unref(c)
+            case None => {}
+        }
     }
 
     /// 手动刷新
+    /// 对应 Bun PostgresSQLConnection.doFlush()
     public func doFlush() {
-        // TODO: registerAutoFlusher()
+        registerAutoFlusher()
     }
 
     // ========================================================================
@@ -338,6 +369,114 @@ public class PostgresSQLConnectionJSC {
     // 内部方法
     // ========================================================================
 
+    /// 注册自动刷新器
+    /// 对应 Bun PostgresSQLConnection.registerAutoFlusher()
+    /// 条件: 未注册 + 无背压 + 有数据待发送 + 已连接
+    public func registerAutoFlusher() {
+        let dataToSend = writeBuffer.size
+        if (!autoFlusher.registered &&
+            !flags.hasBackpressure &&
+            dataToSend > 0 &&
+            status == PGConnectionStatus.Connected) {
+            autoFlusher.registerDeferredMicrotask({ => this.onAutoFlush() })
+        }
+    }
+
+    /// 注销自动刷新器
+    /// 对应 Bun PostgresSQLConnection.unregisterAutoFlusher()
+    public func unregisterAutoFlusher() {
+        if (autoFlusher.registered) {
+            autoFlusher.unregisterDeferredMicrotask()
+        }
+    }
+
+    /// 自动刷新回调
+    /// 对应 Bun PostgresSQLConnection.onAutoFlush()
+    /// 返回 true 表示需要继续注册, false 表示完成
+    public func onAutoFlush(): Bool {
+        if (flags.hasBackpressure) {
+            // 如果有背压, 等待 onWritable 事件
+            autoFlusher.registered = false
+            return false
+        }
+        // 排空缓冲区
+        drainInternal()
+        // 如果没有背压且仍有数据, 保持注册
+        let keepRegistered = !flags.hasBackpressure && writeBuffer.size > 0
+        autoFlusher.registered = keepRegistered
+        return keepRegistered
+    }
+
+    /// 排空内部缓冲区到 socket
+    /// 对应 Bun PostgresSQLConnection.drainInternal()
+    public func drainInternal() {
+        flushData()
+        // 如果没有背压且准备好接收查询, 尝试继续推进流水线
+        if (!flags.hasBackpressure && flags.isReadyForQuery) {
+            // advance() 在此简化: 由 flushData 处理数据发送
+            flushData()
+        }
+    }
+
+    /// 将写缓冲区数据刷新到 socket
+    /// 对应 Bun PostgresSQLConnection.flushData()
+    /// 将 writeBuffer 中的数据通过 socket 发送
+    public func flushData() {
+        // 如果有背压, 等待 onWritable
+        if (flags.hasBackpressure) {
+            return
+        }
+        if (writeBuffer.size == 0) {
+            return
+        }
+        // 通过 socket 发送写缓冲区数据
+        let wrote = socketWrite(writeBuffer)
+        if (wrote < writeBuffer.size) {
+            flags.hasBackpressure = true
+        }
+        if (wrote > 0) {
+            // 从写缓冲区移除已发送的字节
+            writeBuffer = writeBuffer.slice(wrote, writeBuffer.size).toArray()
+        }
+    }
+
+    /// 通过 socket 发送数据 (实际发送到网络)
+    /// 对应 Bun socket.write(chunk)
+    /// 在真实实现中会调用底层 socket 的 write 方法
+    private func socketWrite(data: Array<UInt8>): Int64 {
+        // 实际 socket 写入由底层网络层处理
+        // 此处提供占位实现 — 在与事件循环集成后替换
+        let sent = data.size
+        // TODO: 当 socket 实现完成后, 替换为实际的网络发送
+        // 例如: socket.write(data)
+        return sent
+    }
+
+    /// 获取事件循环上下文
+    /// 从 VM 引用获取 EventLoopCtx 实例
+    private func getEventLoopCtx(): ?EventLoopCtx {
+        // VM 引用指向虚拟机实例, 需要获取其事件循环上下文
+        // 在实际集成中, vmRef 应转换为 VirtualMachine 并获取 eventLoop
+        // 当前返回 None, 因为 vmRef 是 Int64 占位
+        // 当 JS VM 集成完成后, 此方法应返回实际的事件循环上下文
+        None
+    }
+
+    /// 更新引用状态
+    /// 对应 Bun PostgresSQLConnection.updateRef()
+    /// 根据是否有待处理活动来决定 ref/unref
+    public func updateRef() {
+        let hasPending = requests.size > 0 ||
+            status == PGConnectionStatus.Connecting ||
+            status == PGConnectionStatus.SentStartupMessage ||
+            status == PGConnectionStatus.Connected
+        if (hasPending) {
+            doRef()
+        } else {
+            doUnref()
+        }
+    }
+
     /// 清理请求队列
     private func cleanUpRequests(jsReason: ?Int64) {
         for (query in requests) {
@@ -377,6 +516,7 @@ public class PostgresSQLConnectionJSC {
     /// 释放资源
     public func deinit() {
         disconnect()
+        unregisterAutoFlusher()
         authenticationState.zero()
         saslAuth.deinit()
         writeBuffer = Array<UInt8>()

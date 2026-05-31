@@ -953,13 +953,13 @@ public class ASTVisitor {
 
         // 设置新的函数数据
         p.fnOrArrowDataVisit = FnOrArrowDataVisit()
-        p.fnOrArrowDataVisit.isAsync = func.isAsync
+        p.fnOrArrowDataVisit.isAsync = fn.isAsync
         p.fnOnlyDataVisit = FnOnlyDataVisit()
         p.fnOnlyDataVisit.isThisNested = true
-        p.fnOnlyDataVisit.argumentsRef = func.argumentsRef
+        p.fnOnlyDataVisit.argumentsRef = fn.argumentsRef
 
         // 记录函数名
-        if (let Some(name) <- func.name) {
+        if (let Some(name) <- fn.name) {
             if (let Some(nameRef) <- name.ref) {
                 recordDeclaredSymbol(nameRef)
             }
@@ -969,19 +969,19 @@ public class ASTVisitor {
         p.pushScope(ScopeKind.FunctionArgs)
 
         // 访问参数
-        stmtVisitor.visitArgs(func.args)
+        stmtVisitor.visitArgs(fn.args)
 
         // 推入函数体作用域
         p.pushScope(ScopeKind.FunctionBody)
 
         // 访问函数体
-        let bodyStmts = func.body
+        let bodyStmts = fn.body
         var stmts = ArrayList<Stmt>()
         for (s in bodyStmts) {
             stmts.append(s)
         }
-        let bodyLoc = if (func.body.size > 0) {
-            func.openParensLoc
+        let bodyLoc = if (fn.body.size > 0) {
+            fn.openParensLoc
         } else {
             openParensLoc
         }
