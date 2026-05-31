@@ -217,8 +217,8 @@ public enum Stdio {
             case memfd(f) =>
                 return StdioConversionResult.result(value: SpawnOptionsStdio.pipe(f))
 
-            case path(p) =>
-                return StdioConversionResult.result(value: SpawnOptionsStdio.path(p.slice()))
+            case path(pathVal) =>
+                return StdioConversionResult.result(value: SpawnOptionsStdio.path(pathVal.slice()))
 
             case inherit =>
                 return StdioConversionResult.result(value: SpawnOptionsStdio.inherit)

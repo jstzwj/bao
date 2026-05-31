@@ -48,7 +48,7 @@ public class CryptoHasher {
 
     /// 根据名称获取哈希器
     /// 对应 Bun: fn getByName(global, name_bytes, name_len) ?*CryptoHasher
-    public static func getByName(globalThis: JsObject, name: String): ?CryptoHasher {
+    public static func getByName(name: String): ?CryptoHasher {
         // if (CryptoHasherZig.`init`(name)) |inner|
         let zigInner = CryptoHasherZig.initFunc(name)
         match (zigInner) {
@@ -69,7 +69,7 @@ public class CryptoHasher {
                     let md = alg.md()
                     match (md) {
                         case Some(mdVal) =>
-                            let engine = RareData.getBoringEngine(globalThis)
+                            let engine = RareData.getBoringEngine()
                             let hasher = CryptoHasher(CryptoHasherTag.EVP_TAG)
                             hasher.evpValue = EVP(alg, mdVal, engine)
                             return hasher
@@ -93,7 +93,7 @@ public class CryptoHasher {
                 return hasher
             case CryptoHasherTag.EVP_TAG =>
                 let other = otherHandle.evpValue.getOrThrow()
-                let engine = RareData.getBoringEngine(globalThis)
+                let engine = RareData.getBoringEngine()
                 let copied = other.copy(engine)
                 match (copied) {
                     case Some(evpCopy) =>
@@ -134,7 +134,7 @@ public class CryptoHasher {
                 let res = this.zigValue.getOrThrow().finalWithLen(buf, buf.size)
                 return UInt32(res.size)
             case CryptoHasherTag.EVP_TAG =>
-                let engine = RareData.getBoringEngine(globalThis)
+                let engine = RareData.getBoringEngine()
                 let res = this.evpValue.getOrThrow().final(engine, buf)
                 return UInt32(res.size)
             case _ => return 0
@@ -226,13 +226,13 @@ public class CryptoHasher {
     private static func hashToEncoding(globalThis: JsObject, evp: EVP, input: Array<Byte>,
                                         encoding: String): JsValue {
         var outputDigestBuf = Array<Byte>(DIGEST_SIZE, repeat: 0)
-        let engine = RareData.getBoringEngine(globalThis)
+        let engine = RareData.getBoringEngine()
         let len = evp.hash(engine, input, outputDigestBuf)
         match (len) {
             case None =>
                 let err = BoringSSL.errGetError()
                 BoringSSL.errClearError()
-                return createCryptoError(globalThis, err)
+                return createCryptoError(err)
             case Some(outLen) =>
                 // encoding.encodeWithMaxSize(...)
                 return JsValue(BaoString(encodingEncode(encoding, outputDigestBuf[0..Int64(outLen)])))
@@ -257,13 +257,13 @@ public class CryptoHasher {
             case None => ()
         }
 
-        let engine = RareData.getBoringEngine(globalThis)
+        let engine = RareData.getBoringEngine()
         let len = evp.hash(engine, input, outputDigestSlice)
         match (len) {
             case None =>
                 let err = BoringSSL.errGetError()
                 BoringSSL.errClearError()
-                return createCryptoError(globalThis, err)
+                return createCryptoError(err)
             case Some(outLen) =>
                 match (output) {
                     case Some(outputBuf) => return outputBuf.value
@@ -351,7 +351,7 @@ public class CryptoHasher {
                 this.evpValue.getOrThrow().update(input)
                 let err = BoringSSL.errGetError()
                 if (err != 0) {
-                    let instance = createCryptoError(globalThis, err)
+                    let instance = createCryptoError(err)
                     BoringSSL.errClearError()
                     return instance
                 }
@@ -363,7 +363,7 @@ public class CryptoHasher {
                         h.update(input)
                         let err = BoringSSL.errGetError()
                         if (err != 0) {
-                            let instance = createCryptoError(globalThis, err)
+                            let instance = createCryptoError(err)
                             BoringSSL.errClearError()
                             return instance
                         }
@@ -383,7 +383,7 @@ public class CryptoHasher {
     public func copy(globalThis: JsObject): ?CryptoHasher {
         match (this.tag) {
             case CryptoHasherTag.EVP_TAG =>
-                let engine = RareData.getBoringEngine(globalThis)
+                let engine = RareData.getBoringEngine()
                 let copied = this.evpValue.getOrThrow().copy(engine)
                 match (copied) {
                     case Some(evpCopy) =>
@@ -489,7 +489,7 @@ public class CryptoHasher {
                         return h.final(outputDigestSlice)
                 }
             case CryptoHasherTag.EVP_TAG =>
-                let engine = RareData.getBoringEngine(globalThis)
+                let engine = RareData.getBoringEngine()
                 return this.evpValue.getOrThrow().final(engine, outputDigestSlice)
             case CryptoHasherTag.ZIG_TAG =>
                 return this.zigValue.getOrThrow().final(outputDigestSlice)
@@ -1300,7 +1300,7 @@ public class JsPromise {
 /// RareData - 虚拟机稀有数据
 /// 对应 Bun: jsc.VirtualMachine.rareData()
 public class RareData {
-    public static func getBoringEngine(globalThis: JsObject): ?Engine {
+    public static func getBoringEngine(): ?Engine {
         // 对应 Bun: global.bunVM().rareData().boringEngine()
         return Engine()
     }

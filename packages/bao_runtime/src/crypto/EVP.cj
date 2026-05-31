@@ -328,7 +328,7 @@ public class EVP {
 
     /// 根据名称获取 EVP
     public static func byName(s: String, globalThis: JsObject): ?EVP {
-        let engine = RareData.getBoringEngine(globalThis)
+        let engine = RareData.getBoringEngine()
         return byNameAndEngine(engine, s)
     }
 

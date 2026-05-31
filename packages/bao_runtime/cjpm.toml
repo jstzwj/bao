@@ -81,3 +81,8 @@ bao_http_jsc = { path = "../bao_http_jsc" }
 bao_csrf = { path = "../bao_csrf" }
 bao_safety = { path = "../bao_safety" }
 bao_router = { path = "../bao_router" }
+bao_crash_handler = { path = "../bao_crash_handler" }
+bao_standalone_graph = { path = "../bao_standalone_graph" }
+bao_picohttp = { path = "../bao_picohttp" }
+bao_brotli = { path = "../bao_brotli" }
+bao_zlib_sys = { path = "../bao_zlib_sys" }

@@ -18,6 +18,8 @@ import bao_event_loop.EventLoopTimer
 import bao_event_loop.TimerState
 import std.random.Random
 
+public type Byte = UInt8
+
 // ============================================================================
 // 共享类型
 // 仅包含未在其他专用文件中定义的类型
@@ -63,11 +65,52 @@ public enum SendStatus {
 
 /// StringJoiner [KEPT: deferred - real type in bao_string.StringJoiner]
 /// 保留此 [KEPT] 类型因为 API 表面不同
+/// Rope-like data structure for joining many small strings into one big string.
+/// 对应 Bun: bun.StringJoiner
 public class StringJoiner {
-    public init(allocator: Allocator) {}
-    public func pushStatic(s: String): Unit {}
-    public func done(alloc: Allocator): Array<Byte> { Array<Byte>() }
-    public func doneWithEnd(suffix: String): Array<Byte> { Array<Byte>() }
+    private var parts: ArrayList<String>
+    private var totalLen: Int64
+
+    public init(allocator: Allocator) {
+        parts = ArrayList<String>()
+        totalLen = 0
+    }
+    public func pushStatic(s: String): Unit {
+        if (s.size == 0) { return }
+        parts.append(s)
+        totalLen += s.size
+    }
+    public func done(alloc: Allocator): Array<Byte> {
+        if (totalLen == Int64(0)) { return Array<Byte>() }
+        let result = Array<Byte>(totalLen, { _ => 0 })
+        var offset: Int64 = 0
+        for (i in 0..parts.items.size) {
+            let part = parts.items[i]
+            for (j in 0..part.size) {
+                result[offset] = UInt8(Int64(part[j]))
+                offset += 1
+            }
+        }
+        return result
+    }
+    public func doneWithEnd(suffix: String): Array<Byte> {
+        let totalWithSuffix = totalLen + suffix.size
+        if (totalWithSuffix == Int64(0)) { return Array<Byte>() }
+        let result = Array<Byte>(totalWithSuffix, { _ => 0 })
+        var offset: Int64 = 0
+        for (i in 0..parts.items.size) {
+            let part = parts.items[i]
+            for (i in 0..part.size) {
+                result[offset] = UInt8(Int64(part[i]))
+                offset += 1
+            }
+        }
+        for (i in 0..suffix.size) {
+            result[offset] = UInt8(Int64(suffix[i]))
+            offset += 1
+        }
+        return result
+    }
 }
 
 /// GenericIndex [KEPT: no-pkg]
@@ -100,7 +143,17 @@ public class AnyResponse {
         // 解析 "200 OK" 格式
         let spaceIdx = status.indexOf(' ')
         if (let Some(idx) <- spaceIdx) {
-            status_code = 200 // TODO: parse status code from string
+            let codeStr = status[0..idx]
+            var parsed: Int32 = Int32(0)
+            for (i in 0..codeStr.size) {
+                let ch = Int64(codeStr[i])
+                if (ch >= 48 && ch <= 57) {
+                    parsed = parsed * Int32(10) + Int32(ch - 48)
+                } else {
+                    break
+                }
+            }
+            status_code = parsed
         }
     }
     public func writeHeader(name: String, value: String): Unit {
@@ -243,7 +296,7 @@ public class Writer {
 
     /// Write integer — generic version preserved for API compat
     public func writeInt<T>(value: T): Unit {
-        // Use type-specific write methods instead
+        throw Exception("writeInt<T>: use writeInt32/writeUInt32/writeByte instead of generic writeInt<T>")
     }
 
     /// Write Int32 little-endian
@@ -810,23 +863,32 @@ public class Blob {
 
 /// ArrayList [KEPT: no-pkg - thin wrapper around bao_collections.ArrayList]
 public class ArrayList<T> {
-    public init() {}
+    public init() { items = [] }
     public static func initCapacity(alloc: Allocator, capacity: Int64): ArrayList<T> { ArrayList<T>() }
     public var items: Array<T> = []
     public func writer(): Writer { Writer() }
-    public func append(item: T): Unit {}
-    public func appendSlice(items: Array<T>): Unit {}
-    public func appendSlice(items: String): Unit {}
-    public func clear(): Unit {}
+    public func append(item: T): Unit {
+        items = Array<T>(items.size + 1, { i => if (i < items.size) { items[i] } else { item } })
+    }
+    public func appendSlice(newItems: Array<T>): Unit {
+        let oldSize = items.size
+        items = Array<T>(oldSize + newItems.size, { i => if (i < oldSize) { items[i] } else { newItems[i - oldSize] } })
+    }
+    public func appendSlice(str: String): Unit {
+        // String append is only meaningful for ArrayList<Byte>
+        // For other types, this is a no-op stub
+    }
+    public func clear(): Unit { items = [] }
 }
 
 /// HashSet [KEPT: no-pkg - thin wrapper around bao_collections.HashSet]
-public class HashSet<T> {
-    public init() {}
-    public func contains(item: T): Bool { false }
-    public func append(item: T): Unit {}
-    public func count(): Int64 { 0 }
-    public func clear(): Unit {}
+public class HashSet<T> where T <: ToString {
+    private var data: HashMap<T, Unit>
+    public init() { data = HashMap<T, Unit>() }
+    public func contains(item: T): Bool { data.contains(item) }
+    public func append(item: T): Unit { data.put(item, ()) }
+    public func count(): Int64 { data.size }
+    public func clear(): Unit { data.clear() }
 }
 
 /// DynamicBitSetUnmanaged [KEPT: no-pkg]
@@ -855,7 +917,29 @@ public class StringsHelper {
     public static func withoutTrailingSlashWindowsPath(s: String): String {
         if (s.endsWith("/") || s.endsWith("\\")) { s[0..s.size - 1] } else { s }
     }
-    public static func percentEncodeWrite(input: String, output: ArrayList<Byte>): Unit {}
+    public static func percentEncodeWrite(input: String, output: ArrayList<Byte>): Unit {
+        // 对应 Bun: strings.percentEncodeWrite
+        // URL-encodes characters that need encoding (non-ASCII, control chars, etc.)
+        var i: Int64 = 0
+        while (i < input.size) {
+            let ch = Int64(input[i])
+            // Safe characters: A-Z a-z 0-9 - _ . ~
+            if ((ch >= 65 && ch <= 90) || (ch >= 97 && ch <= 122) ||
+                (ch >= 48 && ch <= 57) || ch == 45 || ch == 95 ||
+                ch == 46 || ch == 126) {
+                output.append(UInt8(ch))
+                i += 1
+            } else {
+                // Percent-encode: %XX
+                let hi = UInt8((ch >> 4) & 0xF)
+                let lo = UInt8(ch & 0xF)
+                output.append(UInt8(37)) // '%'
+                output.append(if (hi < 10) { UInt8(hi + 48) } else { UInt8(hi + 55) })
+                output.append(if (lo < 10) { UInt8(lo + 48) } else { UInt8(lo + 55) })
+                i += 1
+            }
+        }
+    }
     public static func indexOfChar(s: String, ch: Int64): ?Int64 {
         var i: Int64 = 0
         while (i < s.size) {
@@ -873,7 +957,37 @@ public class JsPrinter {
 
 /// URL [KEPT: no-pkg]
 public class URL {
-    public static func originFromSlice(url: String): ?String { None }
+    /// 对应 Bun: bun.jsc.URL.originFromSlice
+    /// Extracts the origin (scheme://host:port) from a URL string.
+    /// Returns null if the string does not look like a valid URL.
+    public static func originFromSlice(url: String): ?String {
+        // Simple origin extraction: find scheme://host[:port]
+        // Look for "://" by scanning for ':' then checking "/" "/"
+        let colonIdx = StringsHelper.indexOfChar(url, Int64(58)) // ':'
+        if (let Some(ci) <- colonIdx) {
+            if (ci < Int64(2)) { return None }
+            // Check for "://"
+            if (ci + Int64(2) >= url.size) { return None }
+            if (Int64(url[ci + Int64(1)]) != Int64(47) || Int64(url[ci + Int64(2)]) != Int64(47)) { return None }
+            let afterScheme = ci + Int64(3)
+            if (afterScheme >= url.size) { return None }
+            // Find end of authority (first '/' after scheme://)
+            var end = url.size
+            var j = afterScheme
+            while (j < url.size) {
+                let ch = Int64(url[j])
+                if (ch == 47 || ch == 63 || ch == 35) { // '/' or '?' or '#'
+                    end = j
+                    break
+                }
+                j += 1
+            }
+            if (end > afterScheme) {
+                return url[0..end]
+            }
+        }
+        return None
+    }
 }
 
 /// PathHelper
@@ -900,9 +1014,11 @@ public class PathHelper {
 // ============================================================================
 
 /// HmrTopic [KEPT: forward-ref]
+/// 对应 Bun: DevServer.HmrTopic - HMR subscription topics
 public class HmrTopic {
     public static let Bits: Int64 = 0
-    public static let max_count: Int64 = 64
+    /// max_count = 6 topics (hot_update, errors, browser_error, incremental_visualizer, memory_visualizer, testing_watch_synchronization)
+    public static let max_count: Int64 = 6
 }
 
 /// ConsoleLogKind [KEPT: forward-ref]
@@ -912,21 +1028,49 @@ public enum ConsoleLogKind {
 }
 
 /// MessageId [KEPT: forward-ref]
+/// 对应 Bun: DevServer.MessageId - HMR wire protocol message identifiers
 public enum MessageId {
-    | version
-    | set_url_response
-    | testing_watch_synchronization
-    public func char(): Byte { 0 }
+    | version                                  // 'V' = 86
+    | hot_update                               // 'u' = 117
+    | errors                                   // 'e' = 101
+    | browser_message                          // 'b' = 98
+    | browser_message_clear                    // 'B' = 66
+    | request_handler_error                    // 'h' = 104
+    | visualizer                               // 'v' = 118
+    | memory_visualizer                        // 'M' = 77
+    | set_url_response                         // 'n' = 110
+    | testing_watch_synchronization            // 'r' = 114
+
+    /// Get the wire protocol byte for this message ID
+    /// 对应 Bun: pub inline fn char(id: MessageId) u8
+    public func char(): Byte {
+        match (this) {
+            case MessageId.version => 86u8
+            case MessageId.hot_update => 117u8
+            case MessageId.errors => 101u8
+            case MessageId.browser_message => 98u8
+            case MessageId.browser_message_clear => 66u8
+            case MessageId.request_handler_error => 104u8
+            case MessageId.visualizer => 118u8
+            case MessageId.memory_visualizer => 77u8
+            case MessageId.set_url_response => 110u8
+            case MessageId.testing_watch_synchronization => 114u8
+        }
+    }
 }
 
 /// IncomingMessageId [KEPT: forward-ref]
+/// 对应 Bun: DevServer.IncomingMessageId
+/// Wire protocol byte values: init='i'(105), subscribe='s'(115),
+/// set_url='n'(110), testing_batch_events='H'(72),
+/// console_log='l'(108), unref_source_map='u'(117)
 public enum IncomingMessageId {
-    | `init`
-    | subscribe
-    | set_url
-    | testing_batch_events
-    | console_log
-    | unref_source_map
+    | `init`                  // 'i' = 105
+    | subscribe               // 's' = 115
+    | set_url                 // 'n' = 110
+    | testing_batch_events    // 'H' = 72
+    | console_log             // 'l' = 108
+    | unref_source_map        // 'u' = 117
 }
 
 /// BitsHelper
@@ -1018,15 +1162,18 @@ public class ZigStackFrame {
 /// ZigString [KEPT: no-pkg]
 public class ZigString {
     public var value: ZigStringInner = ZigStringInner()
+    private var stored: String = ""
     public init() {}
-    public init(s: String) {}
-    public func slice(): String { "" }
+    public init(s: String) { stored = s; value = ZigStringInner(s) }
+    public func slice(): String { if (stored.size > 0) { stored } else { value.slice() } }
 }
 
 /// ZigStringInner [KEPT: no-pkg]
 public class ZigStringInner {
+    private var stored: String = ""
     public init() {}
-    public func slice(): String { "" }
+    public init(s: String) { stored = s }
+    public func slice(): String { stored }
 }
 
 /// ZigStackFramePosition [KEPT: no-pkg]
@@ -1066,14 +1213,31 @@ public class ZigException {
 /// ZigStackTrace [KEPT: no-pkg]
 public class ZigStackTrace {
     public var frames_len: UInt32 = 0
+    private var stored_frames: Array<ZigStackFrame> = []
     public init() {}
-    public static func fromFrames(frames: Array<ZigStackFrame>): ZigStackTrace { ZigStackTrace() }
-    public func frames(): Array<ZigStackFrame> { Array<ZigStackFrame>() }
+    public static func fromFrames(frames: Array<ZigStackFrame>): ZigStackTrace {
+        let st = ZigStackTrace()
+        st.stored_frames = frames
+        st.frames_len = UInt32(frames.size)
+        return st
+    }
+    public func frames(): Array<ZigStackFrame> { stored_frames }
 }
 
 /// SourceMapState [KEPT: no-pkg]
 public class SourceMapState {
-    public init(generated_line: UInt32, generated_column: UInt32, source_index: UInt32, original_line: UInt32, original_column: UInt32) {}
+    public var generated_line: UInt32
+    public var generated_column: UInt32
+    public var source_index: UInt32
+    public var original_line: UInt32
+    public var original_column: UInt32
+    public init(generated_line: UInt32, generated_column: UInt32, source_index: UInt32, original_line: UInt32, original_column: UInt32) {
+        this.generated_line = generated_line
+        this.generated_column = generated_column
+        this.source_index = source_index
+        this.original_line = original_line
+        this.original_column = original_column
+    }
 }
 
 /// HmrRuntime [KEPT: no-pkg]
@@ -1294,28 +1458,20 @@ public func bitCastUInt64ToInt64(value: UInt64): Int64 { Int64(value) }
 
 /// Bit-cast Float64 <-> UInt64 (via byte buffer)
 public func bitCastFloat64ToUInt64(value: Float64): UInt64 {
-    // Cangjie safe approach: serialize to bytes then reinterpret
-    // TODO: Use unsafe pointer cast when FFI available
-    let bytes = Array<Byte>(8, { _ => 0 })
-    // Float64 -> bytes via string round-trip is not accurate;
-    // use native interop when available
-    UInt64(0)
+    value.toBits()
 }
 
 public func bitCastUInt64ToFloat64(value: UInt64): Float64 {
-    // TODO: Use unsafe pointer cast when FFI available
-    Float64(0.0)
+    Float64.fromBits(value)
 }
 
 /// Bit-cast Float32 <-> UInt32
 public func bitCastFloat32ToUInt32(value: Float32): UInt32 {
-    // TODO: Use unsafe pointer cast when FFI available
-    UInt32(0)
+    value.toBits()
 }
 
 public func bitCastUInt32ToFloat32(value: UInt32): Float32 {
-    // TODO: Use unsafe pointer cast when FFI available
-    Float32(0.0)
+    Float32.fromBits(value)
 }
 
 /// isAbsolutePath helper

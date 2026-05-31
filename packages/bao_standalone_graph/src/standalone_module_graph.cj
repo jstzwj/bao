@@ -33,6 +33,19 @@
 package bao_standalone_graph
 
 import bao_core.*
+import std.collection.*
+import std.convert.*
+
+/// 无效索引常量 - 对应 Bun std.math.maxInt(u32)
+let STANDALONE_INVALID_INDEX: Int64 = 0xFFFFFFFF
+
+/// CompiledModuleGraphFile 的估计序列化大小
+/// 6 个 StringPointer (各 8 字节) + Encoding(1) + Loader(1) + ModuleFormat(1) + FileSide(1) = 52 字节
+let ESTIMATED_MODULE_ENTRY_SIZE: Int64 = 64
+
+/// Offsets 结构的估计序列化大小
+/// byte_count(8) + modules_ptr(8) + entry_point_id(4) + padding(4) + compile_exec_argv_ptr(8) + flags(4) + padding(4) = 40
+let ESTIMATED_OFFSETS_SIZE: Int64 = 40
 
 // ============================================================================
 // StringPointer - 字符串指针 (偏移量 + 长度)
@@ -73,14 +86,14 @@ public class StringPointer {
         if (length == 0) {
             return []
         }
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         let end = offset + length
         for (i in offset..end) {
             if (i >= 0 && i < bytes.size) {
-                result.append(bytes[i])
+                result.add(bytes[i])
             }
         }
-        return result
+        return result.toArray()
     }
 
     /// 从字节数组切片为字符串 - 对应 Bun sliceToZ
@@ -97,7 +110,7 @@ public class StringPointer {
                 if (b == 0) {
                     break
                 }
-                sb.append(Char(Int32(b)))
+                sb.append(Rune(UInt32(b)))
             }
         }
         return sb.toString()
@@ -118,6 +131,13 @@ public enum FileSide {
     | Server   // 0 - 服务端代码
     | Client   // 1 - 客户端代码
 
+    public operator func ==(right: FileSide): Bool {
+        match (this) {
+            case Server => match (right) { case Server => true; case _ => false }
+            case Client => match (right) { case Client => true; case _ => false }
+        }
+    }
+
     /// 转为 UInt8 编码
     public func toU8(): UInt8 {
         match (this) {
@@ -129,8 +149,8 @@ public enum FileSide {
     /// 从 UInt8 解码
     public static func fromU8(v: UInt8): FileSide {
         match (v) {
-            case UInt8(0) => Server
-            case UInt8(1) => Client
+            case 0 => Server
+            case 1 => Client
             case _ => Server
         }
     }
@@ -164,9 +184,9 @@ public enum Encoding {
     /// 从 UInt8 解码
     public static func fromU8(v: UInt8): Encoding {
         match (v) {
-            case UInt8(0) => Binary
-            case UInt8(1) => Latin1
-            case UInt8(2) => Utf8
+            case 0 => Binary
+            case 1 => Latin1
+            case 2 => Utf8
             case _ => Binary
         }
     }
@@ -200,9 +220,9 @@ public enum ModuleFormat {
     /// 从 UInt8 解码
     public static func fromU8(v: UInt8): ModuleFormat {
         match (v) {
-            case UInt8(0) => None
-            case UInt8(1) => Esm
-            case UInt8(2) => Cjs
+            case 0 => None
+            case 1 => Esm
+            case 2 => Cjs
             case _ => None
         }
     }
@@ -227,6 +247,20 @@ public enum Loader {
     | Css      // CSS
     | Other    // 其他
 
+    public operator func ==(right: Loader): Bool {
+        match (this) {
+            case Js => match (right) { case Js => true; case _ => false }
+            case Jsx => match (right) { case Jsx => true; case _ => false }
+            case Ts => match (right) { case Ts => true; case _ => false }
+            case Tsx => match (right) { case Tsx => true; case _ => false }
+            case Json => match (right) { case Json => true; case _ => false }
+            case Toml => match (right) { case Toml => true; case _ => false }
+            case File => match (right) { case File => true; case _ => false }
+            case Css => match (right) { case Css => true; case _ => false }
+            case Other => match (right) { case Other => true; case _ => false }
+        }
+    }
+
     /// 转为 UInt8 编码
     public func toU8(): UInt8 {
         match (this) {
@@ -245,14 +279,14 @@ public enum Loader {
     /// 从 UInt8 解码
     public static func fromU8(v: UInt8): Loader {
         match (v) {
-            case UInt8(0) => Js
-            case UInt8(1) => Jsx
-            case UInt8(2) => Ts
-            case UInt8(3) => Tsx
-            case UInt8(4) => Json
-            case UInt8(5) => Toml
-            case UInt8(6) => File
-            case UInt8(7) => Css
+            case 0 => Js
+            case 1 => Jsx
+            case 2 => Ts
+            case 3 => Tsx
+            case 4 => Json
+            case 5 => Toml
+            case 6 => File
+            case 7 => Css
             case _ => Other
         }
     }
@@ -331,10 +365,10 @@ public class StandaloneFlags {
     /// 从 UInt32 解码
     public static func fromU32(val: UInt32): StandaloneFlags {
         StandaloneFlags(
-            disableDefaultEnvFiles: (val & UInt32(1)) != UInt32(0),
-            disableAutoloadBunfig: (val & UInt32(2)) != UInt32(0),
-            disableAutoloadTsconfig: (val & UInt32(4)) != UInt32(0),
-            disableAutoloadPackageJson: (val & UInt32(8)) != UInt32(0)
+            (val & UInt32(1)) != UInt32(0),
+            (val & UInt32(2)) != UInt32(0),
+            (val & UInt32(4)) != UInt32(0),
+            (val & UInt32(8)) != UInt32(0)
         )
     }
 }
@@ -528,7 +562,7 @@ public class ModuleEntry {
     ///     return result;
     /// }
     public func fileSize(): Int64 {
-        contents.length
+        contents.size
     }
 
     /// 判断是否为 JavaScript 类似文件
@@ -574,9 +608,6 @@ public class OutputFile {
     }
 }
 
-/// 无效索引常量 - 对应 Bun std.math.maxInt(u32)
-let STANDALONE_INVALID_INDEX: Int64 = 0xFFFFFFFF
-
 /// 输出文件类型
 public enum OutputKind {
     | EntryPoint
@@ -584,6 +615,16 @@ public enum OutputKind {
     | Bytecode
     | ModuleInfo
     | Chunk
+
+    public operator func ==(right: OutputKind): Bool {
+        match (this) {
+            case EntryPoint => match (right) { case EntryPoint => true; case _ => false }
+            case Sourcemap => match (right) { case Sourcemap => true; case _ => false }
+            case Bytecode => match (right) { case Bytecode => true; case _ => false }
+            case ModuleInfo => match (right) { case ModuleInfo => true; case _ => false }
+            case Chunk => match (right) { case Chunk => true; case _ => false }
+        }
+    }
 
     /// 是否为独立模式下应包含的文件
     /// 对应 Bun OutputFile.output_kind.isFileInStandaloneMode()
@@ -775,7 +816,7 @@ public class StandaloneModuleGraph {
         graph.flags = offsets.flags
 
         for (entry in moduleEntries) {
-            graph.files.put(entry.name, entry)
+            graph.files.add(entry.name, entry)
         }
 
         return graph
@@ -808,8 +849,8 @@ public class StandaloneModuleGraph {
 
         for (outputFile in outputFiles) {
             // 路径 + 前缀
-            totalCap += outputFile.destPath.length + 1  // +1 for null terminator
-            totalCap += prefix.length
+            totalCap += outputFile.destPath.size + 1  // +1 for null terminator
+            totalCap += prefix.size
 
             if (outputFile.outputKind == OutputKind.Sourcemap) {
                 // SourceMap 需要额外空间 (过度估计以确保足够)
@@ -822,7 +863,8 @@ public class StandaloneModuleGraph {
             } else if (outputFile.outputKind.isFileInStandaloneMode()) {
                 // 入口点检测
                 if (entryPointId.isNone()) {
-                    if (outputFile.side.isNone() || outputFile.side == FileSide.Server) {
+                    let sideIsServer = outputFile.side.isSome() && outputFile.side.getOrDefault({=> FileSide.Server}) == FileSide.Server
+                    if (outputFile.side.isNone() || sideIsServer) {
                         if (outputFile.outputKind == OutputKind.EntryPoint) {
                             entryPointId = moduleCount
                         }
@@ -840,11 +882,11 @@ public class StandaloneModuleGraph {
         // 模块元数据数组空间
         totalCap += moduleCount * ESTIMATED_MODULE_ENTRY_SIZE
         // trailer + 对齐 + Offsets
-        totalCap += TRAILER.length
+        totalCap += TRAILER.size
         totalCap += 16
         totalCap += ESTIMATED_OFFSETS_SIZE
         // compile_exec_argv
-        totalCap += compileExecArgv.length + 1
+        totalCap += compileExecArgv.size + 1
 
         // ----------------------------------------------------------------
         // 阶段 2: 构建二进制数据
@@ -881,7 +923,7 @@ public class StandaloneModuleGraph {
                 // 额外填充到缓存行
                 let extraPad = min(128, writer.remaining())
                 writer.writeZeros(extraPad)
-                StringPointer(offset: alignedOffset, length: bytecodeData.size + extraPad)
+                StringPointer(alignedOffset, bytecodeData.size + extraPad)
             } else {
                 StringPointer()
             }
@@ -891,7 +933,7 @@ public class StandaloneModuleGraph {
                 let miBytes = outputFiles[Int64(outputFile.moduleInfoIndex)].buffer
                 let off = writer.position
                 writer.writeBytes(miBytes)
-                StringPointer(offset: off, length: miBytes.size)
+                StringPointer(off, miBytes.size)
             } else {
                 StringPointer()
             }
@@ -956,7 +998,7 @@ public class StandaloneModuleGraph {
             compiledModule.moduleFormat = moduleFormat
             compiledModule.side = fileSide
 
-            modules.append(compiledModule)
+            modules.add(compiledModule)
         }
 
         // ----------------------------------------------------------------
@@ -974,11 +1016,11 @@ public class StandaloneModuleGraph {
         }
 
         let offsets = Offsets(
-            byteCount: modulesStartOffset,
-            modulesPtr: StringPointer(offset: modulesStartOffset, length: writer.position - modulesStartOffset),
-            entryPointId: entryPointId.getOrThrow(),
-            compileExecArgvPtr: writer.writeStringNullTerminated(compileExecArgv),
-            flags: flags
+            modulesStartOffset,
+            StringPointer(modulesStartOffset, writer.position - modulesStartOffset),
+            entryPointId.getOrThrow(),
+            writer.writeStringNullTerminated(compileExecArgv),
+            flags
         )
         // 修正 byteCount: 应为模块元数据之前的所有数据
         offsets.byteCount = modulesStartOffset
@@ -1014,7 +1056,7 @@ public class StandaloneModuleGraph {
     public static func fromExecutable(rawBytes: Array<UInt8>): ?StandaloneModuleGraph {
         // 对应 Bun:
         //   if (macho_bytes.len < @sizeOf(Offsets) + trailer.len) return null;
-        if (rawBytes.size < ESTIMATED_OFFSETS_SIZE + TRAILER.length) {
+        if (rawBytes.size < ESTIMATED_OFFSETS_SIZE + TRAILER.size) {
             return None
         }
 
@@ -1022,10 +1064,10 @@ public class StandaloneModuleGraph {
         // 对应 Bun:
         //   const trailer_bytes = macho_bytes[macho_bytes.len - trailer.len ..][0..trailer.len];
         //   if (!bun.strings.eqlComptime(trailer_bytes, trailer)) return null;
-        let trailerStart = rawBytes.size - TRAILER.length
+        let trailerStart = rawBytes.size - TRAILER.size
         var trailerMatch = true
-        for (i in 0..TRAILER.length) {
-            if (rawBytes[trailerStart + Int64(i)] != UInt8(TRAILER.toArray()[i].value)) {
+        for (i in 0..TRAILER.size) {
+            if (rawBytes[trailerStart + Int64(i)] != TRAILER[i]) {
                 trailerMatch = false
                 break
             }
@@ -1038,7 +1080,7 @@ public class StandaloneModuleGraph {
         // 对应 Bun:
         //   const macho_bytes_slice = macho_bytes[macho_bytes.len - @sizeOf(Offsets) - trailer.len ..];
         //   const offsets = std.mem.bytesAsValue(Offsets, macho_bytes_slice).*;
-        let offsetsStart = rawBytes.size - ESTIMATED_OFFSETS_SIZE - TRAILER.length
+        let offsetsStart = rawBytes.size - ESTIMATED_OFFSETS_SIZE - TRAILER.size
         let offsetsBytes = sliceBytes(rawBytes, offsetsStart, ESTIMATED_OFFSETS_SIZE)
         let offsets = deserializeOffsets(offsetsBytes)
 
@@ -1137,8 +1179,8 @@ public class SerializedSourceMap {
         // 读取 u32 map_bytes_length (little-endian)
         let mapBytesLength = readU32LE(bytes, 4)
         return SerializedSourceMapHeader(
-            sourceFilesCount: Int64(sourceFilesCount),
-            mapBytesLength: Int64(mapBytesLength)
+            Int64(sourceFilesCount),
+            Int64(mapBytesLength)
         )
     }
 
@@ -1187,7 +1229,7 @@ public class SerializedSourceMap {
             let baseOffset = 8 + i * 8
             let off = readU32LE(bytes, baseOffset)
             let len = readU32LE(bytes, baseOffset + 4)
-            result.append(StringPointer(offset: Int64(off), length: Int64(len)))
+            result.add(StringPointer(Int64(off), Int64(len)))
         }
         return result
     }
@@ -1210,7 +1252,7 @@ public class SerializedSourceMap {
             let baseOffset = 8 + (head.sourceFilesCount + i) * 8
             let off = readU32LE(bytes, baseOffset)
             let len = readU32LE(bytes, baseOffset + 4)
-            result.append(StringPointer(offset: Int64(off), length: Int64(len)))
+            result.add(StringPointer(Int64(off), Int64(len)))
         }
         return result
     }
@@ -1305,23 +1347,15 @@ public class CompileResult {
 // 提供写入各种数据类型到连续字节缓冲区的能力
 // ============================================================================
 
-/// CompiledModuleGraphFile 的估计序列化大小
-/// 6 个 StringPointer (各 8 字节) + Encoding(1) + Loader(1) + ModuleFormat(1) + FileSide(1) = 52 字节
-let ESTIMATED_MODULE_ENTRY_SIZE: Int64 = 64
-
-/// Offsets 结构的估计序列化大小
-/// byte_count(8) + modules_ptr(8) + entry_point_id(4) + padding(4) + compile_exec_argv_ptr(8) + flags(4) + padding(4) = 40
-let ESTIMATED_OFFSETS_SIZE: Int64 = 40
-
 /// 二进制写入器 - 用于构建模块图的二进制数据
 public class BinaryWriter {
     /// 内部缓冲区
-    private var buffer: Array<UInt8>
+    private var buffer: ArrayList<UInt8>
     /// 当前写入位置
     public var position: Int64
 
     public init(capacity: Int64) {
-        buffer = Array<UInt8>(capacity, item: UInt8(0))
+        buffer = ArrayList<UInt8>(capacity, { _ => UInt8(0) })
         position = 0
     }
 
@@ -1335,21 +1369,21 @@ public class BinaryWriter {
         while (buffer.size < position + needed) {
             // 扩容: 追加 needed 大小的零
             for (_ in 0..needed) {
-                buffer.append(UInt8(0))
+                buffer.add(UInt8(0))
             }
         }
     }
 
     /// 写入单个字节
     public func writeByte(b: UInt8): Unit {
-        ensureCapacity(needed: 1)
+        ensureCapacity(1)
         buffer[position] = b
         position += 1
     }
 
     /// 写入字节数组
     public func writeBytes(data: Array<UInt8>): Unit {
-        ensureCapacity(needed: data.size)
+        ensureCapacity(data.size)
         for (i in 0..data.size) {
             buffer[position + i] = data[i]
         }
@@ -1362,12 +1396,12 @@ public class BinaryWriter {
         let offset = position
         writeBytes(data)
         writeByte(UInt8(0))  // null terminator
-        return StringPointer(offset: offset, length: data.size + 1)
+        return StringPointer(offset, data.size + 1)
     }
 
     /// 写入零填充
     public func writeZeros(count: Int64): Unit {
-        ensureCapacity(needed: count)
+        ensureCapacity(count)
         for (_ in 0..count) {
             buffer[position] = UInt8(0)
             position += 1
@@ -1381,7 +1415,7 @@ public class BinaryWriter {
         let bytes = stringToBytes(s)
         writeBytes(bytes)
         writeByte(UInt8(0))  // null terminator
-        return StringPointer(offset: offset, length: bytes.size + 1)
+        return StringPointer(offset, bytes.size + 1)
     }
 
     /// 写入字符串 (不含 null 终止符)
@@ -1397,7 +1431,7 @@ public class BinaryWriter {
 
     /// 写入 UInt32 (little-endian)
     public func writeU32LE(val: UInt32): Unit {
-        ensureCapacity(needed: 4)
+        ensureCapacity(4)
         buffer[position] = UInt8(val & UInt32(0xFF))
         buffer[position + 1] = UInt8((val >> 8) & UInt32(0xFF))
         buffer[position + 2] = UInt8((val >> 16) & UInt32(0xFF))
@@ -1407,7 +1441,7 @@ public class BinaryWriter {
 
     /// 写入 UInt64 (little-endian)
     public func writeU64LE(val: UInt64): Unit {
-        ensureCapacity(needed: 8)
+        ensureCapacity(8)
         for (i in 0..8) {
             buffer[position + Int64(i)] = UInt8((val >> (UInt64(i) * UInt64(8))) & UInt64(0xFF))
         }
@@ -1472,7 +1506,7 @@ public class BinaryWriter {
 
     /// 获取已写入的字节数组
     public func toByteArray(): Array<UInt8> {
-        sliceBytes(buffer, 0, position)
+        sliceBytes(buffer.toArray(), 0, position)
     }
 }
 
@@ -1550,7 +1584,7 @@ public class StandaloneReader {
     public func readStringPointer(): StringPointer {
         let offset = Int64(readU32LE())
         let length = Int64(readU32LE())
-        return StringPointer(offset: offset, length: length)
+        return StringPointer(offset, length)
     }
 
     /// 读取 CompiledModuleGraphFile
@@ -1580,11 +1614,11 @@ public class StandaloneReader {
         let flagsU32 = readU32LE()
         skip(4)  // padding
         return Offsets(
-            byteCount: byteCount,
-            modulesPtr: modulesPtr,
-            entryPointId: entryPointId,
-            compileExecArgvPtr: compileExecArgvPtr,
-            flags: StandaloneFlags.fromU32(flagsU32)
+            byteCount,
+            modulesPtr,
+            entryPointId,
+            compileExecArgvPtr,
+            StandaloneFlags.fromU32(flagsU32)
         )
     }
 
@@ -1593,12 +1627,12 @@ public class StandaloneReader {
         if (pos + count > bytes.size) {
             return []
         }
-        var result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         for (i in 0..count) {
-            result.append(bytes[pos + i])
+            result.add(bytes[pos + i])
         }
         pos += count
-        return result
+        return result.toArray()
     }
 }
 
@@ -1608,14 +1642,14 @@ public class StandaloneReader {
 
 /// 从字节数组切片
 func sliceBytes(bytes: Array<UInt8>, start: Int64, length: Int64): Array<UInt8> {
-    var result = Array<UInt8>()
+    var result = ArrayList<UInt8>()
     let end = start + length
     for (i in start..end) {
         if (i >= 0 && i < bytes.size) {
-            result.append(bytes[i])
+            result.add(bytes[i])
         }
     }
-    return result
+    return result.toArray()
 }
 
 /// 读取 UInt32 little-endian
@@ -1645,34 +1679,19 @@ func readU64LE(bytes: Array<UInt8>, offset: Int64): UInt64 {
 
 /// 字符串转字节数组
 func stringToBytes(s: String): Array<UInt8> {
-    var result = Array<UInt8>()
+    var result = ArrayList<UInt8>()
     for (c in s) {
-        // UTF-8 多字节处理
-        let code = Int32(c.value)
-        if (code < 0x80) {
-            result.append(UInt8(code))
-        } else if (code < 0x800) {
-            result.append(UInt8(0xC0 | (code >> 6)))
-            result.append(UInt8(0x80 | (code & 0x3F)))
-        } else if (code < 0x10000) {
-            result.append(UInt8(0xE0 | (code >> 12)))
-            result.append(UInt8(0x80 | ((code >> 6) & 0x3F)))
-            result.append(UInt8(0x80 | (code & 0x3F)))
-        } else {
-            result.append(UInt8(0xF0 | (code >> 18)))
-            result.append(UInt8(0x80 | ((code >> 12) & 0x3F)))
-            result.append(UInt8(0x80 | ((code >> 6) & 0x3F)))
-            result.append(UInt8(0x80 | (code & 0x3F)))
-        }
+        // String iterates as Byte (UInt8), already UTF-8 encoded
+        result.add(c)
     }
-    return result
+    return result.toArray()
 }
 
 /// 去除路径开头的 "./"
 /// 对应 Bun bun.strings.removeLeadingDotSlash
 func removeLeadingDotSlash(path: String): String {
     if (path.startsWith("./")) {
-        return path.subString(2)
+        return path[2..]
     }
     return path
 }
@@ -1689,17 +1708,17 @@ func deserializeModuleEntries(moduleBytes: Array<UInt8>, rawBytes: Array<UInt8>)
         // 从 rawBytes 中提取字符串
         let name = compiledModule.name.sliceStringFrom(rawBytes)
         let contents = compiledModule.contents.sliceStringFrom(rawBytes)
-        let sourcemap = if (!compiledModule.sourcemap.isEmpty()) {
+        let sourcemap: Array<UInt8> = if (!compiledModule.sourcemap.isEmpty()) {
             compiledModule.sourcemap.sliceFrom(rawBytes)
         } else {
             []
         }
-        let bytecode = if (!compiledModule.bytecode.isEmpty()) {
+        let bytecode: Array<UInt8> = if (!compiledModule.bytecode.isEmpty()) {
             compiledModule.bytecode.sliceFrom(rawBytes)
         } else {
             []
         }
-        let moduleInfo = if (!compiledModule.moduleInfo.isEmpty()) {
+        let moduleInfo: Array<UInt8> = if (!compiledModule.moduleInfo.isEmpty()) {
             compiledModule.moduleInfo.sliceFrom(rawBytes)
         } else {
             []
@@ -1711,18 +1730,18 @@ func deserializeModuleEntries(moduleBytes: Array<UInt8>, rawBytes: Array<UInt8>)
         }
 
         let entry = ModuleEntry(
-            name: name,
-            loader: compiledModule.loader,
-            contents: contents,
-            sourcemap: sourcemap,
-            encoding: compiledModule.encoding,
-            bytecode: bytecode,
-            moduleInfo: moduleInfo,
-            bytecodeOriginPath: bytecodeOriginPath,
-            moduleFormat: compiledModule.moduleFormat,
-            side: compiledModule.side
+            name,
+            compiledModule.loader,
+            contents,
+            sourcemap,
+            compiledModule.encoding,
+            bytecode,
+            moduleInfo,
+            bytecodeOriginPath,
+            compiledModule.moduleFormat,
+            compiledModule.side
         )
-        result.append(entry)
+        result.add(entry)
     }
 
     return result

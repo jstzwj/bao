@@ -939,6 +939,10 @@ public class Interpreter {
                 if (callable.isNone() && objVal.valueType == JsValueType.String) {
                     callable = getStringMethod(objVal, target.propertyName)
                 }
+                // 数组方法调用 — 对应 Array.prototype.method()
+                if (callable.isNone() && objVal.valueType == JsValueType.Array) {
+                    callable = getArrayMethod(objVal, target.propertyName)
+                }
             } else if (target.tag == ExprTag.Index) {
                 // 对应 obj[key]()
                 let objVal = if (let Some(t) <-  target.target) { evalExpr(t, env) } else { JsValue.UNDEFINED }
@@ -1128,6 +1132,358 @@ public class Interpreter {
         }
     }
 
+    /// 数组方法 — 对应 Array.prototype.method()
+    //  严格翻译自: JS Array.prototype 方法语义
+    private func getArrayMethod(arrVal: JsValue, name: String): ?JsValue {
+        match (name) {
+            case "push" => Some(makeNativeFn("push") { args =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    for (arg in args) {
+                        arr.append(arg)
+                    }
+                    return JsValue(Float64(arr.size))
+                }
+                return JsValue.nan
+            })
+            case "pop" => Some(makeNativeFn("pop") { _ =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    if (arr.size > 0) {
+                        let last = arr[arr.size - 1]
+                        arr.removeAt(arr.size - 1)
+                        return last
+                    }
+                }
+                return JsValue.UNDEFINED
+            })
+            case "shift" => Some(makeNativeFn("shift") { _ =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    if (arr.size > 0) {
+                        let first = arr[0]
+                        arr.removeAt(0)
+                        return first
+                    }
+                }
+                return JsValue.UNDEFINED
+            })
+            case "unshift" => Some(makeNativeFn("unshift") { args =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    // 在数组开头插入元素
+                    var i = args.size - 1
+                    while (i >= 0) {
+                        arr.insert(0, args[Int64(i)])
+                        i -= 1
+                    }
+                    return JsValue(Float64(arr.size))
+                }
+                return JsValue.nan
+            })
+            case "map" => Some(makeNativeFn("map") { args =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    if (args.size > 0) {
+                        let callback = args[0]
+                        let result = ArrayList<JsValue>()
+                        for (i in 0..arr.size) {
+                            let callArgs = ArrayList<JsValue>()
+                            callArgs.append(arr[i])
+                            callArgs.append(JsValue(Float64(i)))
+                            callArgs.append(arrVal)
+                            let mapped = callFunction(callback, callArgs, JsValue.UNDEFINED, globalEnv)
+                            result.append(mapped)
+                        }
+                        return JsValue.array(result)
+                    }
+                }
+                return JsValue.UNDEFINED
+            })
+            case "filter" => Some(makeNativeFn("filter") { args =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    if (args.size > 0) {
+                        let callback = args[0]
+                        let result = ArrayList<JsValue>()
+                        for (i in 0..arr.size) {
+                            let callArgs = ArrayList<JsValue>()
+                            callArgs.append(arr[i])
+                            callArgs.append(JsValue(Float64(i)))
+                            callArgs.append(arrVal)
+                            let testResult = callFunction(callback, callArgs, JsValue.UNDEFINED, globalEnv)
+                            if (jsToBoolean(testResult)) {
+                                result.append(arr[i])
+                            }
+                        }
+                        return JsValue.array(result)
+                    }
+                }
+                return JsValue.UNDEFINED
+            })
+            case "forEach" => Some(makeNativeFn("forEach") { args =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    if (args.size > 0) {
+                        let callback = args[0]
+                        for (i in 0..arr.size) {
+                            let callArgs = ArrayList<JsValue>()
+                            callArgs.append(arr[i])
+                            callArgs.append(JsValue(Float64(i)))
+                            callArgs.append(arrVal)
+                            callFunction(callback, callArgs, JsValue.UNDEFINED, globalEnv)
+                        }
+                    }
+                }
+                return JsValue.UNDEFINED
+            })
+            case "join" => Some(makeNativeFn("join") { args =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    let sep = if (args.size > 0) { jsToString(args[0]) } else { "," }
+                    let sb = StringBuilder()
+                    for (i in 0..arr.size) {
+                        if (i > 0) { sb.append(sep) }
+                        sb.append(jsToString(arr[i]))
+                    }
+                    return JsValue(BaoString(sb.toString()))
+                }
+                return JsValue(BaoString(""))
+            })
+            case "reverse" => Some(makeNativeFn("reverse") { _ =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    var i: Int64 = 0
+                    var j: Int64 = arr.size - 1
+                    while (i < j) {
+                        let tmp = arr[i]
+                        arr[i] = arr[j]
+                        arr[j] = tmp
+                        i += 1
+                        j -= 1
+                    }
+                    return arrVal
+                }
+                return JsValue.UNDEFINED
+            })
+            case "indexOf" => Some(makeNativeFn("indexOf") { args =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    let search = if (args.size > 0) { args[0] } else { JsValue.UNDEFINED }
+                    let startIdx = if (args.size > 1) { Int64(jsToNumber(args[1])) } else { 0 }
+                    for (i in startIdx..arr.size) {
+                        if (jsValuesEqual(arr[i], search)) {
+                            return JsValue(Float64(i))
+                        }
+                    }
+                }
+                return JsValue(-1.0)
+            })
+            case "includes" => Some(makeNativeFn("includes") { args =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    let search = if (args.size > 0) { args[0] } else { JsValue.UNDEFINED }
+                    for (i in 0..arr.size) {
+                        if (jsValuesEqual(arr[i], search)) {
+                            return JsValue(true)
+                        }
+                    }
+                }
+                return JsValue(false)
+            })
+            case "slice" => Some(makeNativeFn("slice") { args =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    let start = if (args.size > 0) { Int64(jsToNumber(args[0])) } else { 0 }
+                    let end = if (args.size > 1) { Int64(jsToNumber(args[1])) } else { arr.size }
+                    var st = if (start < 0) { arr.size + start } else { start }
+                    var en = if (end < 0) { arr.size + end } else { end }
+                    if (st < 0) { st = 0 }
+                    if (en > arr.size) { en = arr.size }
+                    let result = ArrayList<JsValue>()
+                    for (i in st..en) {
+                        result.append(arr[i])
+                    }
+                    return JsValue.array(result)
+                }
+                return JsValue.UNDEFINED
+            })
+            case "splice" => Some(makeNativeFn("splice") { args =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    let start = if (args.size > 0) { Int64(jsToNumber(args[0])) } else { 0 }
+                    var st = if (start < 0) { arr.size + start } else { start }
+                    if (st < 0) { st = 0 }
+                    if (st > arr.size) { st = arr.size }
+                    let deleteCount = if (args.size > 1) { Int64(jsToNumber(args[1])) } else { arr.size - st }
+                    var dc = deleteCount
+                    if (dc < 0) { dc = 0 }
+                    if (dc > arr.size - st) { dc = arr.size - st }
+                    // 收集被删除的元素
+                    let removed = ArrayList<JsValue>()
+                    for (i in 0..dc) {
+                        removed.append(arr[Int64(st) + i])
+                    }
+                    // 删除元素
+                    var d = 0
+                    while (d < dc) {
+                        arr.removeAt(Int64(st))
+                        d += 1
+                    }
+                    // 插入新元素
+                    if (args.size > 2) {
+                        var insertIdx = Int64(st)
+                        for (i in 2..args.size) {
+                            arr.insert(insertIdx, args[Int64(i)])
+                            insertIdx += 1
+                        }
+                    }
+                    return JsValue.array(removed)
+                }
+                return JsValue.UNDEFINED
+            })
+            case "concat" => Some(makeNativeFn("concat") { args =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    let result = ArrayList<JsValue>()
+                    for (item in arr) { result.append(item) }
+                    for (arg in args) {
+                        if (let Some(otherArr) <-  arg.arrayData) {
+                            for (item in otherArr) { result.append(item) }
+                        } else {
+                            result.append(arg)
+                        }
+                    }
+                    return JsValue.array(result)
+                }
+                return JsValue.UNDEFINED
+            })
+            case "reduce" => Some(makeNativeFn("reduce") { args =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    if (args.size == 0) { return JsValue.UNDEFINED }
+                    let callback = args[0]
+                    var acc = if (args.size > 1) { args[1] } else { arr[0] }
+                    var startIdx: Int64 = if (args.size > 1) { 0 } else { 1 }
+                    for (i in startIdx..arr.size) {
+                        let callArgs = ArrayList<JsValue>()
+                        callArgs.append(acc)
+                        callArgs.append(arr[i])
+                        callArgs.append(JsValue(Float64(i)))
+                        callArgs.append(arrVal)
+                        acc = callFunction(callback, callArgs, JsValue.UNDEFINED, globalEnv)
+                    }
+                    return acc
+                }
+                return JsValue.UNDEFINED
+            })
+            case "find" => Some(makeNativeFn("find") { args =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    if (args.size > 0) {
+                        let callback = args[0]
+                        for (i in 0..arr.size) {
+                            let callArgs = ArrayList<JsValue>()
+                            callArgs.append(arr[i])
+                            callArgs.append(JsValue(Float64(i)))
+                            callArgs.append(arrVal)
+                            let testResult = callFunction(callback, callArgs, JsValue.UNDEFINED, globalEnv)
+                            if (jsToBoolean(testResult)) {
+                                return arr[i]
+                            }
+                        }
+                    }
+                }
+                return JsValue.UNDEFINED
+            })
+            case "findIndex" => Some(makeNativeFn("findIndex") { args =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    if (args.size > 0) {
+                        let callback = args[0]
+                        for (i in 0..arr.size) {
+                            let callArgs = ArrayList<JsValue>()
+                            callArgs.append(arr[i])
+                            callArgs.append(JsValue(Float64(i)))
+                            callArgs.append(arrVal)
+                            let testResult = callFunction(callback, callArgs, JsValue.UNDEFINED, globalEnv)
+                            if (jsToBoolean(testResult)) {
+                                return JsValue(Float64(i))
+                            }
+                        }
+                    }
+                }
+                return JsValue(-1.0)
+            })
+            case "every" => Some(makeNativeFn("every") { args =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    if (args.size > 0) {
+                        let callback = args[0]
+                        for (i in 0..arr.size) {
+                            let callArgs = ArrayList<JsValue>()
+                            callArgs.append(arr[i])
+                            callArgs.append(JsValue(Float64(i)))
+                            callArgs.append(arrVal)
+                            let testResult = callFunction(callback, callArgs, JsValue.UNDEFINED, globalEnv)
+                            if (!jsToBoolean(testResult)) {
+                                return JsValue(false)
+                            }
+                        }
+                        return JsValue(true)
+                    }
+                }
+                return JsValue(true)
+            })
+            case "some" => Some(makeNativeFn("some") { args =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    if (args.size > 0) {
+                        let callback = args[0]
+                        for (i in 0..arr.size) {
+                            let callArgs = ArrayList<JsValue>()
+                            callArgs.append(arr[i])
+                            callArgs.append(JsValue(Float64(i)))
+                            callArgs.append(arrVal)
+                            let testResult = callFunction(callback, callArgs, JsValue.UNDEFINED, globalEnv)
+                            if (jsToBoolean(testResult)) {
+                                return JsValue(true)
+                            }
+                        }
+                    }
+                }
+                return JsValue(false)
+            })
+            case "flat" => Some(makeNativeFn("flat") { _ =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    let result = ArrayList<JsValue>()
+                    for (item in arr) {
+                        if (let Some(inner) <-  item.arrayData) {
+                            for (innerItem in inner) {
+                                result.append(innerItem)
+                            }
+                        } else {
+                            result.append(item)
+                        }
+                    }
+                    return JsValue.array(result)
+                }
+                return JsValue.UNDEFINED
+            })
+            case "sort" => Some(makeNativeFn("sort") { args =>
+                if (let Some(arr) <-  arrVal.arrayData) {
+                    if (args.size > 0) {
+                        let comparator = args[0]
+                        // 简单冒泡排序 + JS 比较器
+                        var n: Int64 = arr.size
+                        var i: Int64 = 0
+                        while (i < n - 1) {
+                            var j: Int64 = 0
+                            while (j < n - i - 1) {
+                                let cmpArgs = ArrayList<JsValue>()
+                                cmpArgs.append(arr[j])
+                                cmpArgs.append(arr[j + 1])
+                                let cmpResult = callFunction(comparator, cmpArgs, JsValue.UNDEFINED, globalEnv)
+                                let cmpVal = jsToNumber(cmpResult)
+                                if (cmpVal > 0.0) {
+                                    let tmp = arr[j]
+                                    arr[j] = arr[j + 1]
+                                    arr[j + 1] = tmp
+                                }
+                                j += 1
+                            }
+                            i += 1
+                        }
+                    }
+                    return arrVal
+                }
+                return JsValue.UNDEFINED
+            })
+            case _ => None
+        }
+    }
+
     /// 调用函数 - JS 函数或原生函数
     private func callFunction(fn: JsValue, args: ArrayList<JsValue>,
                               thisVal: JsValue, env: Environment): JsValue {
@@ -1273,10 +1629,14 @@ public class Interpreter {
                     return method
                 }
             }
-            // 数组属性
+            // 数组属性 + 方法
             if (let Some(arr) <-  obj.arrayData) {
                 if (e.propertyName == "length") {
                     return JsValue(Float64(arr.size))
+                }
+                // 数组方法引用 (不立即调用时)
+                if (let Some(method) <-  getArrayMethod(obj, e.propertyName)) {
+                    return method
                 }
             }
             // 函数属性
@@ -1458,13 +1818,16 @@ public class Interpreter {
     //   `part0${expr0}part1${expr1}part2`
     //   模板字面量的求值: 交替静态字符串和表达式
     private func evalTemplate(e: Expr, env: Environment): JsValue {
-        // templateParts 中奇数位是静态字符串，偶数位是表达式 (交替)
-        // 但 bao_parser 的结构: templateParts 是 ArrayList<Expr>
-        // 其中 String 类型的 part 是静态文本，其他是需要求值的表达式
         var sb = StringBuilder()
+
+        // head: 第一个静态文本部分 (stringValue)
+        sb.append(e.stringValue.toString())
+
+        // templateParts: 交替 [表达式, 静态文本, 表达式, 静态文本, ...]
+        // 如果 templateParts 为空，说明是无替换模板 (`hello`)
         for (part in e.templateParts) {
             if (part.tag == ExprTag.String) {
-                sb.append(jsToString(JsValue(part.stringValue)))
+                sb.append(part.stringValue.toString())
             } else {
                 let val = evalExpr(part, env)
                 sb.append(jsToString(val))
@@ -1669,7 +2032,11 @@ public class Interpreter {
                             let idx = evalExpr(idxExpr, env)
                             if (let Some(arr) <-  obj.arrayData) {
                                 let i = Int64(jsToNumber(idx))
-                                if (i >= 0 && i < arr.size) {
+                                if (i >= 0) {
+                                    // 自动增长: 如果索引超出当前大小，填充 undefined
+                                    while (arr.size <= i) {
+                                        arr.append(JsValue.UNDEFINED)
+                                    }
                                     arr[i] = value
                                 }
                             } else if (let Some(objData) <-  obj.objectData) {
@@ -1849,6 +2216,27 @@ public class Interpreter {
     // JS 值操作工具函数
     // 对应 Bun: src/jsc/JsValue.zig 中的类型转换
     // ========================================================================
+
+    /// JS 值相等比较 - 简化版 strict equality (===)
+    public static func jsValuesEqual(a: JsValue, b: JsValue): Bool {
+        // 同类型比较
+        if (a.valueType == b.valueType) {
+            match (a.valueType) {
+                case JsValueType.Number => return a.numberValue == b.numberValue
+                case JsValueType.String => return a.stringValue.toString() == b.stringValue.toString()
+                case JsValueType.Boolean => return a.boolValue == b.boolValue
+                case JsValueType.Undefined => return true
+                case JsValueType.Null => return true
+                case _ => return true // 对象/数组/函数引用相同即为相等
+            }
+        }
+        // null == undefined
+        if ((a.valueType == JsValueType.Null && b.valueType == JsValueType.Undefined) ||
+            (a.valueType == JsValueType.Undefined && b.valueType == JsValueType.Null)) {
+            return true
+        }
+        return false
+    }
 
     /// JS ToBoolean - 对应 ES spec ToBoolean()
     public static func jsToBoolean(v: JsValue): Bool {

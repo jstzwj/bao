@@ -1524,11 +1524,48 @@ public class Lexer {
     // 模板字面量支持
     // ========================================================================
 
-    /// 重新扫描模板尾部 - 对应 Bun 中处理 } 后的模板
-    public func rescanCloseBraceAsTemplateTokenNow(): Unit {
-        rescanCloseBraceAsTemplateToken = true
-        nextToken()
-        rescanCloseBraceAsTemplateToken = false
+    /// 扫描模板字面量续接部分 - 在 ${expr} 的 } 之后调用
+    /// 从当前 lexer 位置扫描模板尾部文本，设置 token 为 TemplateMiddle 或 TemplateTail
+    /// 对应 Bun: rescanCloseBraceAsTemplateToken + next()
+    public func scanTemplateContinuation(): Unit {
+        // 此时 lexer 已经消费了 }，current 指向 } 后面的字符
+        // 需要扫描从 } 后面到下一个 ${ 或 ` 之间的文本
+        var content = StringBuilder()
+        token = Token.TemplateTail // 默认 Tail，如果遇到 ${ 则改为 Middle
+
+        while (true) {
+            if (codePoint == -1) {
+                addError(start, "Unterminated template literal")
+                break
+            }
+            if (codePoint == 96) { // '`' — 模板结束
+                step()
+                break
+            }
+            if (codePoint == 92) { // '\' — 转义
+                step()
+                let escaped = decodeEscape(codePoint)
+                if (escaped >= 0) {
+                    content.append(Rune(escaped))
+                }
+                step()
+                continue
+            }
+            if (codePoint == 36) { // '$' — 可能是 ${
+                if (current < source.contents.size && source.contents[current] == UInt8(123)) { // '{'
+                    step() // 跳过 '$'
+                    step() // 跳过 '{'
+                    token = Token.TemplateMiddle
+                    break
+                }
+            }
+            content.append(Rune(codePoint))
+            step()
+        }
+
+        stringLiteralRawContent = content.toString()
+        stringLiteralStart = start
+        stringLiteralRawFormat = StringLiteralFormat.Ascii
     }
 
     /// 恢复词法分析器状态 - 对应 Bun restore()

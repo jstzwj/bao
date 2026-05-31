@@ -934,17 +934,49 @@ public class Parser {
         var isSet = false
         var isAsync = false
 
-        // 修饰符
+        // 修饰符 — get/set only if followed by a property name + '(' (getter/setter method)
+        // 如果 get/set 后面跟 ':' 或 ',' 或 '}' 则它是属性名，不是修饰符
         if (lexer.isContextualKeyword("static") && !isStatic) {
             isStatic = true
             lexer.nextToken()
         }
         if (lexer.isContextualKeyword("get")) {
-            isGet = true
+            // lookahead: 如果下一个 token 是标识符/字符串/数字/括号，这是 getter
+            let saved = lexer.current
             lexer.nextToken()
+            if (lexer.token == Token.OpenParen || lexer.token == Token.Identifier ||
+                lexer.token == Token.StringLiteral || lexer.token == Token.NumericLiteral) {
+                // 这是 getter: get propName() { ... }
+                isGet = true
+                // lexer 已经前进了到属性名位置，不回退
+            } else {
+                // 这是属性名 get: value — 回退
+                // 无法真正回退 lexer，所以用 name="get" 标记
+                // 我们把 isGet 保持 false，直接返回属性名 "get"
+                let name = "get"
+                // value 解析
+                var value: ?Expr = None
+                if (lexer.token == Token.Colon) {
+                    lexer.nextToken()
+                    value = Some(parseAssignmentExpr(ParseExprOpts()))
+                }
+                return GProperty.field(loc, name, value, isStatic)
+            }
         } else if (lexer.isContextualKeyword("set")) {
-            isSet = true
+            let saved = lexer.current
             lexer.nextToken()
+            if (lexer.token == Token.OpenParen || lexer.token == Token.Identifier ||
+                lexer.token == Token.StringLiteral || lexer.token == Token.NumericLiteral) {
+                isSet = true
+            } else {
+                let name = "set"
+                var value: ?Expr = None
+                if (lexer.token == Token.Colon) {
+                    lexer.nextToken()
+                    value = Some(parseAssignmentExpr(ParseExprOpts()))
+                }
+                return GProperty.field(loc, name, value, isStatic)
+            }
         }
         if (lexer.isContextualKeyword("async")) {
             isAsync = true
@@ -1727,11 +1759,15 @@ public class Parser {
             case New =>
                 return parseNewExpr(loc)
 
-            // 模板字面量
+            // 模板字面量（无替换）
             case NoSubstitutionTemplateLiteral =>
                 let text = lexer.stringLiteralRawContent
                 lexer.nextToken()
                 return Expr.template(loc, [text])
+
+            // 模板字面量（带 ${} 替换） - 对应 Bun t_template_head
+            case TemplateHead =>
+                return parseTemplateLiteral(loc)
 
             // typeof
             case Typeof =>
@@ -1747,6 +1783,47 @@ public class Parser {
                 lexer.unexpected()
                 return Expr.missing(loc)
         }
+    }
+
+    /// 解析带表达式的模板字面量 - 对应 Bun parseTemplateParts + t_template_head
+    /// `` `Hello ${name}, you are ${age} years old` ``
+    /// Lexer 当前 token = TemplateHead，stringLiteralRawContent = "Hello "
+    public func parseTemplateLiteral(loc: Loc): Expr {
+        // 读取 head 静态文本
+        var head = lexer.stringLiteralRawContent
+
+        // 收集 parts: 交替 [表达式, 静态文本, 表达式, 静态文本, ...]
+        var parts = ArrayList<Expr>()
+
+        // 循环解析每个 ${expr} 部分
+        while (true) {
+            // 1. 解析 ${} 中的表达式
+            lexer.nextToken() // 跳过 TemplateHead/TemplateMiddle，进入表达式
+            let exprVal = parseAssignmentExpr(ParseExprOpts())
+            parts.append(exprVal)
+
+            // 2. 此时 } 已被消费为 CloseBrace
+            if (lexer.token != Token.CloseBrace) {
+                // 不是 } — 语法错误，尽力恢复
+                break
+            }
+
+            // 3. 扫描模板续接部分 (} 后面的文本直到下一个 ${ 或 `)
+            lexer.scanTemplateContinuation()
+
+            // 4. 读取尾部静态文本
+            let tailText = lexer.stringLiteralRawContent
+            parts.append(Expr.string(loc, tailText))
+
+            // 5. 检查是 TemplateTail（结束）还是 TemplateMiddle（继续）
+            if (lexer.token == Token.TemplateTail) {
+                lexer.nextToken()
+                break
+            }
+            // TemplateMiddle — 继续循环
+        }
+
+        return Expr.templateWithParts(loc, head, parts)
     }
 
     /// 解析括号表达式 — 完整实现

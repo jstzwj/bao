@@ -473,11 +473,31 @@ public class ReadFile {
         }
 
         match (result) {
-            case SyscallResult.Ok(res) =>
+            case SyscallResult<Int64>.Ok(res) =>
                 readLen.value = res
                 readEof = res == 0
-            case SyscallResult.Err(_) =>
-                // TODO: 恢复完整的 SyscallResult.Err 错误处理
+            case SyscallResult<Int64>.Err(e) =>
+                let errNo = e.errno
+                if (errNo == Int32(IO_RETRY)) {
+                    if (!couldBlock) {
+                        // regular files cannot use epoll.
+                        // this is fine on kqueue, but not on epoll.
+                        // In this simplified version, we just retry by returning true
+                    }
+                    retry.value = true
+                    readEof = false
+                    return true
+                }
+                errno = Some(BunCore.errnoToZigErr(e.errno))
+                systemError = Some(e.toSystemError())
+                let sysErr = systemError.getOrThrow()
+                if (sysErr.path.isEmpty()) {
+                    sysErr.path = if (fileStore.pathlike.isPath()) {
+                        BaoString.cloneUtf8(fileStore.pathlike.pathSlice())
+                    } else {
+                        BaoString.EMPTY
+                    }
+                }
                 readLen.value = 0
                 return false
         }
@@ -585,8 +605,10 @@ public class ReadFile {
                 case BunSysResult<Fd>.Ok(fd) =>
                     openedFd = fd
                     callback(openedFd)
-                case BunSysResult<Fd>.Err(_) =>
-                    // TODO: 恢复完整的错误处理
+                case BunSysResult<Fd>.Err(e) =>
+                    // 对应 Bun: FileOpener.getFd error path
+                    errno = Some(BunCore.errnoToZigErr(e.errno))
+                    systemError = Some(e.toSystemError())
                     onFinish()
             }
         }
@@ -655,20 +677,27 @@ public class ReadFile {
     /// Corresponds to: Bun: ReadFile::resolve_size_and_last_modified()
     public func resolveSizeAndLastModified(fd: Fd): Unit {
         let stat: Stat = match (BunSys.fstat(fd)) {
-            case Ok(result) => result
-            case Err(_) =>
-                // TODO: 恢复完整的 fstat 错误处理
-                systemError = Some(SystemError())
+            case BunSysResult<Stat>.Ok(result) => result
+            case BunSysResult<Stat>.Err(e) =>
+                // 对应 Bun: resolveSizeAndLastModified fstat error path
+                errno = Some(BunCore.errnoToZigErr(e.errno))
+                systemError = Some(e.toSystemError())
                 return
         }
 
         // Update last_modified on the store
-        // TODO: 恢复 mtime 解析 — Stat 暂无 mtime 字段
         // 对应 Bun: store.data.file.last_modified = jsc.toJSTime(stat.mtime().sec, stat.mtime().nsec)
         match (store) {
             case Some(s) =>
-                // TODO: s.setLastModified(jsTimeMs) — StoreRef 暂无此方法
-                ()
+                match (s.store) {
+                    case Some(st) =>
+                        match (st.data) {
+                            case Data.File(f) =>
+                                f.lastModified = stat.mtimeMs()
+                            case _ => ()
+                        }
+                    case None => ()
+                }
             case None => ()
         }
 

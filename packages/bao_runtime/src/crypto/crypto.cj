@@ -14,8 +14,8 @@ import bao_runtime.*
 // ============================================================================
 
 /// 创建加密错误
-public func createCryptoError(globalThis: JsObject, errCode: UInt32): JsValue {
-    return BoringSSLJsc.errToJs(globalThis, errCode)
+public func createCryptoError(errCode: UInt32): JsValue {
+    return BoringSSLJsc.errToJs(errCode)
 }
 
 // ============================================================================

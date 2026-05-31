@@ -164,8 +164,8 @@ public class PBKDF2Job {
         // if (this.err) |err|
         match (this.err) {
             case Some(err) =>
-                // try promise.rejectWithAsyncStack(globalThis, createCryptoError(globalThis, err));
-                this.promise.reject(createCryptoError(globalThis, err))
+                // try promise.rejectWithAsyncStack(globalThis, createCryptoError(err));
+                this.promise.reject(createCryptoError(err))
                 return
             case None => ()
         }

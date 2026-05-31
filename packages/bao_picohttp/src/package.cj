@@ -4,6 +4,8 @@
 package bao_picohttp
 
 import bao_core.*
+import std.collection.*
+import std.convert.*
 
 // ============================================================================
 // Header - HTTP 头部键值对
@@ -72,8 +74,8 @@ public class Header {
     public func nameEquals(other: String): Bool {
         if (name.size != other.size) { return false }
         for (i in 0..name.size) {
-            let a = toLower(name[i])
-            let b = toLower(other[i])
+            let a = toLower(Rune(name[i]))
+            let b = toLower(Rune(other[i]))
             if (a != b) { return false }
         }
         true
@@ -146,12 +148,12 @@ public class HeaderList {
 
     /// 添加头部
     public func append(name: String, value: String): Unit {
-        list.append(Header(name, value))
+        list.add(Header(name, value))
     }
 
     /// 添加头部
     public func append(header: Header): Unit {
-        list.append(header)
+        list.add(header)
     }
 
     /// 头部数量
@@ -305,11 +307,12 @@ public class HttpRequest {
         let request = HttpRequest()
 
         // 找到请求行结束
-        let lineEnd = buf.indexOf("\r\n")
-        if (lineEnd < 0) { return None }
+        let lineEndOpt = buf.indexOf("\r\n")
+        if (lineEndOpt.isNone()) { return None }
+        let lineEnd = lineEndOpt.getOrDefault({=> 0})
 
         // 解析请求行: METHOD PATH HTTP/1.x
-        let requestLine = buf.subString(0, lineEnd)
+        let requestLine = buf[0..lineEnd]
         let parts = splitSpaces(requestLine)
         if (parts.size < 3) { return None }
 
@@ -319,26 +322,28 @@ public class HttpRequest {
         // 解析 HTTP 版本
         let versionStr = parts[2]
         if (versionStr.startsWith("HTTP/1.")) {
-            request.minorVersion = Int64.parse(versionStr.subString(7)).getOr(1)
+            request.minorVersion = Int64.tryParse(versionStr[7..]).getOrDefault({=> 1})
         }
 
         // 解析头部
         var pos = lineEnd + 2
         while (pos < buf.size) {
-            let nextEnd = buf.indexOf("\r\n", pos)
-            if (nextEnd < 0) { break }
+            let nextEndOpt = buf.indexOf("\r\n", pos)
+            if (nextEndOpt.isNone()) { break }
+            let nextEnd = nextEndOpt.getOrDefault({=> 0})
 
-            let line = buf.subString(pos, nextEnd - pos)
+            let line = buf[pos..nextEnd]
             if (line == "") {
                 // 空行表示头部结束
                 request.bytesRead = UInt32(nextEnd + 2)
                 break
             }
 
-            let colonIdx = line.indexOf(": ")
-            if (colonIdx >= 0) {
-                let name = line.subString(0, colonIdx)
-                let value = line.subString(colonIdx + 2)
+            let colonIdxOpt = line.indexOf(": ")
+            if (colonIdxOpt.isSome()) {
+                let colonIdx = colonIdxOpt.getOrDefault({=> 0})
+                let name = line[0..colonIdx]
+                let value = line[colonIdx + 2..]
                 request.headers.append(name, value)
             }
 
@@ -452,47 +457,54 @@ public class HttpResponse {
         let response = HttpResponse()
 
         // 找到状态行结束
-        let lineEnd = buf.indexOf("\r\n")
-        if (lineEnd < 0) { return None }
+        let lineEndOpt = buf.indexOf("\r\n")
+        if (lineEndOpt.isNone()) { return None }
+        let lineEnd = lineEndOpt.getOrDefault({=> 0})
 
         // 解析状态行: HTTP/1.x STATUS_CODE STATUS_TEXT
-        let statusLine = buf.subString(0, lineEnd)
+        let statusLine = buf[0..lineEnd]
         let parts = splitSpaces(statusLine)
         if (parts.size < 2) { return None }
 
         // 解析 HTTP 版本
         let versionStr = parts[0]
         if (versionStr.startsWith("HTTP/1.")) {
-            response.minorVersion = Int64.parse(versionStr.subString(7)).getOr(1)
+            response.minorVersion = Int64.tryParse(versionStr[7..]).getOrDefault({=> 1})
         }
 
         // 解析状态码
-        response.statusCode = UInt32(Int32.parse(parts[1]).getOr(0))
+        response.statusCode = UInt32(Int32.tryParse(parts[1]).getOrDefault({=> 0}))
 
         // 解析状态文本
         if (parts.size >= 3) {
-            let restStart = statusLine.indexOf(" ", statusLine.indexOf(" ") + 1)
-            if (restStart >= 0) {
-                response.status = statusLine.subString(restStart + 1)
+            let firstSpace = statusLine.indexOf(" ")
+            if (firstSpace.isSome()) {
+                let restStartOpt = statusLine.indexOf(" ", firstSpace.getOrDefault({=> 0}) + 1)
+                if (restStartOpt.isSome()) {
+                    let restStart = restStartOpt.getOrDefault({=> 0})
+                    response.status = statusLine[restStart + 1..]
+                }
             }
         }
 
         // 解析头部
         var pos = lineEnd + 2
         while (pos < buf.size) {
-            let nextEnd = buf.indexOf("\r\n", pos)
-            if (nextEnd < 0) { break }
+            let nextEndOpt = buf.indexOf("\r\n", pos)
+            if (nextEndOpt.isNone()) { break }
+            let nextEnd = nextEndOpt.getOrDefault({=> 0})
 
-            let line = buf.subString(pos, nextEnd - pos)
+            let line = buf[pos..nextEnd]
             if (line == "") {
                 response.bytesRead = Int32(nextEnd + 2)
                 break
             }
 
-            let colonIdx = line.indexOf(": ")
-            if (colonIdx >= 0) {
-                let name = line.subString(0, colonIdx)
-                let value = line.subString(colonIdx + 2)
+            let colonIdxOpt = line.indexOf(": ")
+            if (colonIdxOpt.isSome()) {
+                let colonIdx = colonIdxOpt.getOrDefault({=> 0})
+                let name = line[0..colonIdx]
+                let value = line[colonIdx + 2..]
                 response.headers.append(name, value)
             }
 
@@ -547,18 +559,20 @@ public class HttpHeaders {
         var pos = 0
 
         while (pos < buf.size) {
-            let lineEnd = buf.indexOf("\r\n", pos)
-            if (lineEnd < 0) { break }
+            let lineEndOpt = buf.indexOf("\r\n", pos)
+            if (lineEndOpt.isNone()) { break }
+            let lineEnd = lineEndOpt.getOrDefault({=> 0})
 
-            let line = buf.subString(pos, lineEnd - pos)
+            let line = buf[pos..lineEnd]
             if (line == "") {
                 break
             }
 
-            let colonIdx = line.indexOf(": ")
-            if (colonIdx >= 0) {
-                result.headers.append(Header(line.subString(0, colonIdx),
-                                              line.subString(colonIdx + 2)))
+            let colonIdxOpt = line.indexOf(": ")
+            if (colonIdxOpt.isSome()) {
+                let colonIdx = colonIdxOpt.getOrDefault({=> 0})
+                result.headers.add(Header(line[0..colonIdx],
+                                              line[colonIdx + 2..]))
             }
 
             pos = lineEnd + 2
@@ -704,9 +718,9 @@ public class ChunkedDecoder {
 
                 let sizeStr = String.fromUtf8(data[pos..lineEnd])
                 // 移除分块扩展 (; 后面的内容)
-                let semiIdx = sizeStr.indexOf(";")
-                let sizePart = if (semiIdx >= 0) { sizeStr.subString(0, semiIdx) } else { sizeStr }
-                chunkSize = Int64.parse(sizePart, 16).getOr(-1)
+                let semiIdxOpt = sizeStr.indexOf(";")
+                let sizePart = if (semiIdxOpt.isSome()) { sizeStr[0..semiIdxOpt.getOrDefault({=> 0})] } else { sizeStr }
+                chunkSize = hexToInt64(sizePart)
 
                 if (chunkSize < 0) {
                     return None // 无效的 chunk 大小
@@ -726,14 +740,14 @@ public class ChunkedDecoder {
                 let remaining = data.size - pos
                 let toRead = if (remaining < chunkSize) { remaining } else { chunkSize }
                 for (i in 0..toRead) {
-                    output.append(data[pos + i])
+                    output.add(data[pos + i])
                 }
                 pos += toRead
                 chunkSize -= toRead
 
                 if (chunkSize == 0) {
                     // chunk 数据后应该有 CRLF
-                    if (pos + 2 <= data.size && data[pos] == '\r' && data[pos + 1] == '\n') {
+                    if (pos + 2 <= data.size && data[pos] == 0x0D && data[pos + 1] == 0x0A) {
                         pos += 2
                     }
                     state = 0
@@ -759,7 +773,7 @@ public class ChunkedDecoder {
     static func findCRLF(data: Array<Byte>, start: Int64): Int64 {
         var i = start
         while (i < data.size - 1) {
-            if (data[i] == '\r' && data[i + 1] == '\n') {
+            if (data[i] == 0x0D && data[i + 1] == 0x0A) {
                 return i
             }
             i += 1
@@ -792,48 +806,62 @@ public class PhrReturnCode {
 // ============================================================================
 
 /// 字符转小写
-static func toLower(c: Char): Char {
-    if (c >= 'A' && c <= 'Z') {
-        Char(c.value + 32)
-    } else {
-        c
-    }
+func toLower(c: Rune): Rune {
+    c.toAsciiLowerCase()
 }
 
 /// 按空格分割字符串
-static func splitSpaces(s: String): ArrayList<String> {
+func splitSpaces(s: String): ArrayList<String> {
     let parts = ArrayList<String>()
     let sb = StringBuilder()
     for (c in s) {
-        if (c == ' ' || c == '\t') {
-            if (sb.size() > 0) {
-                parts.append(sb.toString())
-                sb.clear()
+        if (c == 0x20 || c == 0x09) {  // ' ' or '\t'
+            if (sb.size > 0) {
+                parts.add(sb.toString())
+                sb.reset()
             }
         } else {
-            sb.append(c)
+            sb.append(Rune(c))
         }
     }
-    if (sb.size() > 0) {
-        parts.append(sb.toString())
+    if (sb.size > 0) {
+        parts.add(sb.toString())
     }
     parts
 }
 
 /// 字符串查找 (从指定位置开始)
-static func indexOf(s: String, target: String, start: Int64): Int64 {
+func indexOf(s: String, target: String, start: Int64): Int64 {
     if (target == "") { return start }
     var i = start
     while (i <= s.size - target.size) {
-        var match = true
+        var matched = true
         for (j in 0..target.size) {
             if (s[i + j] != target[j]) {
-                match = false
+                matched = false
                 break
             }
         }
-        if (match) { return i }
+        if (matched) { return i }
         i += 1
     }
     -1
+}
+
+/// 将十六进制字符串转为 Int64
+func hexToInt64(s: String): Int64 {
+    var result: Int64 = 0
+    for (i in 0..s.size) {
+        let c = s[i]
+        if (c >= 0x30 && c <= 0x39) { // '0'-'9'
+            result = result * 16 + Int64(c) - 48
+        } else if (c >= 0x41 && c <= 0x46) { // 'A'-'F'
+            result = result * 16 + Int64(c) - 55
+        } else if (c >= 0x61 && c <= 0x66) { // 'a'-'f'
+            result = result * 16 + Int64(c) - 87
+        } else {
+            return -1
+        }
+    }
+    result
 }

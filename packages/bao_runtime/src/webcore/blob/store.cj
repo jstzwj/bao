@@ -681,18 +681,44 @@ public class Store {
     }
 
     /// 序列化
-    /// 对应 Bun: StoreExt::serialize() (Store.rs:226-272)
+    /// 对应 Bun: StoreExt::serialize() (Store.rs:209-243)
     public func serialize(writer: BinaryWriter): Unit {
-        // TODO: 恢复完整的序列化逻辑 — Data 模式匹配存在类型解析问题
         match (data) {
+            case Data.File(sf) =>
+                // Write PathOrFileDescriptor tag: fd=0, path=1
+                let pathlikeTag: UInt8 = match (sf.pathlike) {
+                    case FdPath(_) => UInt8(0)
+                    case Path(_) => UInt8(1)
+                }
+                writer.writeIntLe(pathlikeTag)
+
+                match (sf.pathlike) {
+                    case FdPath(fd) =>
+                        writer.writeIntLe(Int64(fd))
+                    case Path(pathStr) =>
+                        let pathSlice = pathStr.slice()
+                        writer.writeIntLe(UInt32(pathSlice.size))
+                        writer.writeAll(pathSlice)
+                }
+            case Data.S3(s3) =>
+                // S3 always uses path tag
+                let pathlikeTag: UInt8 = UInt8(1)
+                writer.writeIntLe(pathlikeTag)
+
+                let pathSlice = s3.pathlike.slice()
+                writer.writeIntLe(UInt32(pathSlice.size))
+                writer.writeAll(pathSlice)
             case Data.Bytes(bytes) =>
+                // Bytes uses SerializeTag.bytes = 1
+                let bytesTag: UInt8 = UInt8(1)
+                writer.writeIntLe(bytesTag)
+
                 let slice = bytes.slice()
                 writer.writeIntLe(UInt32(slice.size))
                 writer.writeAll(slice)
                 let nameSlice = bytes.storedName.slice()
                 writer.writeIntLe(UInt32(nameSlice.size))
                 writer.writeAll(nameSlice)
-            case _ => ()
         }
     }
 }
@@ -918,13 +944,21 @@ public class S3DeleteWrapper {
     }
 
     /// resolve — 处理 S3 删除结果
-    /// 对应 Bun: Wrapper::resolve() (Store.rs:363-387)
+    /// 对应 Bun: Wrapper::resolve() (Store.rs:337-349)
     public func resolve(result: S3DeleteResult): Unit {
         let globalObject = global.get()
         match (globalObject) {
             case Some(global) =>
-                // TODO: 恢复完整的 S3DeleteResult 匹配 — enum constructor 歧义
-                promise.resolve(global, JsValue.jsTrue())
+                match (result) {
+                    case S3DeleteResult.Success =>
+                        promise.resolve(global, JsValue.jsTrue())
+                    case S3DeleteResult.NotFound(s3err) =>
+                        let jsErr = s3err.toJsWithAsyncStack(global, store.getPath(), promise.get())
+                        promise.reject(global, jsErr)
+                    case S3DeleteResult.Failure(s3err) =>
+                        let jsErr = s3err.toJsWithAsyncStack(global, store.getPath(), promise.get())
+                        promise.reject(global, jsErr)
+                }
             case None => ()
         }
     }
@@ -955,13 +989,26 @@ public class S3ListWrapper {
     }
 
     /// resolve — 处理 S3 列表结果
-    /// 对应 Bun: Wrapper::resolve() (Store.rs:449-483)
+    /// 对应 Bun: Wrapper::resolve() (Store.rs:385-401)
     public func resolve(result: S3ListObjectsResult): Unit {
         let globalObject = global.get()
         match (globalObject) {
             case Some(global) =>
-                // TODO: 恢复完整的 S3ListObjectsResult 匹配 — enum constructor 歧义
-                promise.reject(global, JsValue.undefined())
+                match (result) {
+                    case S3ListObjectsResult.Success(listResult) =>
+                        match (listResult.toJs(global)) {
+                            case Some(jsVal) =>
+                                promise.resolve(global, jsVal)
+                            case None =>
+                                promise.reject(global, JsValue.undefined())
+                        }
+                    case S3ListObjectsResult.NotFound(s3err) =>
+                        let jsErr = s3err.toJsWithAsyncStack(global, store.getPath(), promise.get())
+                        promise.reject(global, jsErr)
+                    case S3ListObjectsResult.Failure(s3err) =>
+                        let jsErr = s3err.toJsWithAsyncStack(global, store.getPath(), promise.get())
+                        promise.reject(global, jsErr)
+                }
             case None => ()
         }
     }
@@ -1415,10 +1462,25 @@ public type Mode = UInt32
 public class Stat {
     public var stMode: UInt64
     public var stSize: Int64
+    /// Last modification time - seconds since epoch
+    /// Corresponds to: Bun: stat.mtime().sec
+    public var mtimSec: Int64
+    /// Last modification time - nanoseconds component
+    /// Corresponds to: Bun: stat.mtime().nsec
+    public var mtimNsec: Int64
 
     public init() {
         stMode = 0
         stSize = 0
+        mtimSec = 0
+        mtimNsec = 0
+    }
+
+    /// Convert mtime to JavaScript timestamp (milliseconds since ECMAScript epoch)
+    /// Corresponds to: Bun: jsc.toJSTime(stat.mtime().sec, stat.mtime().nsec)
+    /// JavaScript Date uses milliseconds since 1970-01-01 00:00:00 UTC
+    public func mtimeMs(): Float64 {
+        return Float64(mtimSec) * 1000.0 + Float64(mtimNsec) / 1000000.0
     }
 }
 

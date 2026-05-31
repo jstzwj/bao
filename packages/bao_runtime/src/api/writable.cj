@@ -43,8 +43,8 @@ public enum Writable {
     ///   pub fn ref(this: *Writable) -> void
     public func ref(): Unit {
         match (this) {
-            case pipe(p) => p.updateRef(add: true)
-            case buffer(b) => b.updateRef(add: true)
+            case pipe(pipeVal) => pipeVal.updateRef(add: true)
+            case buffer(bufVal) => bufVal.updateRef(add: true)
             case _ => ()
         }
     }
@@ -54,8 +54,8 @@ public enum Writable {
     ///   pub fn unref(this: *Writable) -> void
     public func unref(): Unit {
         match (this) {
-            case pipe(p) => p.updateRef(add: false)
-            case buffer(b) => b.updateRef(add: false)
+            case pipe(pipeVal) => pipeVal.updateRef(add: false)
+            case buffer(bufVal) => bufVal.updateRef(add: false)
             case _ => ()
         }
     }
@@ -66,8 +66,8 @@ public enum Writable {
     public func onClose(err!: SysError): Unit {
         // 当流关闭时需要通知以防止 use-after-free
         match (this) {
-            case buffer(b) => b.deref()
-            case pipe(p) => p.deref()
+            case buffer(bufVal) => bufVal.deref()
+            case pipe(pipeVal) => pipeVal.deref()
             case _ => ()
         }
     }
@@ -132,11 +132,8 @@ public enum Writable {
     public func toJS(globalThis!: JsGlobalObject, subprocess!: Subprocess): JsValue {
         match (this) {
             case fd(f) => f.toJS(globalThis: globalThis)
-            case pipe(p) =>
+            case pipe(pipeVal) =>
                 // TODO(bao-runtime-api): 处理 pipe 到 JS 的转换
-                //   1. 如果进程已退出: pipe.onAttachedProcessExit()
-                //   2. 否则: 设置 weak_file_sink_stdin_ptr
-                //   3. 返回 pipe.toJSWithDestructor()
                 JsValue.jsUndefined()
             case _ => JsValue.jsUndefined()
         }

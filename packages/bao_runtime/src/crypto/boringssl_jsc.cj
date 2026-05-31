@@ -25,7 +25,7 @@ public class BoringSSLJsc {
 
     /// 将 BoringSSL 错误码转为 JS 错误值
     /// 对应 Bun: pub fn ERR_toJS(*jsc.JSGlobalObject, err_code: u32) jsc.JSValue
-    public static func errToJs(globalThis: JsObject, errCode: UInt32): JsValue {
+    public static func errToJs(errCode: UInt32): JsValue {
         // var outbuf: [128 + 1 + "BoringSSL ".len]u8 = undefined;
         // @memset(&outbuf, 0);
         var outBuf: Array<Byte> = Array<Byte>(128 + 1 + BORINGSSL_PREFIX.size, repeat: 0)

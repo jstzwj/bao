@@ -406,13 +406,22 @@ public class Expr {
         return e
     }
 
-    /// 创建模板表达式 - 对应 Bun E.Template
+    /// 创建简单模板表达式（无替换） - 对应 Bun NoSubstitutionTemplateLiteral
     public static func template(loc: Loc, parts: Array<String>): Expr {
         let e = Expr(loc, ExprTag.Template)
-        // 简化: 存储第一个部分
+        // 无替换模板: 只有静态文本
         if (parts.size > 0) {
             e.stringValue = BaoString(parts[0])
         }
+        return e
+    }
+
+    /// 创建带表达式的模板字面量 - 对应 Bun E.Template with parts
+    /// head: 第一个静态文本部分, templateParts: 交替 [表达式, 静态文本, 表达式, 静态文本, ...]
+    public static func templateWithParts(loc: Loc, head: String, parts: ArrayList<Expr>): Expr {
+        let e = Expr(loc, ExprTag.Template)
+        e.stringValue = BaoString(head)
+        e.templateParts = parts
         return e
     }
 

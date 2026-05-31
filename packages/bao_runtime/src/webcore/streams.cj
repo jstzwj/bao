@@ -1786,6 +1786,12 @@ public class JSPromise {
     /// Underlying JS value representing the Promise cell
     public var jsValue: JsValue
 
+    /// Helper to construct a JsValue from a JSC-encoded Int64 value.
+    /// Uses JsValue.fromPtrAddress which encodes the raw pointer as a number.
+    private static func jsValueFromEncoded(encoded: Int64): JsValue {
+        JsValue.fromPtrAddress(UInt64(encoded))
+    }
+
     public init() {
         jsValue = JsValue.NULL
     }
@@ -1795,9 +1801,8 @@ public class JSPromise {
     }
 
     public static func create(global: JsObject): JSPromise {
-        // TODO: restore JSC FFI call when JSC bindings are complete
-        let val = JsValue(JsObject())
-        return JSPromise(val)
+        let encoded = unsafe { JSC__JSPromise__create(global.encodedAsInt64()) }
+        return JSPromise(jsValueFromEncoded(encoded))
     }
 
     public static func create(global: JSGlobalObject): JSPromise {
@@ -1805,13 +1810,12 @@ public class JSPromise {
     }
 
     public static func resolvedPromiseValue(global: JSGlobalObject, value: JsValue): JsValue {
-        // TODO: restore JSC FFI call
-        return value
+        return jsValueFromEncoded(unsafe { JSC__JSPromise__resolvedPromiseValue(global.globalThis.encodedAsInt64(), value.encoded) })
     }
 
     public static func rejectedPromise(global: JSGlobalObject, value: JsValue): JSPromise {
-        // TODO: restore JSC FFI call
-        return JSPromise(value)
+        let encoded = unsafe { JSC__JSPromise__rejectedPromise(global.globalThis.encodedAsInt64(), value.encoded) }
+        return JSPromise(jsValueFromEncoded(encoded))
     }
 
     /// Get opaque reference (identity)
@@ -1821,15 +1825,15 @@ public class JSPromise {
     public func toJS(): JsValue { return jsValue }
 
     public func resolve(global: JSGlobalObject, value: JsValue): Unit {
-        // TODO: restore JSC FFI call: JSC__JSPromise__resolve(jsValue.encoded, global.encoded, value.encoded)
+        unsafe { JSC__JSPromise__resolve(jsValue.encoded, global.globalThis.encodedAsInt64(), value.encoded) }
     }
 
     public func reject(global: JSGlobalObject, value: JsValue): Unit {
-        // TODO: restore JSC FFI call: JSC__JSPromise__reject(jsValue.encoded, global.encoded, value.encoded)
+        unsafe { JSC__JSPromise__reject(jsValue.encoded, global.globalThis.encodedAsInt64(), value.encoded) }
     }
 
     public func rejectWithAsyncStack(global: JSGlobalObject, value: JsValue): Unit {
-        // TODO: restore JSC FFI call: JSC__JSPromise__rejectWithAsyncStack(jsValue.encoded, global.encoded, value.encoded)
+        unsafe { JSC__JSPromise__rejectWithAsyncStack(jsValue.encoded, global.globalThis.encodedAsInt64(), value.encoded) }
     }
 
     /// Protect from GC
@@ -1923,14 +1927,30 @@ public class JSPromiseStrong {
     /// 对应 Bun: strong.resolve(global, val)
     /// Swaps out the promise and resolves it via JSC FFI.
     public func resolve(global: JsObject, val: JsValue): Unit {
-        // TODO: restore promise.resolve when JSC bindings complete
+        let prom = swap()
+        unsafe { JSC__JSPromise__resolve(prom.toJS().encoded, global.encodedAsInt64(), val.encoded) }
+    }
+
+    /// Resolve the held promise with a value (JSGlobalObject overload).
+    /// 对应 Bun: strong.resolve(global, val)
+    public func resolve(global: JSGlobalObject, val: JsValue): Unit {
+        let prom = swap()
+        unsafe { JSC__JSPromise__resolve(prom.toJS().encoded, global.globalThis.encodedAsInt64(), val.encoded) }
     }
 
     /// Reject the held promise with a value.
     /// 对应 Bun: strong.reject(global, val)
     /// Swaps out the promise and rejects it via JSC FFI.
     public func reject(global: JsObject, val: JsValue): Unit {
-        // TODO: restore promise.reject when JSC bindings complete
+        let prom = swap()
+        unsafe { JSC__JSPromise__reject(prom.toJS().encoded, global.encodedAsInt64(), val.encoded) }
+    }
+
+    /// Reject the held promise with a value (JSGlobalObject overload).
+    /// 对应 Bun: strong.reject(global, val)
+    public func reject(global: JSGlobalObject, val: JsValue): Unit {
+        let prom = swap()
+        unsafe { JSC__JSPromise__reject(prom.toJS().encoded, global.globalThis.encodedAsInt64(), val.encoded) }
     }
 
     /// Release the strong reference, unprotecting the Promise.
@@ -1944,11 +1964,6 @@ public class JSPromiseStrong {
     public static func empty(): JSPromiseStrong {
         JSPromiseStrong()
     }
-}
-
-/// JSType
-public enum JSType {
-    | Uint8Array
 }
 
 /// ArrayBufferPlaceholder - JavaScript ArrayBuffer wrapper
@@ -1981,15 +1996,13 @@ public class ArrayBufferPlaceholder {
     /// Uses bao_jsc.JsArrayBuffer.create() which calls the real JSC C API
     /// to create a typed ArrayBuffer/Uint8Array cell in the JS heap.
     public static func create(global: JsObject, data: Array<UInt8>, `type`: JSType): JsValue {
-        // TODO: restore JsArrayBuffer.create when cross-package JSType is resolved
-        return JsValue.UNDEFINED
+        return JsArrayBuffer.create(global, data, `type`)
     }
 
     /// Convert to JS value
     /// 对应 Bun: ArrayBuffer.toJS(globalThis)
     public func toJS(global: JsObject): JsValue {
-        // TODO: restore JsArrayBuffer.create when cross-package JSType is resolved
-        return JsValue.UNDEFINED
+        return JsArrayBuffer.create(global, bytes, jsType)
     }
 }
 
