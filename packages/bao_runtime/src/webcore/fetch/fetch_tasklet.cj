@@ -399,10 +399,11 @@ public class StreamError {
 
     /// 获取 JS 值
     public func getJSValue(): JsValue {
-        match (jsValue) {
-            case Some(v) => v
-            case None => JsValue.UNDEFINED
+        if (jsValue.isSome()) {
+            let v = jsValue.getOrThrow()
+            return v
         }
+        JsValue.UNDEFINED
     }
 }
 public class AnyTask { public init() {} }
@@ -756,15 +757,16 @@ public class FetchTasklet {
         task.refCount -= 1
         if (task.refCount <= 0) {
             let vm = task.javascriptVm
-            match (vm) {
-                case Some(v) =>
-                    if (v.isShuttingDown()) {
-                        FetchTasklet.deinit(task)
-                    } else {
-                        // 在主线程上执行 deinit
-                        FetchTasklet.enqueueConcurrent(v, ConcurrentTask.fromCallback(task, FetchTasklet.deinitCallback))
-                    }
-                case None => FetchTasklet.deinit(task)
+            if (vm.isSome()) {
+                let v = vm.getOrThrow()
+                if (v.isShuttingDown()) {
+                    FetchTasklet.deinit(task)
+                } else {
+                    // 在主线程上执行 deinit
+                    FetchTasklet.enqueueConcurrent(v, ConcurrentTask.fromCallback(task, FetchTasklet.deinitCallback))
+                }
+            } else {
+                FetchTasklet.deinit(task)
             }
         }
     }
@@ -830,19 +832,18 @@ public class FetchTasklet {
             // 使用默认代理解析
             let env = jscVm.getOrThrow().transpiler().envMut()
             let envProxy = env.getHttpProxyFor(url)
-            match (envProxy) {
-                case Some(proxyUrl) =>
-                    if (!proxyUrl.href.isEmpty()) {
-                        let oldUrlLen = url.href.size
-                        // 扩展 urlProxyBuffer
-                        tasklet.urlProxyBuffer.appendSlice(Array<UInt8>())
-                        // 更新 URL 引用
-                        url = URL.parse(tasklet.urlProxyBuffer.items()[0..oldUrlLen])
-                        proxy = Some(URL.parse(tasklet.urlProxyBuffer.items()[oldUrlLen..]))
-                    } else {
-                        proxy = Some(proxyUrl)
-                    }
-                case None => ()
+            if (envProxy.isSome()) {
+                let proxyUrl = envProxy.getOrThrow()
+                if (!proxyUrl.href.isEmpty()) {
+                    let oldUrlLen = url.href.size
+                    // 扩展 urlProxyBuffer
+                    tasklet.urlProxyBuffer.appendSlice(Array<UInt8>())
+                    // 更新 URL 引用
+                    url = URL.parse(tasklet.urlProxyBuffer.items()[0..oldUrlLen])
+                    proxy = Some(URL.parse(tasklet.urlProxyBuffer.items()[oldUrlLen..]))
+                } else {
+                    proxy = Some(proxyUrl)
+                }
             }
         }
 
@@ -903,11 +904,10 @@ public class FetchTasklet {
         }
 
         // AbortSignal 监听
-        match (tasklet.signal) {
-            case Some(sig) =>
-                sig.pendingActivityRef()
-                sig.addListener(tasklet, FetchTasklet.abortListener)
-            case None => ()
+        if (tasklet.signal.isSome()) {
+            let sig = tasklet.signal.getOrThrow()
+            sig.pendingActivityRef()
+            sig.addListener(tasklet, FetchTasklet.abortListener)
         }
 
         return tasklet
@@ -918,16 +918,16 @@ public class FetchTasklet {
     public static func queue(global: JsGlobalObject, fetchOptions: FetchOptions, promise: JSPromiseStrong): ?FetchTasklet {
         HTTPThread.initDefault()
         let node = FetchTasklet.get(global, fetchOptions, promise)
-        match (node) {
-            case Some(n) =>
-                let httpInst = n.http.getOrThrow()
-                httpInst.schedule()
-                n.pollRef.ref()
-                n.ref()
-                HTTPThread.schedule(httpInst)
-                return n
-            case None => return None
+        if (node.isSome()) {
+            let n = node.getOrThrow()
+            let httpInst = n.http.getOrThrow()
+            httpInst.schedule()
+            n.pollRef.ref()
+            n.ref()
+            HTTPThread.schedule(httpInst)
+            return n
         }
+        return None
     }
 
     // ========================================================================
@@ -937,19 +937,17 @@ public class FetchTasklet {
     /// 清除 Sink
     /// 严格翻译自 FetchTasklet.clear_sink()
     public func clearSink(): Unit {
-        match (sink) {
-            case Some(s) =>
-                s.detachJs()
-                ResumableFetchSink.deref(s)
-                sink = None
-            case None => ()
+        if (sink.isSome()) {
+            let s = sink.getOrThrow()
+            s.detachJs()
+            ResumableFetchSink.deref(s)
+            sink = None
         }
-        match (requestBodyStreamingBuffer) {
-            case Some(buffer) =>
-                buffer.clearDrainCallback()
-                ThreadSafeStreamBuffer.deref(buffer)
-                requestBodyStreamingBuffer = None
-            case None => ()
+        if (requestBodyStreamingBuffer.isSome()) {
+            let buffer = requestBodyStreamingBuffer.getOrThrow()
+            buffer.clearDrainCallback()
+            ThreadSafeStreamBuffer.deref(buffer)
+            requestBodyStreamingBuffer = None
         }
     }
 
@@ -962,16 +960,15 @@ public class FetchTasklet {
 
         hostname = None
 
-        match (result.certificateInfo) {
-            case Some(_) => result.certificateInfo = None
-            case None => ()
+        if (result.certificateInfo.isSome()) {
+            result.certificateInfo = None
         }
 
         requestHeaders = Headers()
 
-        match (http) {
-            case Some(h) => h.clearData()
-            case None => ()
+        if (http.isSome()) {
+            let h = http.getOrThrow()
+            h.clearData()
         }
 
         metadata = None
@@ -979,11 +976,10 @@ public class FetchTasklet {
         responseBuffer = MutableString()
         response.clear()
 
-        match (nativeResponse) {
-            case Some(r) =>
-                Response.unref(r)
-                nativeResponse = None
-            case None => ()
+        if (nativeResponse.isSome()) {
+            let r = nativeResponse.getOrThrow()
+            Response.unref(r)
+            nativeResponse = None
         }
 
         clearStreamCancelHandler()
@@ -1014,21 +1010,20 @@ public class FetchTasklet {
     /// 获取当前响应
     /// 严格翻译自 FetchTasklet.get_current_response()
     public func getCurrentResponse(): ?Response {
-        match (nativeResponse) {
-            case Some(r) => return Some(r)
-            case None => ()
+        if (nativeResponse.isSome()) {
+            let r = nativeResponse.getOrThrow()
+            return Some(r)
         }
 
         // 检查弱引用
         let responseJs = response.get()
-        match (responseJs) {
-            case Some(jsVal) =>
-                let resp = jsVal.asResponse()
-                match (resp) {
-                    case Some(r) => return Some(r)
-                    case None => ()
-                }
-            case None => ()
+        if (responseJs.isSome()) {
+            let jsVal = responseJs.getOrThrow()
+            let resp = jsVal.asResponse()
+            if (resp.isSome()) {
+                let r = resp.getOrThrow()
+                return Some(r)
+            }
         }
 
         return None
@@ -1053,17 +1048,16 @@ public class FetchTasklet {
         }
 
         let streamRef = requestBody.readableStream
-        match (streamRef.get(globalThis)) {
-            case Some(stream) =>
-                if (signalAborted()) {
-                    stream.abort(globalThis)
-                    return
-                }
+        if (streamRef.get(globalThis).isSome()) {
+            let stream = streamRef.get(globalThis).getOrThrow()
+            if (signalAborted()) {
+                stream.abort(globalThis)
+                return
+            }
 
-                ref() // 在 sink 完成之前保持引用
-                let sinkInstance = ResumableFetchSink.initExactRefs(globalThis, stream, this, 2)
-                sink = Some(sinkInstance)
-            case None => ()
+            ref() // 在 sink 完成之前保持引用
+            let sinkInstance = ResumableFetchSink.initExactRefs(globalThis, stream, this, 2)
+            sink = Some(sinkInstance)
         }
     }
 
@@ -1079,25 +1073,24 @@ public class FetchTasklet {
         let isDone = !result.hasMore
 
         let vm = javascriptVm
-        match (vm) {
-            case Some(v) =>
-                if (v.isShuttingDown()) {
-                    mutex.unlock()
-                    if (isDone) {
-                        FetchTasklet.deref(this)
-                    }
-                    return
+        if (vm.isSome()) {
+            let v = vm.getOrThrow()
+            if (v.isShuttingDown()) {
+                mutex.unlock()
+                if (isDone) {
+                    FetchTasklet.deref(this)
                 }
-            case None => ()
+                return
+            }
         }
 
         // 启动请求流
         if (isWaitingRequestStreamStart && result.canStream) {
             startRequestStream()
             if (metadata.isSome() && !isWaitingBody) {
-                match (vm) {
-                    case Some(v) => v.jscVm().drainMicrotasks()
-                    case None => ()
+                if (vm.isSome()) {
+                    let v = vm.getOrThrow()
+                    v.jscVm().drainMicrotasks()
                 }
             }
         }
@@ -1113,9 +1106,9 @@ public class FetchTasklet {
             mutex.unlock()
             if (isDone) {
                 // 取消残留 sink
-                match (sink) {
-                    case Some(s) => s.cancel(JsValue.UNDEFINED)
-                    case None => ()
+                if (sink.isSome()) {
+                    let s = sink.getOrThrow()
+                    s.cancel(JsValue.UNDEFINED)
                 }
                 pollRef.unref()
                 FetchTasklet.deref(this)
@@ -1153,42 +1146,38 @@ public class FetchTasklet {
         }
 
         // 证书信息
-        match (result.certificateInfo) {
-            case Some(certInfo) =>
-                if (rejectUnauthorized && !checkServerIdentityFn(certInfo)) {
-                    // 中止请求
-                    let prom = promiseValue.asAnyPromise()
-                    match (prom) {
-                        case Some(p) =>
-                            let rejectResult = onReject()
-                            p.rejectWithAsyncStack(globalThis, rejectResult.toJS(globalThis))
-                            rejectResult.reset()
-                        case None => ()
-                    }
-                    tracker.didDispatch(globalThis)
-                    promise = JSPromiseStrong.empty()
-                    mutex.unlock()
-                    if (isDone) {
-                        FetchTasklet.deref(this)
-                    }
-                    return
+        if (result.certificateInfo.isSome()) {
+            let certInfo = result.certificateInfo.getOrThrow()
+            if (rejectUnauthorized && !checkServerIdentityFn(certInfo)) {
+                // 中止请求
+                let prom = promiseValue.asAnyPromise()
+                if (prom.isSome()) {
+                    let p = prom.getOrThrow()
+                    let rejectResult = onReject()
+                    p.rejectWithAsyncStack(globalThis, rejectResult.toJS(globalThis))
+                    rejectResult.reset()
                 }
-            case None => ()
+                tracker.didDispatch(globalThis)
+                promise = JSPromiseStrong.empty()
+                mutex.unlock()
+                if (isDone) {
+                    FetchTasklet.deref(this)
+                }
+                return
+            }
         }
 
         // 中止原因优先级高于成功
         if (result.isSuccess() && abortReason.has()) {
             let prom = promiseValue.asAnyPromise()
-            match (prom) {
-                case Some(p) =>
-                    let err = getAbortError()
-                    match (err) {
-                        case Some(e) =>
-                            p.rejectWithAsyncStack(globalThis, e.toJS(globalThis))
-                            e.reset()
-                        case None => ()
-                    }
-                case None => ()
+            if (prom.isSome()) {
+                let p = prom.getOrThrow()
+                let err = getAbortError()
+                if (err.isSome()) {
+                    let e = err.getOrThrow()
+                    p.rejectWithAsyncStack(globalThis, e.toJS(globalThis))
+                    e.reset()
+                }
             }
             tracker.didDispatch(globalThis)
             promise = JSPromiseStrong.empty()
@@ -1208,9 +1197,9 @@ public class FetchTasklet {
         } else {
             let rejectValue = onReject()
             let errJs = rejectValue.toJS(globalThis)
-            match (sink) {
-                case Some(s) => s.cancel(errJs)
-                case None => ()
+            if (sink.isSome()) {
+                let s = sink.getOrThrow()
+                s.cancel(errJs)
             }
             StrongOptional.create(rejectValue.takeJSValue(), globalThis)
         }
@@ -1234,9 +1223,9 @@ public class FetchTasklet {
         promise = JSPromiseStrong.empty()
         mutex.unlock()
         if (isDone) {
-            match (sink) {
-                case Some(s) => s.cancel(JsValue.UNDEFINED)
-                case None => ()
+            if (sink.isSome()) {
+                let s = sink.getOrThrow()
+                s.cancel(JsValue.UNDEFINED)
             }
             pollRef.unref()
             FetchTasklet.deref(this)
@@ -1254,101 +1243,92 @@ public class FetchTasklet {
             var jsErr = JsValue.ZERO
 
             // 如果正在流式传输, 更新错误
-            match (readableStreamRef.get(globalThis)) {
-                case Some(readable) =>
-                    match (readable.ptr().bytes()) {
-                        case Some(bytes) =>
-                            jsErr = err.toJS(globalThis)
-                            jsErr.ensureStillAlive()
-                            bytes.onData(StreamResult.err(StreamError.fromJsValue(jsErr)))
-                        case None => ()
-                    }
-                case None => ()
+            if (readableStreamRef.get(globalThis).isSome()) {
+                let readable = readableStreamRef.get(globalThis).getOrThrow()
+                if (readable.ptr().bytes().isSome()) {
+                    let bytes = readable.ptr().bytes().getOrThrow()
+                    jsErr = err.toJS(globalThis)
+                    jsErr.ensureStillAlive()
+                    bytes.onData(StreamResult.err(StreamError.fromJsValue(jsErr)))
+                }
             }
 
-            match (sink) {
-                case Some(s) =>
-                    if (jsErr.isEmpty()) {
-                        jsErr = err.toJS(globalThis)
-                        jsErr.ensureStillAlive()
-                    }
-                    s.cancel(jsErr)
-                    return
-                case None => ()
+            if (sink.isSome()) {
+                let s = sink.getOrThrow()
+                if (jsErr.isEmpty()) {
+                    jsErr = err.toJS(globalThis)
+                    jsErr.ensureStillAlive()
+                }
+                s.cancel(jsErr)
+                return
             }
 
             // 缓冲模式下 resolve Promise
-            match (currentResponseMut()) {
-                case Some(response) =>
-                    let body = response.getBodyValue()
-                    body.toErrorInstance(err, globalThis)
-                case None => ()
+            if (currentResponseMut().isSome()) {
+                let response = currentResponseMut().getOrThrow()
+                let body = response.getBodyValue()
+                body.toErrorInstance(err, globalThis)
             }
             return
         }
 
         // 可读流
-        match (readableStreamRef.get(globalThis)) {
-            case Some(readable) =>
-                match (readable.ptr().bytes()) {
-                    case Some(bytes) =>
-                        bytes.sizeHint.set(getSizeHint())
-                        if (result.hasMore) {
-                            let chunk = scheduledResponseBuffer.list.items()
-                            bytes.onData(FetchTasklet.temporaryChunk(chunk, false))
-                        } else {
-                            clearStreamCancelHandler()
-                            readableStreamRef = ReadableStreamStrong()
-                            bufferReset = false
-                            let chunk = scheduledResponseBuffer.list.items()
-                            bytes.onData(FetchTasklet.temporaryChunk(chunk, true))
-                        }
-                        return
-                    case None => ()
+        if (readableStreamRef.get(globalThis).isSome()) {
+            let readable = readableStreamRef.get(globalThis).getOrThrow()
+            if (readable.ptr().bytes().isSome()) {
+                let bytes = readable.ptr().bytes().getOrThrow()
+                bytes.sizeHint.set(getSizeHint())
+                if (result.hasMore) {
+                    let chunk = scheduledResponseBuffer.list.items()
+                    bytes.onData(FetchTasklet.temporaryChunk(chunk, false))
+                } else {
+                    clearStreamCancelHandler()
+                    readableStreamRef = ReadableStreamStrong()
+                    bufferReset = false
+                    let chunk = scheduledResponseBuffer.list.items()
+                    bytes.onData(FetchTasklet.temporaryChunk(chunk, true))
                 }
-            case None => ()
+                return
+            }
         }
 
         // 当前响应
-        match (currentResponseMut()) {
-            case Some(response) =>
-                let sizeHint = getSizeHint()
-                response.setSizeHint(sizeHint)
+        if (currentResponseMut().isSome()) {
+            let response = currentResponseMut().getOrThrow()
+            let sizeHint = getSizeHint()
+            response.setSizeHint(sizeHint)
 
-                // 可读流 body
-                match (response.getBodyReadableStream(globalThis)) {
-                    case Some(readable) =>
-                        match (readable.ptr().bytes()) {
-                            case Some(bytes) =>
-                                let chunk = scheduledResponseBuffer.list.items()
-                                if (result.hasMore) {
-                                    bytes.onData(FetchTasklet.temporaryChunk(chunk, false))
-                                } else {
-                                    readable.value.ensureStillAlive()
-                                    response.detachReadableStream(globalThis)
-                                    bytes.onData(FetchTasklet.temporaryChunk(chunk, true))
-                                }
-                                return
-                            case None => ()
-                        }
-                    case None => ()
-                }
-
-                // 非流式 — 保存缓冲
-                bufferReset = false
-                if (!result.hasMore) {
-                    let scheduledBuffer = scheduledResponseBuffer.list
-                    let body = response.getBodyValue()
-                    body.setInternalBlob(InternalBlob(scheduledBuffer, false))
-                    scheduledResponseBuffer = MutableString()
-
-                    // 解析 body 值
-                    if (body.isLocked()) {
-                        let headers = response.getFetchHeaders()
-                        body.resolve(globalThis, headers)
+            // 可读流 body
+            if (response.getBodyReadableStream(globalThis).isSome()) {
+                let readable = response.getBodyReadableStream(globalThis).getOrThrow()
+                if (readable.ptr().bytes().isSome()) {
+                    let bytes = readable.ptr().bytes().getOrThrow()
+                    let chunk = scheduledResponseBuffer.list.items()
+                    if (result.hasMore) {
+                        bytes.onData(FetchTasklet.temporaryChunk(chunk, false))
+                    } else {
+                        readable.value.ensureStillAlive()
+                        response.detachReadableStream(globalThis)
+                        bytes.onData(FetchTasklet.temporaryChunk(chunk, true))
                     }
+                    return
                 }
-            case None => ()
+            }
+
+            // 非流式 — 保存缓冲
+            bufferReset = false
+            if (!result.hasMore) {
+                let scheduledBuffer = scheduledResponseBuffer.list
+                let body = response.getBodyValue()
+                body.setInternalBlob(InternalBlob(scheduledBuffer, false))
+                scheduledResponseBuffer = MutableString()
+
+                // 解析 body 值
+                if (body.isLocked()) {
+                    let headers = response.getFetchHeaders()
+                    body.resolve(globalThis, headers)
+                }
+            }
         }
     }
 
@@ -1371,52 +1351,51 @@ public class FetchTasklet {
     /// 严格翻译自 FetchTasklet.on_reject()
     public func onReject(): BodyValueError {
         // 检查中止错误
-        match (getAbortError()) {
-            case Some(abortErr) => return abortErr
-            case None => ()
+        if (getAbortError().isSome()) {
+            let abortErr = getAbortError().getOrThrow()
+            return abortErr
         }
 
         // 检查中止原因
-        match (result.abortReason()) {
-            case Some(reason) => return BodyValueError.abortReason(reason)
-            case None => ()
+        if (result.abortReason().isSome()) {
+            let reason = result.abortReason().getOrThrow()
+            return BodyValueError.abortReason(reason)
         }
 
         let fail = result.fail
-        match (fail) {
-            case Some(f) =>
-                // 请求体不可重用
-                if (f == BUN_ERROR.REQUEST_BODY_NOT_REUSABLE) {
-                    return BodyValueError.typeError("Request body is a ReadableStream and cannot be replayed for this redirect")
-                }
+        if (fail.isSome()) {
+            let f = fail.getOrThrow()
+            // 请求体不可重用
+            if (f == BUN_ERROR.REQUEST_BODY_NOT_REUSABLE) {
+                return BodyValueError.typeError("Request body is a ReadableStream and cannot be replayed for this redirect")
+            }
 
-                // 获取路径
-                let path = getPathForError()
+            // 获取路径
+            let path = getPathForError()
 
-                // 获取错误码
-                let code = if (f == BUN_ERROR.CONNECTION_CLOSED) {
-                    "ECONNRESET"
-                } else {
-                    f.name()
-                }
+            // 获取错误码
+            let code = if (f == BUN_ERROR.CONNECTION_CLOSED) {
+                "ECONNRESET"
+            } else {
+                f.name()
+            }
 
-                // 获取错误消息
-                let message = getErrorMessage(f, path)
+            // 获取错误消息
+            let message = getErrorMessage(f, path)
 
-                // 构造系统错误
-                let fetchError = SystemError(
-                    0,
-                    code,
-                    message,
-                    path,
-                    "",
-                    "",
-                    -1,
-                    ""
-                )
+            // 构造系统错误
+            let fetchError = SystemError(
+                0,
+                code,
+                message,
+                path,
+                "",
+                "",
+                -1,
+                ""
+            )
 
-                return BodyValueError.systemError(fetchError)
-            case None => ()
+            return BodyValueError.systemError(fetchError)
         }
 
         return BodyValueError.typeError("Unknown fetch error")
@@ -1436,16 +1415,14 @@ public class FetchTasklet {
             return Some(BodyValueError.jsValue(out))
         }
 
-        match (signal) {
-            case Some(sig) =>
-                match (sig.reasonIfAborted(globalThis)) {
-                    case Some(reason) =>
-                        let out = BodyValueError.fromAbortReason(reason)
-                        clearAbortSignal()
-                        return Some(out)
-                    case None => ()
-                }
-            case None => ()
+        if (signal.isSome()) {
+            let sig = signal.getOrThrow()
+            if (sig.reasonIfAborted(globalThis).isSome()) {
+                let reason = sig.reasonIfAborted(globalThis).getOrThrow()
+                let out = BodyValueError.fromAbortReason(reason)
+                clearAbortSignal()
+                return Some(out)
+            }
         }
 
         return None
@@ -1454,23 +1431,23 @@ public class FetchTasklet {
     /// 清除中止信号
     /// 严格翻译自 FetchTasklet.clear_abort_signal()
     public func clearAbortSignal(): Unit {
-        match (signal) {
-            case Some(sig) =>
-                sig.cleanNativeBindings(this)
-                sig.pendingActivityUnref()
-                sig.unref()
-                signal = None
-            case None => ()
+        if (signal.isSome()) {
+            let sig = signal.getOrThrow()
+            sig.cleanNativeBindings(this)
+            sig.pendingActivityUnref()
+            sig.unref()
+            signal = None
         }
     }
 
     /// 是否已中止
     /// 严格翻译自 FetchTasklet.signal_aborted()
     public func signalAborted(): Bool {
-        match (signal) {
-            case Some(sig) => sig.aborted()
-            case None => false
+        if (signal.isSome()) {
+            let sig = signal.getOrThrow()
+            return sig.aborted()
         }
+        return false
     }
 
     /// 中止监听器
@@ -1480,20 +1457,19 @@ public class FetchTasklet {
         task.abortReason.set(task.globalThis, reason)
         task.abortTask()
 
-        match (task.sink) {
-            case Some(s) =>
-                s.cancel(reason)
-                return
-            case None => ()
+        if (task.sink.isSome()) {
+            let s = task.sink.getOrThrow()
+            s.cancel(reason)
+            return
         }
 
         // 直接取消 ReadableStream
         if (task.isWaitingRequestStreamStart) {
             if (task.requestBody.tag == HTTPRequestBodyTag.ReadableStream) {
                 task.isWaitingRequestStreamStart = false
-                match (task.requestBody.readableStream.get(task.globalThis)) {
-                    case Some(stream) => stream.cancelWithReason(task.globalThis, reason)
-                    case None => ()
+                if (task.requestBody.readableStream.get(task.globalThis).isSome()) {
+                    let stream = task.requestBody.readableStream.get(task.globalThis).getOrThrow()
+                    stream.cancelWithReason(task.globalThis, reason)
                 }
             }
         }
@@ -1506,45 +1482,43 @@ public class FetchTasklet {
     /// 检查服务器身份
     /// 严格翻译自 FetchTasklet.check_server_identity()
     public func checkServerIdentityFn(certInfo: CertificateInfo): Bool {
-        match (checkServerIdentity.get()) {
-            case Some(checkFn) =>
-                checkFn.ensureStillAlive()
-                if (!certInfo.cert.isEmpty()) {
-                    let cert = certInfo.cert
-                    // 解析 X509 证书
-                    let x509 = d2iX509(cert)
-                    if (x509.isSome()) {
-                        let globalObject = globalThis
-                        let jsCert = X509.toJS(x509, globalObject)
-                        match (jsCert) {
-                            case Some(cert) =>
-                                cert.ensureStillAlive()
-                                let hostname = OwnedString.cloneUtf8(certInfo.hostname)
-                                let jsHostname = hostname.toJS(globalObject)
-                                jsHostname.ensureStillAlive()
-                                let checkResult = checkFn.call(globalObject, JsValue.UNDEFINED, [jsHostname, cert])
+        if (checkServerIdentity.get().isSome()) {
+            let checkFn = checkServerIdentity.get().getOrThrow()
+            checkFn.ensureStillAlive()
+            if (!certInfo.cert.isEmpty()) {
+                let cert = certInfo.cert
+                // 解析 X509 证书
+                let x509 = d2iX509(cert)
+                if (x509.isSome()) {
+                    let globalObject = globalThis
+                    let jsCert = X509.toJS(x509, globalObject)
+                    if (jsCert.isSome()) {
+                        let jsCertVal = jsCert.getOrThrow()
+                        jsCertVal.ensureStillAlive()
+                        let hostname = OwnedString.cloneUtf8(certInfo.hostname)
+                        let jsHostname = hostname.toJS(globalObject)
+                        jsHostname.ensureStillAlive()
+                        let checkResult = checkFn.call(globalObject, JsValue.UNDEFINED, [jsHostname, jsCertVal])
 
-                                if (checkResult.isAnyError()) {
-                                    // 标记等待中止
-                                    isWaitingAbort = result.hasMore
-                                    abortReason.set(globalObject, checkResult)
-                                    signalStore.aborted = true
-                                    tracker.didCancel(globalThis)
-                                    // 中止 HTTP 请求
-                                    match (http) {
-                                        case Some(h) => HTTPThread.scheduleShutdown(h)
-                                        case None => ()
-                                    }
-                                    result.fail = Some(BunError("ERR_TLS_CERT_ALTNAME_INVALID"))
-                                    return false
-                                }
-                                // 成功
-                                return true
-                            case None => ()
+                        if (checkResult.isAnyError()) {
+                            // 标记等待中止
+                            isWaitingAbort = result.hasMore
+                            abortReason.set(globalObject, checkResult)
+                            signalStore.aborted = true
+                            tracker.didCancel(globalThis)
+                            // 中止 HTTP 请求
+                            if (http.isSome()) {
+                                let h = http.getOrThrow()
+                                HTTPThread.scheduleShutdown(h)
+                            }
+                            result.fail = Some(BunError("ERR_TLS_CERT_ALTNAME_INVALID"))
+                            return false
                         }
+                        // 成功
+                        return true
                     }
                 }
-            case None => ()
+            }
         }
 
         result.fail = Some(BunError("ERR_TLS_CERT_ALTNAME_INVALID"))
@@ -1563,9 +1537,9 @@ public class FetchTasklet {
         task.mutex.lock()
 
         // 同步进度
-        match (task.http) {
-            case Some(h) => h.syncProgressFrom(asyncHttp)
-            case None => ()
+        if (task.http.isSome()) {
+            let h = task.http.getOrThrow()
+            h.syncProgressFrom(asyncHttp)
         }
 
         // 保存之前的元数据
@@ -1583,16 +1557,16 @@ public class FetchTasklet {
         }
 
         // 元数据只提供一次
-        match (task.result.metadata) {
-            case Some(meta) =>
-                if (task.metadata.isNone()) {
-                    task.metadata = Some(meta)
-                }
-                task.result.metadata = None
-            case None =>
-                if (task.metadata.isNone()) {
-                    task.metadata = prevMetadata
-                }
+        if (task.result.metadata.isSome()) {
+            let meta = task.result.metadata.getOrThrow()
+            if (task.metadata.isNone()) {
+                task.metadata = Some(meta)
+            }
+            task.result.metadata = None
+        } else {
+            if (task.metadata.isNone()) {
+                task.metadata = prevMetadata
+            }
         }
 
         task.bodySize = task.result.bodySize
@@ -1631,23 +1605,22 @@ public class FetchTasklet {
         task.hasScheduleCallback = true
 
         // VM 关闭中
-        match (task.javascriptVm) {
-            case Some(vm) =>
-                if (vm.isShuttingDown()) {
-                    task.mutex.unlock()
-                    if (isDone) {
-                        FetchTasklet.derefFromThread(task)
-                    }
-                    return
+        if (task.javascriptVm.isSome()) {
+            let vm = task.javascriptVm.getOrThrow()
+            if (vm.isShuttingDown()) {
+                task.mutex.unlock()
+                if (isDone) {
+                    FetchTasklet.derefFromThread(task)
                 }
-            case None => ()
+                return
+            }
         }
 
         // 入队并发任务
         let ct = task.concurrentTask.from(task)
-        match (task.javascriptVm) {
-            case Some(vm) => FetchTasklet.enqueueConcurrent(vm, ct)
-            case None => ()
+        if (task.javascriptVm.isSome()) {
+            let vm = task.javascriptVm.getOrThrow()
+            FetchTasklet.enqueueConcurrent(vm, ct)
         }
 
         task.mutex.unlock()
@@ -1659,14 +1632,13 @@ public class FetchTasklet {
     /// 请求体数据排空回调 (从 HTTP 线程调用)
     /// 严格翻译自 FetchTasklet.on_write_request_data_drain()
     public static func onWriteRequestDataDrain(task: FetchTasklet): Unit {
-        match (task.javascriptVm) {
-            case Some(vm) =>
-                if (vm.isShuttingDown()) {
-                    return
-                }
-                task.ref()
-                FetchTasklet.enqueueConcurrent(vm, ConcurrentTask.fromCallback(task, FetchTasklet.resumeRequestDataStream))
-            case None => ()
+        if (task.javascriptVm.isSome()) {
+            let vm = task.javascriptVm.getOrThrow()
+            if (vm.isShuttingDown()) {
+                return
+            }
+            task.ref()
+            FetchTasklet.enqueueConcurrent(vm, ConcurrentTask.fromCallback(task, FetchTasklet.resumeRequestDataStream))
         }
     }
 
@@ -1674,9 +1646,9 @@ public class FetchTasklet {
     /// 严格翻译自 FetchTasklet.resume_request_data_stream()
     public static func resumeRequestDataStream(task: FetchTasklet): Unit {
         if (!task.signalAborted()) {
-            match (task.sink) {
-                case Some(s) => s.drain()
-                case None => ()
+            if (task.sink.isSome()) {
+                let s = task.sink.getOrThrow()
+                s.drain()
             }
         }
         FetchTasklet.deref(task)
@@ -1693,69 +1665,72 @@ public class FetchTasklet {
             return ResumableSinkBackpressure.Done
         }
 
-        let highWaterMark: Int64 = match (sink) {
-            case Some(s) => s.highWaterMark()
-            case None => 16384
+        let highWaterMark: Int64 = if (sink.isSome()) {
+            let s = sink.getOrThrow()
+            s.highWaterMark()
+        } else {
+            Int64(16384)
         }
 
-        match (requestBodyStreamingBuffer) {
-            case Some(buffer) =>
-                var needsSchedule = buffer.isEmpty()
+        if (requestBodyStreamingBuffer.isSome()) {
+            let buffer = requestBodyStreamingBuffer.getOrThrow()
+            var needsSchedule = buffer.isEmpty()
 
-                if (skipChunkedFraming()) {
-                    buffer.write(data)
-                } else {
-                    // chunked 编码
-                    let sizeHex = data.size.toString()
-                    let chunk = "${sizeHex}\r\n${data}\r\n"
-                    buffer.writeAssumeCapacity(Array<UInt8>())
+            if (skipChunkedFraming()) {
+                buffer.write(data)
+            } else {
+                // chunked 编码
+                let sizeHex = data.size.toString()
+                let chunk = "${sizeHex}\r\n${data}\r\n"
+                buffer.writeAssumeCapacity(Array<UInt8>())
+            }
+
+            let result = if (buffer.size() >= highWaterMark) {
+                ResumableSinkBackpressure.Backpressure
+            } else {
+                ResumableSinkBackpressure.WantMore
+            }
+
+            if (needsSchedule) {
+                if (http.isSome()) {
+                    let h = http.getOrThrow()
+                    HTTPThread.scheduleRequestWrite(h, WriteMessageType.Data)
                 }
+            }
 
-                let result = if (buffer.size() >= highWaterMark) {
-                    ResumableSinkBackpressure.Backpressure
-                } else {
-                    ResumableSinkBackpressure.WantMore
-                }
-
-                if (needsSchedule) {
-                    match (http) {
-                        case Some(h) => HTTPThread.scheduleRequestWrite(h, WriteMessageType.Data)
-                        case None => ()
-                    }
-                }
-
-                return result
-            case None => return ResumableSinkBackpressure.Done
+            return result
+        } else {
+            return ResumableSinkBackpressure.Done
         }
     }
 
     /// 写入结束请求
     /// 严格翻译自 FetchTasklet.write_end_request()
     public func writeEndRequest(err: ?JsValue): Unit {
-        match (err) {
-            case Some(jsError) =>
-                if (signalStore.aborted || abortReason.has()) {
+        if (err.isSome()) {
+            let jsError = err.getOrThrow()
+            if (signalStore.aborted || abortReason.has()) {
+                FetchTasklet.deref(this)
+                return
+            }
+            if (!jsError.isUndefinedOrNull()) {
+                abortReason.set(globalThis, jsError)
+            }
+            abortTask()
+        } else {
+            if (!skipChunkedFraming()) {
+                if (requestBodyStreamingBuffer.isSome()) {
+                    let buffer = requestBodyStreamingBuffer.getOrThrow()
+                    buffer.lock().write(END_OF_CHUNKED_HTTP1_1_ENCODING_RESPONSE_BODY)
+                } else {
                     FetchTasklet.deref(this)
                     return
                 }
-                if (!jsError.isUndefinedOrNull()) {
-                    abortReason.set(globalThis, jsError)
-                }
-                abortTask()
-            case None =>
-                if (!skipChunkedFraming()) {
-                    match (requestBodyStreamingBuffer) {
-                        case Some(buffer) =>
-                            buffer.lock().write(END_OF_CHUNKED_HTTP1_1_ENCODING_RESPONSE_BODY)
-                        case None =>
-                            FetchTasklet.deref(this)
-                            return
-                    }
-                }
-                match (http) {
-                    case Some(h) => HTTPThread.scheduleRequestWrite(h, WriteMessageType.End)
-                    case None => ()
-                }
+            }
+            if (http.isSome()) {
+                let h = http.getOrThrow()
+                HTTPThread.scheduleRequestWrite(h, WriteMessageType.End)
+            }
         }
         FetchTasklet.deref(this)
     }
@@ -1775,9 +1750,9 @@ public class FetchTasklet {
         signalStore.aborted = true
         tracker.didCancel(globalThis)
 
-        match (http) {
-            case Some(h) => HTTPThread.scheduleShutdown(h)
-            case None => ()
+        if (http.isSome()) {
+            let h = http.getOrThrow()
+            HTTPThread.scheduleShutdown(h)
         }
     }
 
@@ -1798,11 +1773,10 @@ public class FetchTasklet {
             return DrainResult.Aborted
         }
 
-        match (http) {
-            case Some(h) =>
-                h.enableResponseBodyStreaminging()
-                HTTPThread.scheduleResponseBodyDrain(h.asyncHttpId)
-            case None => ()
+        if (http.isSome()) {
+            let h = http.getOrThrow()
+            h.enableResponseBodyStreaminging()
+            HTTPThread.scheduleResponseBodyDrain(h.asyncHttpId)
         }
 
         mutex.lock()
@@ -1826,16 +1800,14 @@ public class FetchTasklet {
     /// 清除流取消处理器
     /// 严格翻译自 FetchTasklet.clear_stream_cancel_handler()
     public func clearStreamCancelHandler(): Unit {
-        match (readableStreamRef.get(globalThis)) {
-            case Some(readable) =>
-                match (readable.ptr().bytes()) {
-                    case Some(bytes) =>
-                        let source = bytes.parentConst()
-                        source.cancelHandler = None
-                        source.cancelCtx = None
-                    case None => ()
-                }
-            case None => ()
+        if (readableStreamRef.get(globalThis).isSome()) {
+            let readable = readableStreamRef.get(globalThis).getOrThrow()
+            if (readable.ptr().bytes().isSome()) {
+                let bytes = readable.ptr().bytes().getOrThrow()
+                let source = bytes.parentConst()
+                source.cancelHandler = None
+                source.cancelCtx = None
+            }
         }
     }
 
@@ -1865,19 +1837,24 @@ public class FetchTasklet {
     /// 获取大小提示
     /// 严格翻译自 FetchTasklet.get_size_hint()
     public func getSizeHint(): BlobSizeType {
+        // Workaround for Cangjie FirstLetter pattern match issue
         match (bodySize) {
-            case BodySize.ContentLength(n) => n
-            case BodySize.TotalReceived(n) => n
             case BodySize.Unknown => 0
+            case BodySize.ContentLength(val) =>
+                let result: Int64 = val
+                return result
+            case BodySize.TotalReceived(val) =>
+                let result: Int64 = val
+                return result
         }
     }
 
     /// 转换为 body 值
     /// 严格翻译自 FetchTasklet.to_body_value()
     public func toBodyValue(): BodyValue {
-        match (getAbortError()) {
-            case Some(abortErr) => return BodyValue.error(abortErr)
-            case None => ()
+        if (getAbortError().isSome()) {
+            let abortErr = getAbortError().getOrThrow()
+            return BodyValue.error(abortErr)
         }
 
         if (isWaitingBody) {
@@ -1927,15 +1904,15 @@ public class FetchTasklet {
     /// 严格翻译自 FetchTasklet.ignore_remaining_response_body()
     public func ignoreRemainingResponseBody(): Unit {
         // 分离 sink JS 包装
-        match (sink) {
-            case Some(s) => s.detachJs()
-            case None => ()
+        if (sink.isSome()) {
+            let s = sink.getOrThrow()
+            s.detachJs()
         }
 
         // 启用流式传输
-        match (http) {
-            case Some(h) => h.enableResponseBodyStreaminging()
-            case None => ()
+        if (http.isSome()) {
+            let h = http.getOrThrow()
+            h.enableResponseBodyStreaminging()
         }
 
         pollRef.unref()
@@ -1943,11 +1920,10 @@ public class FetchTasklet {
         readableStreamRef.deinit()
         response.clear()
 
-        match (nativeResponse) {
-            case Some(r) =>
-                Response.unref(r)
-                nativeResponse = None
-            case None => ()
+        if (nativeResponse.isSome()) {
+            let r = nativeResponse.getOrThrow()
+            Response.unref(r)
+            nativeResponse = None
         }
 
         ignoreData = true
@@ -1956,43 +1932,44 @@ public class FetchTasklet {
     /// 响应 finalize 回调
     /// 严格翻译自 FetchTasklet.on_response_finalize()
     public func onResponseFinalize(): Unit {
-        match (nativeResponse) {
-            case Some(response) =>
-                let body = response.getBodyValue()
-                // 场景分析:
-                // 1. 正在流式传输 → 不忽略
-                // 2. 缓冲中:
-                //    2a. 没有 promise → 忽略
-                //    2b. 有 promise → 继续加载
-                // 3. 从未开始缓冲 → 忽略
-                if (!body.isLocked() || readableStreamRef.has()) {
-                    return
-                }
+        if (nativeResponse.isSome()) {
+            let response = nativeResponse.getOrThrow()
+            let body = response.getBodyValue()
+            // 场景分析:
+            // 1. 正在流式传输 → 不忽略
+            // 2. 缓冲中:
+            //    2a. 没有 promise → 忽略
+            //    2b. 有 promise → 继续加载
+            // 3. 从未开始缓冲 → 忽略
+            if (!body.isLocked() || readableStreamRef.has()) {
+                return
+            }
 
-                if (body.isLocked()) {
-                    let locked = body.lockedValue
-                    match (locked.promise) {
-                        case Some(promise) =>
-                            if (promise.isEmptyOrUndefinedOrNull()) {
-                                ignoreRemainingResponseBody()
-                            }
-                        case None => ignoreRemainingResponseBody()
+            if (body.isLocked()) {
+                let locked = body.lockedValue
+                if (locked.promise.isSome()) {
+                    let promise = locked.promise.getOrThrow()
+                    if (promise.isEmptyOrUndefinedOrNull()) {
+                        ignoreRemainingResponseBody()
                     }
+                } else {
+                    ignoreRemainingResponseBody()
                 }
-            case None => ()
+            }
         }
     }
 
     /// 获取错误路径
     private func getPathForError(): String {
-        match (metadata) {
-            case Some(meta) => meta.url.slice()
-            case None =>
-                match (http) {
-                    case Some(h) => h.url.href
-                    case None => ""
-                }
+        if (metadata.isSome()) {
+            let meta = metadata.getOrThrow()
+            return meta.url.slice()
         }
+        if (http.isSome()) {
+            let h = http.getOrThrow()
+            return h.url.href
+        }
+        return ""
     }
 
     /// 获取错误消息
@@ -2370,12 +2347,11 @@ public class PromiseHolder {
     /// 严格翻译自 Holder.resolve()
     public func resolve(): Unit {
         let prom = promise.valueOrEmpty().asAnyPromise()
-        match (prom) {
-            case Some(p) =>
-                let res = held.swap()
-                res.ensureStillAlive()
-                p.resolve(globalObject, res)
-            case None => ()
+        if (prom.isSome()) {
+            let p = prom.getOrThrow()
+            let res = held.swap()
+            res.ensureStillAlive()
+            p.resolve(globalObject, res)
         }
         held.deinit()
         promise = JSPromiseStrong.empty()
@@ -2385,12 +2361,11 @@ public class PromiseHolder {
     /// 严格翻译自 Holder.reject()
     public func reject(): Unit {
         let prom = promise.valueOrEmpty().asAnyPromise()
-        match (prom) {
-            case Some(p) =>
-                let res = held.swap()
-                res.ensureStillAlive()
-                p.rejectWithAsyncStack(globalObject, res)
-            case None => ()
+        if (prom.isSome()) {
+            let p = prom.getOrThrow()
+            let res = held.swap()
+            res.ensureStillAlive()
+            p.rejectWithAsyncStack(globalObject, res)
         }
         held.deinit()
         promise = JSPromiseStrong.empty()

@@ -258,7 +258,7 @@ public class Hash {
         var v = value
         var chars = ArrayList<String>()
         for (_ in 0..8) {
-            chars.add(hexChars[Int64(v & UInt32(0xF))])
+            chars.append(hexChars[Int64(v & UInt32(0xF))])
             v = v >> 4
         }
         // 反转

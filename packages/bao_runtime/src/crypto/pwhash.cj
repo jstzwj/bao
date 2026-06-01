@@ -397,28 +397,26 @@ public func bcryptStrVerify(encoded: Array<Byte>, password: Array<Byte>,
                              options: BcryptVerifyOptions): ?Unit {
     // modular-crypt 和 PHC 字母表都是纯 ASCII
     let encodedText = phcAsciiStr(encoded)
-    match (encodedText) {
-        case None => return None  // InvalidEncoding
-        case Some(s) =>
-            // Bun 始终使用 silently_truncate_password = true
-            // 该路径不可达自 Bun 且未在此 shim 中实现
+    if (encodedText.isNone()) { return None }  // InvalidEncoding
+    let s = encodedText.getOrThrow()
+    // Bun 始终使用 silently_truncate_password = true
+    // 该路径不可达自 Bun 且未在此 shim 中实现
 
-            if (s.startsWith("\$2")) {
-                // Crypt 路径: CryptFormatHasher.verify
-                // 检查 str.len == hash_length
-                // Rust crate 在 split_hash 内部做相同检查
-                let encodedBytes = s.toArray()
-                let rc = unsafe { bao_bcrypt_str_verify(
-                    CPointerUtils.fromArray(encodedBytes), UIntNative(encodedBytes.size),
-                    CPointerUtils.fromArray(password), UIntNative(password.size)
-                ) }
-                if (rc == 0) { return Some(()) }
-                return None
-            } else {
-                // PHC 路径: PhcFormatHasher.verify
-                // $bcrypt$r=N$<b64 salt>$<b64 hash>
-                return bcryptVerifyPhc(s, password)
-            }
+    if (s.startsWith("\$2")) {
+        // Crypt 路径: CryptFormatHasher.verify
+        // 检查 str.len == hash_length
+        // Rust crate 在 split_hash 内部做相同检查
+        let encodedBytes = s.toArray()
+        let rc = unsafe { bao_bcrypt_str_verify(
+            CPointerUtils.fromArray(encodedBytes), UIntNative(encodedBytes.size),
+            CPointerUtils.fromArray(password), UIntNative(password.size)
+        ) }
+        if (rc == 0) { return Some(()) }
+        return None
+    } else {
+        // PHC 路径: PhcFormatHasher.verify
+        // $bcrypt$r=N$<b64 salt>$<b64 hash>
+        return bcryptVerifyPhc(s, password)
     }
 }
 
@@ -458,10 +456,9 @@ private func bcryptVerifyPhc(hash: String, password: Array<Byte>): ?Unit {
     }
 
     let roundsStr = paramsStr[2..]
-    let roundsLog = match (IntParser.parseDecimal(roundsStr)) {
-        case Some(v) => v
-        case None => -1
-    }
+    let roundsLog = if (IntParser.parseDecimal(roundsStr).isSome()) {
+        IntParser.parseDecimal(roundsStr).getOrThrow()
+    } else { -1 }
     if (roundsLog < 0 || roundsLog > 63) {
         return None  // InvalidEncoding
     }

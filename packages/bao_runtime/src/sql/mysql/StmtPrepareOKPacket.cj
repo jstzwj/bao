@@ -3,6 +3,7 @@
 package bao_runtime.sql.mysql
 
 import bao_core.*
+import bao_sql.mysql.protocol.*
 
 /// MySQL 预编译语句 OK 响应包
 /// 对应 Bun: StmtPrepareOKPacket
@@ -33,17 +34,17 @@ public class StmtPrepareOKPacket {
     /// 从 Reader 解码
     /// 对应 Bun: StmtPrepareOKPacket.decodeInternal
     public func decode(reader: MySQLPacketReader): Unit {
-        status = reader.readInt8()
+        status = reader.int8()
         if (status != 0) {
             return  // InvalidPrepareOKPacket
         }
 
-        statementId = reader.readInt32()
-        numColumns = reader.readInt16()
-        numParams = reader.readInt16()
-        _ = reader.readInt8()  // reserved_1
+        statementId = reader.int32()
+        numColumns = reader.int16()
+        numParams = reader.int16()
+        _ = reader.int8()  // reserved_1
         if (packetLength >= 12) {
-            warningCount = reader.readInt16()
+            warningCount = reader.int16()
         }
     }
 }

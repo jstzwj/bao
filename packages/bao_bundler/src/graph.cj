@@ -506,12 +506,7 @@ public class Arena {
     public init() {}
 }
 
-/// 互斥锁
-public class Mutex {
-    public init() {}
-    public func lock(): Unit {}
-    public func unlock(): Unit {}
-}
+/// Mutex imported from bao_threading - local stub removed
 
 /// Bundler 上下文 (前向引用 BundleV2)
 public class BundlerContext {

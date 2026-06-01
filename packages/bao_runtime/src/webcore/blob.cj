@@ -355,37 +355,6 @@ public enum CharsetKind {
     }
 }
 
-// ============================================================================
-// FormDataEncoding — FormData encoding type
-// Corresponds to: Bun: FormData.Encoding
-// ============================================================================
-public enum FormDataEncoding {
-    | URLEncoded                       // application/x-www-form-urlencoded
-    | Multipart(String)                // multipart/form-data; boundary=...
-
-    /// Parse encoding from Content-Type string
-    /// Corresponds to: Bun: FormData.Encoding.get()
-    public static func fromContentType(contentType: String): ?FormDataEncoding {
-        if (contentType.contains("application/x-www-form-urlencoded")) {
-            return Some(FormDataEncoding.URLEncoded)
-        }
-        if (contentType.contains("multipart/form-data")) {
-            let boundaryIdxOpt = contentType.indexOf("boundary=")
-            if (let Some(boundaryIdx) <- boundaryIdxOpt) {
-                let start = boundaryIdx + 9
-                if (start < contentType.size) {
-                    let rest = contentType[start..contentType.size]
-                    let endIdxOpt = rest.indexOf(";")
-                    let boundary = if (let Some(endIdx) <- endIdxOpt) { rest[0..endIdx] } else { rest }
-                    if (boundary.size > 0) {
-                        return Some(FormDataEncoding.Multipart(boundary))
-                    }
-                }
-            }
-        }
-        return None
-    }
-}
 
 // ============================================================================
 // ReadBytesResult — result delivered to ReadBytesHandler
@@ -2577,7 +2546,7 @@ public class ReadableStream {
 
     /// Create from a WTFStringImpl
     public static func fromWTFStringImpl(global: JsGlobalObject, s: WTFStringImpl): ReadableStream {
-        let bytes = s.toUtf8Slice()
+        let bytes = s.toUtf8Slice().toArray()
         let blob = Blob.create(bytes, global, true)
         return ReadableStream(global, blob, 0)
     }
@@ -3261,7 +3230,7 @@ public class AnyBlob {
 
     /// Create AnyBlob from a WTFStringImpl
     public static func fromWTFStringImpl(s: WTFStringImpl): AnyBlob {
-        let bytes = s.toUtf8Slice()
+        let bytes = s.toUtf8Slice().toArray()
         return AnyBlob(InternalBlob(bytes, true))
     }
 
@@ -4368,7 +4337,7 @@ public func blobGetStat(blob: Blob, global: JsGlobalObject): JsValue {
 public func escapeFormDataName(bytes: String): ?String {
     var needsEscape = false
     for (c in bytes) {
-        if (c == '"' || c == '\r' || c == '\n') {
+        if (c == UInt8(34) || c == UInt8(13) || c == UInt8(10)) {
             needsEscape = true
             break
         }
@@ -4378,16 +4347,16 @@ public func escapeFormDataName(bytes: String): ?String {
     }
     var result = ""
     for (c in bytes) {
-        if (c == '"') {
+        if (c == UInt8(34)) {
             result += "%22"
         } else {
-            if (c == '\r') {
+            if (c == UInt8(13)) {
                 result += "%0D"
             } else {
-                if (c == '\n') {
+                if (c == UInt8(10)) {
                     result += "%0A"
                 } else {
-                    result += String(c)
+                    result += String(Rune(Int32(c)))
                 }
             }
         }
@@ -4649,433 +4618,3 @@ public func jsdomFileConstruct(global: JsGlobalObject, callframe: CallFrame): Js
     blob.calculateEstimatedByteSize()
     return Blob.newHeap(blob).toJsValue(global)
 }
-
-// ============================================================================
-// CallFrame — simplified call frame for JS bindings
-// ============================================================================
-/// CallFrame — 简化的 JS 调用帧
-public class CallFrame {
-    public var args: Array<JsValue>
-
-    public init() {
-        args = Array<JsValue>()
-    }
-
-    public init(args: Array<JsValue>) {
-        this.args = args
-    }
-
-    /// Get this value
-    public func this(): JsValue {
-        if (args.size > 0) {
-            return args[0]
-        }
-        return JsValue()
-    }
-
-    /// Get arguments as array with minimum count
-    public func argumentsAsArray(count: Int64): Array<JsValue> {
-        return args
-    }
-
-    /// Get argument at index
-    public func argument(index: Int64): JsValue {
-        if (index < Int64(args.size)) {
-            return args[Int64(index)]
-        }
-        return JsValue()
-    }
-}
-
-// ============================================================================
-// ReadableStreamSource — ReadableStream source
-// ============================================================================
-/// ReadableStreamSource — 流源
-public class ReadableStreamSource {
-    public var tag: ReadableStreamSourceTag
-    public var byteStream: ?ByteStream
-
-    public init() {
-        tag = ReadableStreamSourceTag.Empty
-        byteStream = None
-    }
-}
-
-/// ReadableStreamSourceTag — 流源标签
-public enum ReadableStreamSourceTag {
-    | Empty
-    | Bytes
-    | Blob
-    | File
-}
-
-// ============================================================================
-// ByteStream — byte stream source
-// ============================================================================
-/// ByteStream — 字节流
-public class ByteStream {
-    public var buffer: ArrayList<UInt8>
-
-    public init() {
-        buffer = ArrayList<UInt8>()
-    }
-
-    public init(bytes: Array<UInt8>) {
-        buffer = ArrayList<UInt8>()
-        for (b in bytes) {
-            buffer.append(b)
-        }
-    }
-}
-
-// ============================================================================
-// WTFStringImpl — placeholder for WTF string implementation
-// ============================================================================
-/// WTFStringImpl — WTF 字符串实现占位
-public class WTFStringImpl {
-    public var str: String
-
-    public init() {
-        str = ""
-    }
-
-    public init(str: String) {
-        this.str = str
-    }
-
-    public func toUtf8Slice(): Array<UInt8> {
-        return Utf8Codec.encode(str)
-    }
-}
-
-// ============================================================================
-// SysImpl — system call implementations
-// ============================================================================
-/// SysImpl — 系统调用实现
-public class SysImpl {
-    /// stat — get file stat
-    public static func stat(path: String): SysMaybe<PosixStat> {
-        // stub: would call libc stat()
-        return SysMaybe<PosixStat>.Err(SysError())
-    }
-
-    /// fstat — get file stat by fd
-    public static func fstat(fd: Int64): SysMaybe<PosixStat> {
-        // stub: would call libc fstat()
-        return SysMaybe<PosixStat>.Err(SysError())
-    }
-}
-
-// ============================================================================
-// PosixStat — POSIX stat result
-// ============================================================================
-/// PosixStat — POSIX stat 结果
-public class PosixStat {
-    public var size: Int64
-    public var mode: UInt64
-    public var mtimeSec: Int64
-    public var mtimeNsec: Int64
-
-    public init() {
-        size = 0
-        mode = 0
-        mtimeSec = 0
-        mtimeNsec = 0
-    }
-
-    public func isFile(): Bool {
-        return (mode & UInt64(0xF000)) == UInt64(0x8000)
-    }
-
-    public func isDir(): Bool {
-        return (mode & UInt64(0xF000)) == UInt64(0x4000)
-    }
-
-    public func isSymlink(): Bool {
-        return (mode & UInt64(0xF000)) == UInt64(0xA000)
-    }
-}
-
-// ============================================================================
-// SysMaybe — system call result type
-// ============================================================================
-public enum SysMaybe<T> {
-    | Ok(T)
-    | Err(SysError)
-}
-
-// ============================================================================
-// SysError — system error
-// ============================================================================
-public class SysError {
-    public var code: Int64
-    public var tag: SysTag
-
-    public init() {
-        code = 0
-        tag = SysTag.Generic
-    }
-
-    public init(code: Int64, tag: SysTag) {
-        this.code = code
-        this.tag = tag
-    }
-}
-
-// ============================================================================
-// SysTag — system error tag
-// ============================================================================
-public enum SysTag {
-    | Generic
-    | Mkdir
-    | Open
-    | Write
-    | Read
-    | Close
-    | Stat
-    | Unlink
-}
-
-// ============================================================================
-// SysFs — filesystem system calls
-// ============================================================================
-public class SysFs {
-    public static func mkdir(path: String, mode: UInt32): SysMaybe<Unit> {
-        // stub: would call libc mkdir()
-        return SysMaybe<Unit>.Ok(())
-    }
-
-    public static func unlink(path: String): SysMaybe<Unit> {
-        // stub: would call libc unlink()
-        return SysMaybe<Unit>.Ok(())
-    }
-}
-
-// ============================================================================
-// sysCurrentTimeMillis — get current time in milliseconds
-// ============================================================================
-/// Get current time in milliseconds — 对应 Bun: std.time.milliTimestamp
-@C foreign func clock_gettime_resp(clk_id: Int32, tp: CPointer<Unit>): Int32
-public func sysCurrentTimeMillis(): Int64 {
-    return getCurrentTimeMillisBlob()
-}
-
-// ============================================================================
-// String extensions
-// ============================================================================
-/// String extension: toAsciiLower
-extend String {
-    public func toAsciiLower(): String {
-        var result = ""
-        for (c in this) {
-            let code = Int32(c)
-            if (code >= 65 && code <= 90) {
-                result += String(Char(code + 32))
-            } else {
-                result += String(c)
-            }
-        }
-        return result
-    }
-
-    public func startsWith(prefix: String): Bool {
-        if (prefix.size > this.size) {
-            return false
-        }
-        let sub = this.subString(0, prefix.size)
-        return sub == prefix
-    }
-
-    public func isEmpty(): Bool {
-        return this.size == 0
-    }
-}
-
-// ============================================================================
-// JsValue extensions for Blob-related methods
-// ============================================================================
-extend JsValue {
-    /// Check if value is a Response
-    public func isResponse(): Bool {
-        if (!this.isObject()) {
-            return false
-        }
-        let obj = this.toObject()
-        let t = obj.get("type")
-        // Response has a type field that's a string
-        return t.isString()
-    }
-
-    /// Check if value is a Request
-    public func isRequest(): Bool {
-        if (!this.isObject()) {
-            return false
-        }
-        let obj = this.toObject()
-        let method = obj.get("method")
-        return method.isString()
-    }
-
-    /// Convert to Response (stub)
-    public func toResponse(): ?Response {
-        // stub: would downcast JS value to Response
-        return None
-    }
-
-    /// Convert to Request (stub)
-    public func toRequest(): ?Request {
-        // stub: would downcast JS value to Request
-        return None
-    }
-
-    /// Check if value is a typed array
-    public func isTypedArray(): Bool {
-        if (!this.isObject()) {
-            return false
-        }
-        let obj = this.toObject()
-        let byteLength = obj.get("byteLength")
-        return byteLength.isNumber()
-    }
-
-    /// Get array buffer view
-    public func asArrayBuffer(global: JsObject): ?ArrayBufferView {
-        // stub: simplified
-        return None
-    }
-
-    /// Check if fetch headers
-    public func isFetchHeaders(): Bool {
-        return false
-    }
-}
-
-// ============================================================================
-// ArrayBufferView — simplified array buffer view
-// ============================================================================
-public class ArrayBufferView {
-    public var bytes_: Array<UInt8>
-
-    public init() {
-        bytes_ = Array<UInt8>()
-    }
-
-    public init(bytes: Array<UInt8>) {
-        bytes_ = bytes
-    }
-
-    public func bytes(): Array<UInt8> {
-        return bytes_
-    }
-
-    public func byteLength(): Int64 {
-        return Int64(bytes_.size)
-    }
-}
-
-// ============================================================================
-// Request — placeholder for Request type
-// ============================================================================
-public class Request {
-    public var body: BodyValue
-
-    public init() {
-        body = BodyValue.Empty
-    }
-}
-
-// ============================================================================
-// BodyValue — re-export from response.cj (or local definition)
-// ============================================================================
-public enum BodyValueTag2 {
-    | Used
-    | Empty
-    | Null
-    | Blob
-    | InternalBlob
-    | Error
-    | Locked
-}
-
-// ============================================================================
-// JsObject — simplified JS object
-// ============================================================================
-/// JsObject — 简化的 JS 对象
-public class JsObject {
-    private var props: HashMap<String, JsValue>
-
-    public init() {
-        props = HashMap<String, JsValue>()
-    }
-
-    public func set(key: String, value: JsValue): Unit {
-        props.put(key, value)
-    }
-
-    public func get(key: String): JsValue {
-        match (props.get(key)) {
-            case Some(v) => v
-            case None => JsValue()
-        }
-    }
-
-    public func has(key: String): Bool {
-        return props.contains(key)
-    }
-}
-
-// ============================================================================
-// HashMap — simplified hash map
-// ============================================================================
-/// HashMap — 简化哈希表
-public class HashMap<K, V> where K <: Hashable & Equatable<K> {
-    private var keys: ArrayList<K>
-    private var values: ArrayList<V>
-
-    public init() {
-        keys = ArrayList<K>()
-        values = ArrayList<V>()
-    }
-
-    public func put(key: K, value: V): Unit {
-        var i: Int64 = 0
-        while (i < keys.size) {
-            if (keys[Int64(i)] == key) {
-                values[Int64(i)] = value
-                return
-            }
-            i += 1
-        }
-        keys.append(key)
-        values.append(value)
-    }
-
-    public func get(key: K): ?V {
-        var i: Int64 = 0
-        while (i < keys.size) {
-            if (keys[Int64(i)] == key) {
-                return Some(values[Int64(i)])
-            }
-            i += 1
-        }
-        return None
-    }
-
-    public func contains(key: K): Bool {
-        var i: Int64 = 0
-        while (i < keys.size) {
-            if (keys[Int64(i)] == key) {
-                return true
-            }
-            i += 1
-        }
-        return false
-    }
-
-    public func size(): Int64 {
-        return keys.size
-    }
-}
-
-// ReadFileResultType is defined locally in body.cj to avoid subpackage conflict
-// (blob/read_file.cj also defines ReadFileResultType with a different API)

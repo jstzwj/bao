@@ -91,7 +91,7 @@ public func getBoundary(contentType: String): ?Array<UInt8> {
     if (start >= bytes.size) { return None }
 
     var end = bytes.size
-    for (i in start..<Int64(bytes.size)) {
+    for (i in start..Int64(bytes.size)) {
         if (bytes[i] == UInt8(59)) { // ';'
             end = Int64(i)
             break
@@ -114,7 +114,7 @@ public func getBoundary(contentType: String): ?Array<UInt8> {
     if (sliceStart >= sliceEnd) { return None }
 
     let result = ArrayList<UInt8>()
-    for (i in sliceStart..<sliceEnd) {
+    for (i in sliceStart..sliceEnd) {
         result.append(bytes[i])
     }
     return Some(result.items())
@@ -341,8 +341,8 @@ public class FormData {
         match (encoding) {
             case URLEncoded =>
                 // 对应 Bun: DOMFormData.createFromURLQuery
-                let str = ZigString.fromUtf8(Strings.withoutUTF8Bom(input))
-                return DOMFormData.createFromURLQuery(global, str)
+                let str = Utf8Codec.decode(Strings.withoutUTF8Bom(input))
+                return DOMFormData.createFromURLQuery(JsObject(), str)
             case Multipart(boundary) =>
                 return toJSFromMultipartData(global, input, boundary)
         }
@@ -362,7 +362,7 @@ public class FormData {
     ///   3. forEachMultipartEntry(input, boundary, Wrapper, &wrap, onEntry)
     ///   4. 返回 form_data_value
     public static func toJSFromMultipartData(global: JsGlobalObject, input: Array<UInt8>, boundary: Array<UInt8>): JsValue {
-        let formDataValue = DOMFormData.create(global)
+        let formDataValue = DOMFormData.create(JsObject())
         let form = DOMFormData.fromJS(formDataValue)
         match (form) {
             case Some(f) =>
@@ -453,23 +453,20 @@ public class FormData {
         // 跳过第一个 (在 "--boundary\r\n" 之前为空)
         let startIdx = if (chunks.size > 0 && chunks[0].size == 0) { 1 } else { 0 }
 
-        for (chunkIdx in Int64(startIdx)..<Int64(chunks.size)) {
+        for (chunkIdx in Int64(startIdx)..Int64(chunks.size)) {
             let chunk = chunks[Int64(chunkIdx)]
-            var remain = chunk
+            var remain = ArrayList<UInt8>()
+            for (b in chunk) { remain.append(b) }
 
             // 查找 header 结束位置 "\r\n\r\n"
-            let headerEnd = indexOf(remain, Array<UInt8>([13, 10, 13, 10]))
+            let headerEnd = indexOf(remain.items(), [UInt8(13), UInt8(10), UInt8(13), UInt8(10)])
             if (headerEnd < 0) { continue }
             let header = ArrayList<UInt8>()
-            for (i in 0..Int64(headerEnd + 2)) { header.append(remain[Int64(i)]) }
+            for (i in 0..Int64(headerEnd + 2)) { header.append(remain.items()[Int64(i)]) }
             let bodyStart = Int64(headerEnd + 4)
             if (bodyStart < Int64(remain.size)) {
                 remain = ArrayList<UInt8>()
-                for (i in bodyStart..<Int64(chunk.size)) {
-                    remain.append(chunk[Int64(i)])
-                }
-                remain = ArrayList<UInt8>()
-                for (i in bodyStart..<Int64(chunk.size)) {
+                for (i in bodyStart..Int64(chunk.size)) {
                     remain.append(chunk[Int64(i)])
                 }
             } else {
@@ -484,14 +481,14 @@ public class FormData {
             var isFile = false
 
             while (headerChunk.size > 0 && (filename.isNone() || name.isEmpty())) {
-                let lineEnd = indexOf(headerChunk, Array<UInt8>([13, 10]))
+                let lineEnd = indexOf(headerChunk, [UInt8(13), UInt8(10)])
                 if (lineEnd < 0) { break }
                 let line = ArrayList<UInt8>()
                 for (i in 0..Int64(lineEnd)) { line.append(headerChunk[Int64(i)]) }
                 let newHeaderStart = Int64(lineEnd + 2)
                 if (newHeaderStart < Int64(headerChunk.size)) {
                     let newChunk = ArrayList<UInt8>()
-                    for (i in newHeaderStart..<Int64(headerChunk.size)) {
+                    for (i in newHeaderStart..Int64(headerChunk.size)) {
                         newChunk.append(headerChunk[Int64(i)])
                     }
                     headerChunk = newChunk.items()
@@ -499,14 +496,14 @@ public class FormData {
                     headerChunk = Array<UInt8>()
                 }
 
-                let colon = indexOf(line.items(), Array<UInt8>([58])) // ':'
+                let colon = indexOf(line.items(), [UInt8(58)]) // ':'
                 if (colon < 0) { continue }
 
                 let key = ArrayList<UInt8>()
                 for (i in 0..Int64(colon)) { key.append(line.items()[Int64(i)]) }
                 var value = if (line.items().size > colon + 1) {
                     let v = ArrayList<UInt8>()
-                    for (i in Int64(colon + 1)..<Int64(line.items().size)) {
+                    for (i in Int64(colon + 1)..Int64(line.items().size)) {
                         v.append(line.items()[Int64(i)])
                     }
                     v.items()
@@ -514,12 +511,12 @@ public class FormData {
                     Array<UInt8>()
                 }
 
-                if (eqlCaseInsensitiveAscii(key.items(), Utf8Codec.encode("content-disposition"))) {
+                if (eqlCaseInsensitiveASCII(key.items(), Utf8Codec.encode("content-disposition"))) {
                     value = trimAscii(value)
                     if (hasPrefix(value, Utf8Codec.encode("form-data;"))) {
                         value = Array<UInt8>()
                         let prefix = Utf8Codec.encode("form-data;")
-                        for (i in Int64(prefix.size)..<Int64(value.size)) {
+                        for (i in Int64(prefix.size)..Int64(value.size)) {
                             // skip
                         }
                         // Simplified: skip "form-data;" prefix
@@ -529,13 +526,13 @@ public class FormData {
                     // 对应 Bun: while let Some(eql_start) = strings.indexOf(value, "=")
                     var paramValue = value
                     while (true) {
-                        let eqlStart = indexOf(paramValue, Array<UInt8>([61])) // '='
+                        let eqlStart = indexOf(paramValue, [UInt8(61)]) // '='
                         if (eqlStart < 0) { break }
 
-                        let eqlKey = trimAscii(paramValue, Array<UInt8>([32, 59])) // ' ', ';'
+                        let eqlKey = trimAscii(paramValue, [UInt8(32), UInt8(59)]) // ' ', ';'
                         paramValue = if (Int64(paramValue.size) > Int64(eqlStart + 1)) {
                             let v = ArrayList<UInt8>()
-                            for (i in Int64(eqlStart + 1)..<Int64(paramValue.size)) {
+                            for (i in Int64(eqlStart + 1)..Int64(paramValue.size)) {
                                 v.append(paramValue[Int64(i)])
                             }
                             v.items()
@@ -546,7 +543,7 @@ public class FormData {
                         if (paramValue.size > 0 && paramValue[0] == UInt8(34)) { // '"'
                             paramValue = if (Int64(paramValue.size) > 1) {
                                 let v = ArrayList<UInt8>()
-                                for (i in Int64(1)..<Int64(paramValue.size)) {
+                                for (i in Int64(1)..Int64(paramValue.size)) {
                                     v.append(paramValue[Int64(i)])
                                 }
                                 v.items()
@@ -567,9 +564,9 @@ public class FormData {
                         let fieldBytes = ArrayList<UInt8>()
                         for (i in 0..Int64(fieldEnd)) { fieldBytes.append(paramValue[Int64(i)]) }
 
-                        if (eqlCaseInsensitiveAscii(key.items(), Utf8Codec.encode("name"))) {
+                        if (eqlCaseInsensitiveASCII(key.items(), Utf8Codec.encode("name"))) {
                             name = subslicer.sub(fieldBytes.items()).value()
-                        } else if (eqlCaseInsensitiveAscii(key.items(), Utf8Codec.encode("filename"))) {
+                        } else if (eqlCaseInsensitiveASCII(key.items(), Utf8Codec.encode("filename"))) {
                             filename = Some(subslicer.sub(fieldBytes.items()).value())
                             isFile = true
                         }
@@ -580,7 +577,7 @@ public class FormData {
                         if (semiIdx >= 0) {
                             paramValue = if (Int64(paramValue.size) > Int64(semiIdx + 1)) {
                                 let v = ArrayList<UInt8>()
-                                for (i in Int64(semiIdx + 1)..<Int64(paramValue.size)) {
+                                for (i in Int64(semiIdx + 1)..Int64(paramValue.size)) {
                                     v.append(paramValue[Int64(i)])
                                 }
                                 v.items()
@@ -592,8 +589,8 @@ public class FormData {
                         }
                     }
                 } else if (value.size > 0 && field.contentType.isEmpty() &&
-                           eqlCaseInsensitiveAscii(key.items(), Utf8Codec.encode("content-type"))) {
-                    field.contentType = subslicer.sub(trimAscii(value, Array<UInt8>([59, 32, 9]))).value()
+                           eqlCaseInsensitiveASCII(key.items(), Utf8Codec.encode("content-type"))) {
+                    field.contentType = subslicer.sub(trimAscii(value, [UInt8(59), UInt8(32), UInt8(9)])).value()
                 }
             }
 
@@ -639,13 +636,13 @@ public class MultipartWrapper <: MultipartCallback {
     public func onEntry(name: SemverString, field: FormDataField, buf: Array<UInt8>): Unit {
         let valueData = field.value
         let keyName = Utf8Codec.decode(name.slice(buf))
-        let key = ZigString.initUtf8(keyName)
+        let key = keyName
 
         if (field.isFile) {
             let filenameData = field.filename.slice(buf)
             let filenameStr = Utf8Codec.decode(filenameData)
             var blob = Blob.create(valueData, global, false)
-            let filename = ZigString.initUtf8(filenameStr)
+            let filename = filenameStr
 
             if (!field.contentType.isEmpty()) {
                 let ct = Utf8Codec.decode(field.contentType.slice(buf))
@@ -660,11 +657,11 @@ public class MultipartWrapper <: MultipartCallback {
                 }
             }
 
-            form.appendBlob(global, key, blob, filename)
+            form.appendBlob(JsObject(), key, UInt64(0), filename)
             blob.detach()
         } else {
             let decodedValue = Utf8Codec.decode(Strings.withoutUTF8Bom(valueData))
-            let value = ZigString.initUtf8(decodedValue)
+            let value = decodedValue
             form.append(key, value)
         }
     }
@@ -885,16 +882,16 @@ public func splitBy(input: Array<UInt8>, separator: Array<UInt8>): ArrayList<Arr
     var start = 0
     var i = 0
     while (i <= Int64(input.size) - Int64(separator.size)) {
-        var match = true
+        var matched = true
         for (j in 0..Int64(separator.size)) {
             if (input[Int64(i) + j] != separator[j]) {
-                match = false
+                matched = false
                 break
             }
         }
-        if (match) {
+        if (matched) {
             let chunk = ArrayList<UInt8>()
-            for (k in Int64(start)..<Int64(i)) { chunk.append(input[k]) }
+            for (k in Int64(start)..Int64(i)) { chunk.append(input[k]) }
             result.append(chunk.items())
             start = Int64(i + separator.size)
             i = start
@@ -904,7 +901,7 @@ public func splitBy(input: Array<UInt8>, separator: Array<UInt8>): ArrayList<Arr
     }
     // 剩余部分
     let last = ArrayList<UInt8>()
-    for (k in Int64(start)..<Int64(input.size)) { last.append(input[k]) }
+    for (k in Int64(start)..Int64(input.size)) { last.append(input[k]) }
     result.append(last.items())
     return result
 }
@@ -932,7 +929,7 @@ public func hasPrefix(data: Array<UInt8>, prefix: Array<UInt8>): Bool {
 
 /// ASCII trim
 public func trimAscii(data: Array<UInt8>): Array<UInt8> {
-    return trimAscii(data, Array<UInt8>([32])) // ' '
+    return trimAscii(data, [UInt8(32)]) // ' '
 }
 
 /// ASCII trim with custom chars
@@ -956,7 +953,7 @@ public func trimAscii(data: Array<UInt8>, chars: Array<UInt8>): Array<UInt8> {
         end -= 1
     }
     let result = ArrayList<UInt8>()
-    for (i in Int64(start)..<Int64(end)) { result.append(data[i]) }
+    for (i in Int64(start)..Int64(end)) { result.append(data[i]) }
     return result.items()
 }
 

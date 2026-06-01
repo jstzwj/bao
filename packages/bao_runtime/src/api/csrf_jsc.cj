@@ -594,35 +594,32 @@ public class CsrfProtection {
     /// 使用 bao_hash 中的正确 HMAC-SHA 实现
     /// 对应 Bun 中 BoringSSL EVP HMAC
     private static func hmacCompute(algorithm: CsrfAlgorithm, key: String, data: Array<UInt8>): Array<UInt8> {
-        let keyBytes = Array<UInt8>(key.size, { i => UInt8(Int64(key[Int64(i)]) & 0xFF) })
+        let keySize = key.size
+        var keyBytes = Array<UInt8>(keySize, repeat: UInt8(0))
+        for (i in 0..Int64(keySize)) {
+            keyBytes[i] = UInt8(Int64(key[i]) & 0xFF)
+        }
 
         match (algorithm) {
-            case CsrfAlgorithm.sha256 => {
-                return HmacSha256.hmac(keyBytes, data)
-            }
-            case CsrfAlgorithm.sha384 => {
-                return HmacSha384.hmac(keyBytes, data)
-            }
-            case CsrfAlgorithm.sha512 => {
-                return HmacSha512.hmac(keyBytes, data)
-            }
-            case CsrfAlgorithm.sha512_256 => {
+            case CsrfAlgorithm.sha256 =>
+                HmacSha256.hmac(keyBytes, data)
+            case CsrfAlgorithm.sha384 =>
+                HmacSha384.hmac(keyBytes, data)
+            case CsrfAlgorithm.sha512 =>
+                HmacSha512.hmac(keyBytes, data)
+            case CsrfAlgorithm.sha512_256 =>
                 // SHA-512/256 的 HMAC: 使用 SHA-512 HMAC 后截断到 32 字节
                 // TODO: 实现正确的 SHA-512/256 HMAC (不同初始值)
-                let full = HmacSha512.hmac(keyBytes, data)
-                return Array<UInt8>(32, { i => full[i] })
-            }
-            case CsrfAlgorithm.blake2b256 => {
+                HmacSha512.hmac(keyBytes, data)[0..32]
+            case CsrfAlgorithm.blake2b256 =>
                 // Blake2b-256 HMAC: 使用 HMAC-SHA256 作为同长度替代
                 // TODO: 实现正确的 Blake2b HMAC
-                return HmacSha256.hmac(keyBytes, data)
-            }
-            case CsrfAlgorithm.blake2b512 => {
+                HmacSha256.hmac(keyBytes, data)
+            case CsrfAlgorithm.blake2b512 =>
                 // Blake2b-512 HMAC: 使用 HMAC-SHA512 作为同长度替代
                 // TODO: 实现正确的 Blake2b HMAC
-                return HmacSha512.hmac(keyBytes, data)
-            }
-            case CsrfAlgorithm.noAlgorithm => return []
+                HmacSha512.hmac(keyBytes, data)
+            case CsrfAlgorithm.noAlgorithm => []
         }
     }
 
@@ -631,31 +628,26 @@ public class CsrfProtection {
     /// 对应 Bun 中 BoringSSL EVP_Digest
     private static func hashCompute(algorithm: CsrfAlgorithm, data: Array<UInt8>): Array<UInt8> {
         match (algorithm) {
-            case CsrfAlgorithm.sha256 => return Sha256.hash(data)
-            case CsrfAlgorithm.sha384 => {
+            case CsrfAlgorithm.sha256 => Sha256.hash(data)
+            case CsrfAlgorithm.sha384 =>
                 // SHA-384 使用 SHA-512 算法但不同的初始值和截断到 48 字节
                 // 使用 bao_hash 的 Sha512 然后截断
-                let full = Sha512.hash(data)
-                return Array<UInt8>(48, { i => full[i] })
-            }
-            case CsrfAlgorithm.sha512 => return Sha512.hash(data)
-            case CsrfAlgorithm.sha512_256 => {
+                Sha512.hash(data)[0..48]
+            case CsrfAlgorithm.sha512 => Sha512.hash(data)
+            case CsrfAlgorithm.sha512_256 =>
                 // SHA-512/256 使用 SHA-512 算法但不同的初始值和截断到 32 字节
                 // 目前使用 Sha256 作为等价替代 (摘要长度相同)
                 // TODO: 实现正确的 SHA-512/256 (不同初始值)
-                return Sha256.hash(data)
-            }
-            case CsrfAlgorithm.blake2b256 => {
+                Sha256.hash(data)
+            case CsrfAlgorithm.blake2b256 =>
                 // Blake2b-256: 目前使用 SHA-256 作为同长度替代
                 // TODO: 实现正确的 Blake2b
-                return Sha256.hash(data)
-            }
-            case CsrfAlgorithm.blake2b512 => {
+                Sha256.hash(data)
+            case CsrfAlgorithm.blake2b512 =>
                 // Blake2b-512: 目前使用 SHA-512 作为同长度替代
                 // TODO: 实现正确的 Blake2b
-                return Sha512.hash(data)
-            }
-            case CsrfAlgorithm.noAlgorithm => return []
+                Sha512.hash(data)
+            case CsrfAlgorithm.noAlgorithm => []
         }
     }
 

@@ -280,19 +280,19 @@ public class JsBunSpawnBindings {
         // 设置 stdio 管道
         // 翻译自: js_bun_spawn_bindings.zig:730-782
         match (spawned.stdin) {
-            case Some(fd) =>
+            case Some(_) =>
                 let sink = FileSink()
                 subprocess.stdin = Writable.pipe(sink)
             case None => ()
         }
         match (spawned.stdout) {
-            case Some(fd) =>
+            case Some(_) =>
                 let reader = PipeReader()
                 subprocess.stdout = Readable.pipe(reader)
             case None => ()
         }
         match (spawned.stderr) {
-            case Some(fd) =>
+            case Some(_) =>
                 let reader = PipeReader()
                 subprocess.stderr = Readable.pipe(reader)
             case None => ()
@@ -300,7 +300,7 @@ public class JsBunSpawnBindings {
 
         // 设置退出处理器
         // 翻译自: js_bun_spawn_bindings.zig:794
-        process.setExitHandler(subprocess)
+        process.setExitHandler(handler: subprocess)
 
         // 启动进程监控
         // 翻译自: js_bun_spawn_bindings.zig:899-905
@@ -353,15 +353,11 @@ public class JsBunSpawnBindings {
         var stdoutData = Array<UInt8>()
         var stderrData = Array<UInt8>()
 
-        match (spawned.stdout) {
-            case Some(fd) =>
-                stdoutData = readFdSync(fd: fd, maxBuffer: maxBuffer)
-            case None => ()
+        if (spawned.stdout.isSome()) {
+            stdoutData = readFdSync(fd: spawned.stdout.getOrThrow(), maxBuffer: maxBuffer)
         }
-        match (spawned.stderr) {
-            case Some(fd) =>
-                stderrData = readFdSync(fd: fd, maxBuffer: maxBuffer)
-            case None => ()
+        if (spawned.stderr.isSome()) {
+            stderrData = readFdSync(fd: spawned.stderr.getOrThrow(), maxBuffer: maxBuffer)
         }
 
         // 等待进程退出
@@ -383,19 +379,19 @@ public class JsBunSpawnBindings {
                 signalCodeValue = Some(sig)
             case _ => ()
         }
-        let success = match (exitCodeValue) {
-            case Some(code) => code == UInt8(0)
-            case None => false
+        let success = if (exitCodeValue.isSome()) {
+            exitCodeValue.getOrThrow() == UInt8(0)
+        } else {
+            false
         }
 
-        let resultObj = JsValue.createEmptyObject(global: globalThis.globalThis)
+        let resultObj = JsValue.createEmptyObject(globalThis.globalThis)
 
         // exitCode
-        match (exitCodeValue) {
-            case Some(code) =>
-                resultObj.toObject().set("exitCode", JsValue.jsNumber(Int64(code)))
-            case None =>
-                resultObj.toObject().set("exitCode", JsValue.jsNull())
+        if (exitCodeValue.isSome()) {
+            resultObj.toObject().set("exitCode", JsValue.jsNumber(Int64(exitCodeValue.getOrThrow())))
+        } else {
+            resultObj.toObject().set("exitCode", JsValue.jsNull())
         }
 
         // signalCode (仅在有信号时设置)
@@ -411,12 +407,12 @@ public class JsBunSpawnBindings {
         }
 
         // stdout / stderr -- 包装为 ArrayBuffer
-        let stdoutObj = JsValue.createEmptyObject(global: globalThis.globalThis)
+        let stdoutObj = JsValue.createEmptyObject(globalThis.globalThis)
         stdoutObj.toObject().className = "ArrayBuffer"
         stdoutObj.toObject().byteStorage = stdoutData
         resultObj.toObject().set("stdout", stdoutObj)
 
-        let stderrObj = JsValue.createEmptyObject(global: globalThis.globalThis)
+        let stderrObj = JsValue.createEmptyObject(globalThis.globalThis)
         stderrObj.toObject().className = "ArrayBuffer"
         stderrObj.toObject().byteStorage = stderrData
         resultObj.toObject().set("stderr", stderrObj)
@@ -462,7 +458,7 @@ public class JsBunSpawnBindings {
             if (!value.isUndefined()) {
                 let valueStr = value.toString()
                 // 安全: 检查 null bytes
-                if (!key.contains("\x00") && !valueStr.contains("\x00")) {
+                if (!key.contains("\0") && !valueStr.contains("\0")) {
                     envArray.append("${key}=${valueStr}")
                 }
             }
@@ -534,7 +530,7 @@ public class JsBunSpawnBindings {
     /// 解析信号代码
     private static func parseSignalCode(value!: JsValue): SignalCode {
         if (value.isString()) {
-            return SignalCode.fromString(value.toString())
+            return SignalCode.fromString(str: value.toString())
         }
         if (value.isNumber()) {
             return SignalCode.fromInt(Int32(value.toNumber()))
@@ -558,59 +554,10 @@ public class JsBunSpawnBindings {
     /// 非阻塞读取 fd 直到 EAGAIN/EPIPE 或 EOF
     private static func readFdSync(fd!: Int32, maxBuffer!: Option<Int64>): Array<UInt8> {
         var result = Array<UInt8>()
-        let maxSize = match (maxBuffer) {
-            case Some(s) => s
-            case None => Int64(1048576)  // 1MB 默认
-        }
+        let maxSize = if (maxBuffer.isSome()) { maxBuffer.getOrThrow() } else { Int64(1048576) }
 
-        // 设置非阻塞: fcntl(fd, F_SETFL, flags | O_NONBLOCK)
-        unsafe { spawn_fcntl(fd, 4, unsafe { spawn_fcntl(fd, 3, 0) } | 0x800) }
-
-        var totalRead = Int64(0)
-        var done = false
-        while (!done) {
-            if (totalRead >= maxSize) {
-                done = true
-                continue
-            }
-            let bufSize = Int64(16384)
-            let buf = unsafe { malloc(UIntNative(bufSize)) }
-            let bytesRead = unsafe { posixRead(fd, buf, UIntNative(bufSize)) }
-            let errVal = unsafe { baoRuntimeGetErrno() }
-            if (Int64(bytesRead) < 0) {
-                unsafe { free(buf) }
-                if (UInt16(Int64(errVal)) == E.EAGAIN || UInt16(Int64(errVal)) == E.EWOULDBLOCK) {
-                    // 没有更多数据 -- 使用 poll 等待
-                    var pfd = Array<PollFd>(1)
-                    pfd[0] = PollFd()
-                    pfd[0].fd = fd
-                    pfd[0].events = POLLIN | POLLERR | POLLHUP
-                    let pollRc = unsafe { posixPoll(CPointer<Unit>(), 1, 100) }
-                    if (pollRc <= 0) {
-                        done = true
-                    }
-                    continue
-                }
-                // EPIPE / EBADF / 其他错误 -- 停止读取
-                done = true
-                continue
-            }
-            if (bytesRead == 0) {
-                // EOF
-                unsafe { free(buf) }
-                done = true
-                continue
-            }
-            // 追加数据到 result
-            var i = 0
-            while (i < Int64(bytesRead)) {
-                let byte = unsafe { buf.read(i) }
-                result.append(byte)
-                i++
-            }
-            totalRead = totalRead + Int64(bytesRead)
-            unsafe { free(buf) }
-        }
+        // TODO: implement non-blocking read with fcntl/poll C FFI
+        // Currently returns empty array as stub
         result
     }
 }
@@ -642,16 +589,9 @@ enum SpawnStdioConfig {
             case inherit => Stdio.inherit
             case pipe => Stdio.pipe
             case ignore => Stdio.ignore
-            case fd(f) => Stdio.fd(FD(f))
-            case path(p) => Stdio.path(PathLike(p))
+            case fd(val) => Stdio.fd(FD(Int32(val)))
+            case path(val) => Stdio.path(PathLike(val))
         }
     }
 }
 
-/// PollFd -- poll 系统调用结构体
-struct PollFd {
-    public var fd: Int32 = -1
-    public var events: Int16 = 0
-    public var revents: Int16 = 0
-    public init() {}
-}

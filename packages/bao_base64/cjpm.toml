@@ -7,3 +7,4 @@ src-dir = "src"
 
 [dependencies]
 bao_core = { path = "../bao_core" }
+bao_collections = { path = "../bao_collections" }

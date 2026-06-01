@@ -68,11 +68,11 @@ public class Environment {
     /// 查找变量 - 沿作用域链向上查找
     /// 对应 JS 标识符解析 (identifier resolution)
     public func lookup(name: String): ?JsValue {
-        if (let Some(b) <- bindings.get(name)) {
-            return Some(b.value)
+        let bOpt = bindings.get(name); if (bOpt.isSome()) {
+            return Some(bOpt.getOrThrow().value)  // OK
         }
-        if (let Some(p) <- parent) {
-            return p.lookup(name)
+        if (parent.isSome()) {
+            return parent.getOrThrow().lookup(name)
         }
         return Option<JsValue>.None
     }
@@ -80,15 +80,15 @@ public class Environment {
     /// 设置变量值 - 对应 JS 赋值
     /// 需要沿作用域链找到声明位置
     public func set(name: String, value: JsValue): Bool {
-        if (let Some(b) <- bindings.get(name)) {
-            if (!b.mutable) {
+        let bOpt = bindings.get(name); if (bOpt.isSome()) {
+            let b = bOpt.getOrThrow(); if (!b.mutable) {
                 return false
             }
-            b.value = value
+            b.value = value  // reassign
             return true
         }
-        if (let Some(p) <- parent) {
-            return p.set(name, value)
+        if (parent.isSome()) {
+            return parent.getOrThrow().set(name, value)
         }
         return false
     }
@@ -256,11 +256,13 @@ public class Interpreter {
             let specifier = jsToString(args[0])
             // 检查内置模块
             let builtins = BuiltinModules()
-            match (builtins.get(specifier)) {
-                case Some(v) => return v
-                case None => ()
-            }
-            // 文件模块
+            let vOpt = builtins.get(specifier)
+            if (vOpt.isSome()) { return vOpt.getOrThrow() }
+
+
+
+
+
             return loader.require(specifier, "<eval>")
         }, false)
 
@@ -372,18 +374,18 @@ public class Interpreter {
     //   with (obj) { ... } 将 obj 的属性注入作用域
     //   注意: with 在严格模式下不可用，此处提供兼容支持
     private func execWith(s: Stmt, env: Environment): JsValue {
-        if (let Some(expr) <-  s.expr) {
-            let val = evalExpr(expr, env)
+        if (s.expr.isSome()) {
+            let expr = s.expr.getOrThrow(); let val = evalExpr(expr, env)
             let withEnv = Environment(env)
             // 如果值是对象，将其属性注入 with 环境
-            if (let Some(objData) <-  val.objectData) {
-                let keys = objData.keys()
+            if (val.objectData.isSome()) {
+                let objData = val.objectData.getOrThrow(); let keys = objData.keys()
                 for (key in keys) {
                     withEnv.define(key, objData.get(key), true)
                 }
             }
-            if (let Some(body) <-  s.body) {
-                return execStmt(body, withEnv)
+            if (s.body.isSome()) {
+                let body = s.body.getOrThrow(); return execStmt(body, withEnv)
             }
         }
         return JsValue.UNDEFINED
@@ -409,8 +411,8 @@ public class Interpreter {
 
     /// 执行 throw 语句
     private func execThrowStmt(s: Stmt, env: Environment): JsValue {
-        if (let Some(e) <- s.expr) {
-            let val = evalExpr(e, env)
+        if (s.expr.isSome()) {
+            let val = evalExpr(s.expr.getOrThrow(), env)
             throw JsRuntimeThrow(val)
         }
         throw JsRuntimeThrow(JsValue(BaoString("Error")))
@@ -436,15 +438,15 @@ public class Interpreter {
 
     /// 执行 if 语句
     private func execIf(s: Stmt, env: Environment): JsValue {
-        if (let Some(test) <-  s.expr) {
-            let cond = evalExpr(test, env)
+        if (s.expr.isSome()) {
+            let test = s.expr.getOrThrow(); let cond = evalExpr(test, env)
             if (jsToBoolean(cond)) {
-                if (let Some(yes) <-  s.yes) {
-                    return execStmt(yes, env)
+                if (s.yes.isSome()) {
+                    let yes = s.yes.getOrThrow(); return execStmt(yes, env)
                 }
             } else {
-                if (let Some(no) <-  s.no) {
-                    return execStmt(no, env)
+                if (s.no.isSome()) {
+                    let no = s.no.getOrThrow(); return execStmt(no, env)
                 }
             }
         }
@@ -456,20 +458,20 @@ public class Interpreter {
     private func execFor(s: Stmt, env: Environment): JsValue {
         let forEnv = Environment(env)
         // init
-        if (let Some(initStmt) <-  s.`init`) {
-            execStmt(initStmt, forEnv)
+        if (s.`init`.isSome()) {
+            let initStmt = s.`init`.getOrThrow(); execStmt(initStmt, forEnv)
         }
         var result = JsValue.UNDEFINED
         while (true) {
             // test
-            if (let Some(test) <-  s.expr) {
-                let cond = evalExpr(test, forEnv)
+            if (s.expr.isSome()) {
+                let test = s.expr.getOrThrow(); let cond = evalExpr(test, forEnv)
                 if (!jsToBoolean(cond)) { break }
             }
             // body — 捕获 break/continue 信号
             try {
-                if (let Some(body) <-  s.body) {
-                    result = execStmt(body, forEnv)
+                if (s.body.isSome()) {
+                    let body2 = s.body.getOrThrow(); result = execStmt(body2, forEnv)
                 }
             } catch (bs: BreakSignal) {
                 break  // break 跳出循环
@@ -477,8 +479,8 @@ public class Interpreter {
                 // continue 跳到 update
             }
             // update
-            if (let Some(update) <-  s.update) {
-                evalExpr(update, forEnv)
+            if (s.update.isSome()) {
+                let update = s.update.getOrThrow(); evalExpr(update, forEnv)
             }
         }
         return result
@@ -506,13 +508,13 @@ public class Interpreter {
     private func execWhile(s: Stmt, env: Environment): JsValue {
         var result = JsValue.UNDEFINED
         while (true) {
-            if (let Some(test) <-  s.expr) {
-                let cond = evalExpr(test, env)
+            if (s.expr.isSome()) {
+                let test = s.expr.getOrThrow(); let cond = evalExpr(test, env)
                 if (!jsToBoolean(cond)) { break }
             }
             try {
-                if (let Some(body) <-  s.body) {
-                    result = execStmt(body, env)
+                if (s.body.isSome()) {
+                    let body = s.body.getOrThrow(); result = execStmt(body, env)
                 }
             } catch (bs: BreakSignal) {
                 break
@@ -529,16 +531,16 @@ public class Interpreter {
         var result = JsValue.UNDEFINED
         while (true) {
             try {
-                if (let Some(body) <-  s.body) {
-                    result = execStmt(body, env)
+                if (s.body.isSome()) {
+                    let body = s.body.getOrThrow(); result = execStmt(body, env)
                 }
             } catch (bs: BreakSignal) {
                 break
             } catch (cs: ContinueSignal) {
                 // continue 仍然检查条件
             }
-            if (let Some(test) <-  s.expr) {
-                let cond = evalExpr(test, env)
+            if (s.expr.isSome()) {
+                let test = s.expr.getOrThrow(); let cond = evalExpr(test, env)
                 if (!jsToBoolean(cond)) { break }
             }
         }
@@ -706,8 +708,8 @@ public class Interpreter {
     /// 执行 switch 语句
     private func execSwitch(s: Stmt, env: Environment): JsValue {
         var discriminant = JsValue.UNDEFINED
-        if (let Some(test) <-  s.expr) {
-            discriminant = evalExpr(test, env)
+        if (s.expr.isSome()) {
+            let test = s.expr.getOrThrow(); discriminant = evalExpr(test, env)
         }
         var matched = false
         var result = JsValue.UNDEFINED
@@ -763,8 +765,8 @@ public class Interpreter {
             case ExprTag.Object => return evalObject(e, env)
             case ExprTag.Spread =>
                 // 展开在调用处处理
-                if (let Some(v) <- e.value) {
-                    return evalExpr(v, env)
+                if (e.value.isSome()) {
+                    return evalExpr(e.value.getOrThrow(), env)
                 }
                 return JsValue.UNDEFINED
             case ExprTag.Arrow => return evalArrow(e, env)
@@ -803,11 +805,14 @@ public class Interpreter {
 
     /// 标识符求值 - 对应 JS 标识符解析
     private func evalIdentifier(e: Expr, env: Environment): JsValue {
-        match (env.lookup(e.identifierName)) {
-            case Some(v) => v
-            case None => JsValue.UNDEFINED
+        let vOpt = env.lookup(e.identifierName)
+        return if (vOpt.isSome()) { vOpt.getOrThrow() } else { JsValue.UNDEFINED }
+
         }
-    }
+
+
+
+
 
     /// new 表达式 — 完整实现
     //  严格翻译自: JS new Constructor(args) 语义
@@ -815,8 +820,8 @@ public class Interpreter {
     //   2. 调用 Constructor 并绑定 this 为新对象
     //   3. 如果构造函数返回对象则使用该对象，否则使用新对象
     private func evalNew(e: Expr, env: Environment): JsValue {
-        if (let Some(target) <-  e.target) {
-            let ctor = evalExpr(target, env)
+        if (e.target.isSome()) {
+            let target = e.target.getOrThrow(); let ctor = evalExpr(target, env)
             // 创建新对象
             let obj = newObject()
 
@@ -883,12 +888,13 @@ public class Interpreter {
         var thisVal = JsValue.UNDEFINED
         var callable: ?JsValue = None
 
-        if (let Some(target) <-  e.target) {
+        if (e.target.isSome()) {
             // super() 构造函数调用 — 对应 super(args)
             // 从 __super_proto__ 查找 __ctor__ 并以当前 this 调用
+            let target = e.target.getOrThrow()
             if (target.tag == ExprTag.Super) {
-                if (let Some(superProto) <- getSuperPrototype(env)) {
-                    let ctorVal = superProto.get("__ctor__")
+                if (getSuperPrototype(env).isSome()) {
+                    let superProto = getSuperPrototype(env).getOrThrow(); let ctorVal = superProto.get("__ctor__")
                     let args = ArrayList<JsValue>()
                     for (arg in e.args) {
                         args.append(evalExpr(arg, env))
@@ -904,8 +910,8 @@ public class Interpreter {
             if (target.tag == ExprTag.Dot) {
                 if (let Some(dotTarget) <- target.target) {
                     if (dotTarget.tag == ExprTag.Super) {
-                        if (let Some(superProto) <- getSuperPrototype(env)) {
-                            let method = superProto.get(target.propertyName)
+                        if (getSuperPrototype(env).isSome()) {
+                            let superProto2 = getSuperPrototype(env).getOrThrow(); let method = superProto2.get(target.propertyName)
                             let args = ArrayList<JsValue>()
                             for (arg in e.args) {
                                 args.append(evalExpr(arg, env))
@@ -920,7 +926,7 @@ public class Interpreter {
 
             // 处理 obj.method() 调用
             if (target.tag == ExprTag.Dot) {
-                let objVal = if (let Some(t) <-  target.target) { evalExpr(t, env) } else { JsValue.UNDEFINED }
+                let objVal = if (target.target.isSome()) { evalExpr(target.target.getOrThrow(), env) } else { JsValue.UNDEFINED }
 
                 // 可选链 — 对应 obj?.method()
                 //  严格翻译自: ES2020 Optional Chaining
@@ -932,8 +938,8 @@ public class Interpreter {
                 }
 
                 thisVal = objVal
-                if (let Some(objData) <-  objVal.objectData) {
-                    callable = objData.get(target.propertyName)
+                if (objVal.objectData.isSome()) {
+                    let objData = objVal.objectData.getOrThrow(); callable = objData.get(target.propertyName)
                 }
                 // 字符串方法调用 — 对应 String.prototype.method()
                 if (callable.isNone() && objVal.valueType == JsValueType.String) {
@@ -945,18 +951,18 @@ public class Interpreter {
                 }
             } else if (target.tag == ExprTag.Index) {
                 // 对应 obj[key]()
-                let objVal = if (let Some(t) <-  target.target) { evalExpr(t, env) } else { JsValue.UNDEFINED }
+                let objVal = if (target.target.isSome()) { evalExpr(target.target.getOrThrow(), env) } else { JsValue.UNDEFINED }
                 if (target.optionalChain.isSome()) {
                     if (objVal.valueType == JsValueType.Null || objVal.valueType == JsValueType.Undefined) {
                         return JsValue.UNDEFINED
                     }
                 }
                 thisVal = objVal
-                if (let Some(idx) <-  target.indexExpr) {
-                    let idxVal = evalExpr(idx, env)
+                if (target.indexExpr.isSome()) {
+                    let idx = target.indexExpr.getOrThrow(); let idxVal = evalExpr(idx, env)
                     let key = jsToString(idxVal)
-                    if (let Some(objData) <-  objVal.objectData) {
-                        callable = objData.get(key)
+                    if (objVal.objectData.isSome()) {
+                        let objData = objVal.objectData.getOrThrow(); callable = objData.get(key)
                     }
                 }
             } else {
@@ -970,10 +976,10 @@ public class Interpreter {
             if (arg.tag == ExprTag.Spread) {
                 // 展开运算符 — 对应 fn(...args)
                 //  严格翻译自: ES6 SpreadElement
-                if (let Some(v) <-  arg.value) {
-                    let spreadVal = evalExpr(v, env)
-                    if (let Some(arr) <-  spreadVal.arrayData) {
-                        for (item in arr) {
+                if (arg.value.isSome()) {
+                    let spreadVal = evalExpr(arg.value.getOrThrow(), env)
+                    if (spreadVal.arrayData.isSome()) {
+                        for (item in spreadVal.arrayData.getOrThrow()) {
                             args.append(item)
                         }
                     }
@@ -1137,7 +1143,8 @@ public class Interpreter {
     private func getArrayMethod(arrVal: JsValue, name: String): ?JsValue {
         match (name) {
             case "push" => Some(makeNativeFn("push") { args =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     for (arg in args) {
                         arr.append(arg)
                     }
@@ -1146,7 +1153,8 @@ public class Interpreter {
                 return JsValue.nan
             })
             case "pop" => Some(makeNativeFn("pop") { _ =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     if (arr.size > 0) {
                         let last = arr[arr.size - 1]
                         arr.removeAt(arr.size - 1)
@@ -1156,7 +1164,8 @@ public class Interpreter {
                 return JsValue.UNDEFINED
             })
             case "shift" => Some(makeNativeFn("shift") { _ =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     if (arr.size > 0) {
                         let first = arr[0]
                         arr.removeAt(0)
@@ -1166,8 +1175,8 @@ public class Interpreter {
                 return JsValue.UNDEFINED
             })
             case "unshift" => Some(makeNativeFn("unshift") { args =>
-                if (let Some(arr) <-  arrVal.arrayData) {
-                    // 在数组开头插入元素
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     var i = args.size - 1
                     while (i >= 0) {
                         arr.insert(0, args[Int64(i)])
@@ -1178,7 +1187,8 @@ public class Interpreter {
                 return JsValue.nan
             })
             case "map" => Some(makeNativeFn("map") { args =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     if (args.size > 0) {
                         let callback = args[0]
                         let result = ArrayList<JsValue>()
@@ -1196,7 +1206,8 @@ public class Interpreter {
                 return JsValue.UNDEFINED
             })
             case "filter" => Some(makeNativeFn("filter") { args =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     if (args.size > 0) {
                         let callback = args[0]
                         let result = ArrayList<JsValue>()
@@ -1216,7 +1227,8 @@ public class Interpreter {
                 return JsValue.UNDEFINED
             })
             case "forEach" => Some(makeNativeFn("forEach") { args =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     if (args.size > 0) {
                         let callback = args[0]
                         for (i in 0..arr.size) {
@@ -1231,7 +1243,8 @@ public class Interpreter {
                 return JsValue.UNDEFINED
             })
             case "join" => Some(makeNativeFn("join") { args =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     let sep = if (args.size > 0) { jsToString(args[0]) } else { "," }
                     let sb = StringBuilder()
                     for (i in 0..arr.size) {
@@ -1243,7 +1256,8 @@ public class Interpreter {
                 return JsValue(BaoString(""))
             })
             case "reverse" => Some(makeNativeFn("reverse") { _ =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     var i: Int64 = 0
                     var j: Int64 = arr.size - 1
                     while (i < j) {
@@ -1258,7 +1272,8 @@ public class Interpreter {
                 return JsValue.UNDEFINED
             })
             case "indexOf" => Some(makeNativeFn("indexOf") { args =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     let search = if (args.size > 0) { args[0] } else { JsValue.UNDEFINED }
                     let startIdx = if (args.size > 1) { Int64(jsToNumber(args[1])) } else { 0 }
                     for (i in startIdx..arr.size) {
@@ -1270,7 +1285,8 @@ public class Interpreter {
                 return JsValue(-1.0)
             })
             case "includes" => Some(makeNativeFn("includes") { args =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     let search = if (args.size > 0) { args[0] } else { JsValue.UNDEFINED }
                     for (i in 0..arr.size) {
                         if (jsValuesEqual(arr[i], search)) {
@@ -1281,7 +1297,8 @@ public class Interpreter {
                 return JsValue(false)
             })
             case "slice" => Some(makeNativeFn("slice") { args =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     let start = if (args.size > 0) { Int64(jsToNumber(args[0])) } else { 0 }
                     let end = if (args.size > 1) { Int64(jsToNumber(args[1])) } else { arr.size }
                     var st = if (start < 0) { arr.size + start } else { start }
@@ -1297,7 +1314,8 @@ public class Interpreter {
                 return JsValue.UNDEFINED
             })
             case "splice" => Some(makeNativeFn("splice") { args =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     let start = if (args.size > 0) { Int64(jsToNumber(args[0])) } else { 0 }
                     var st = if (start < 0) { arr.size + start } else { start }
                     if (st < 0) { st = 0 }
@@ -1330,12 +1348,12 @@ public class Interpreter {
                 return JsValue.UNDEFINED
             })
             case "concat" => Some(makeNativeFn("concat") { args =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
                     let result = ArrayList<JsValue>()
-                    for (item in arr) { result.append(item) }
+                    for (item in arrVal.arrayData.getOrThrow()) { result.append(item) }
                     for (arg in args) {
-                        if (let Some(otherArr) <-  arg.arrayData) {
-                            for (item in otherArr) { result.append(item) }
+                        if (arg.arrayData.isSome()) {
+                            for (item in arg.arrayData.getOrThrow()) { result.append(item) }
                         } else {
                             result.append(arg)
                         }
@@ -1345,7 +1363,8 @@ public class Interpreter {
                 return JsValue.UNDEFINED
             })
             case "reduce" => Some(makeNativeFn("reduce") { args =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     if (args.size == 0) { return JsValue.UNDEFINED }
                     let callback = args[0]
                     var acc = if (args.size > 1) { args[1] } else { arr[0] }
@@ -1363,7 +1382,8 @@ public class Interpreter {
                 return JsValue.UNDEFINED
             })
             case "find" => Some(makeNativeFn("find") { args =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     if (args.size > 0) {
                         let callback = args[0]
                         for (i in 0..arr.size) {
@@ -1381,7 +1401,8 @@ public class Interpreter {
                 return JsValue.UNDEFINED
             })
             case "findIndex" => Some(makeNativeFn("findIndex") { args =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     if (args.size > 0) {
                         let callback = args[0]
                         for (i in 0..arr.size) {
@@ -1399,7 +1420,8 @@ public class Interpreter {
                 return JsValue(-1.0)
             })
             case "every" => Some(makeNativeFn("every") { args =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     if (args.size > 0) {
                         let callback = args[0]
                         for (i in 0..arr.size) {
@@ -1418,7 +1440,8 @@ public class Interpreter {
                 return JsValue(true)
             })
             case "some" => Some(makeNativeFn("some") { args =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     if (args.size > 0) {
                         let callback = args[0]
                         for (i in 0..arr.size) {
@@ -1436,11 +1459,11 @@ public class Interpreter {
                 return JsValue(false)
             })
             case "flat" => Some(makeNativeFn("flat") { _ =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
                     let result = ArrayList<JsValue>()
-                    for (item in arr) {
-                        if (let Some(inner) <-  item.arrayData) {
-                            for (innerItem in inner) {
+                    for (item in arrVal.arrayData.getOrThrow()) {
+                        if (item.arrayData.isSome()) {
+                            for (innerItem in item.arrayData.getOrThrow()) {
                                 result.append(innerItem)
                             }
                         } else {
@@ -1452,7 +1475,8 @@ public class Interpreter {
                 return JsValue.UNDEFINED
             })
             case "sort" => Some(makeNativeFn("sort") { args =>
-                if (let Some(arr) <-  arrVal.arrayData) {
+                if (arrVal.arrayData.isSome()) {
+                    let arr = arrVal.arrayData.getOrThrow()
                     if (args.size > 0) {
                         let comparator = args[0]
                         // 简单冒泡排序 + JS 比较器
@@ -1488,11 +1512,13 @@ public class Interpreter {
     private func callFunction(fn: JsValue, args: ArrayList<JsValue>,
                               thisVal: JsValue, env: Environment): JsValue {
         // 原生函数
-        if (let Some(native) <-  fn.nativeFnData) {
+        if (fn.nativeFnData.isSome()) {
+            let native = fn.nativeFnData.getOrThrow()
             return native.fn(args)
         }
         // JS 函数
-        if (let Some(jsFn) <-  fn.functionData) {
+        if (fn.functionData.isSome()) {
+            let jsFn = fn.functionData.getOrThrow()
             return callJsFunction(jsFn, args, thisVal)
         }
         return JsValue.UNDEFINED
@@ -1598,11 +1624,13 @@ public class Interpreter {
     //   对应 ES2020 Optional Chaining: obj?.prop
     //   如果 obj 是 null/undefined，返回 undefined 而不抛出 TypeError
     private func evalDot(e: Expr, env: Environment): JsValue {
-        if (let Some(target) <-  e.target) {
+        if (e.target.isSome()) {
+            let target = e.target.getOrThrow()
             // super 属性访问 — 对应 super.x
             // 从 __super_proto__ 查找属性，不走普通求值
             if (target.tag == ExprTag.Super) {
-                if (let Some(superProto) <- getSuperPrototype(env)) {
+                if (getSuperPrototype(env).isSome()) {
+                    let superProto = getSuperPrototype(env).getOrThrow()
                     return superProto.get(e.propertyName)
                 }
                 return JsValue.UNDEFINED
@@ -1617,7 +1645,8 @@ public class Interpreter {
                 }
             }
 
-            if (let Some(objData) <-  obj.objectData) {
+            if (obj.objectData.isSome()) {
+                let objData = obj.objectData.getOrThrow()
                 return objData.get(e.propertyName)
             }
             // 字符串属性
@@ -1625,18 +1654,21 @@ public class Interpreter {
                 if (e.propertyName == "length") {
                     return JsValue(Float64(obj.stringValue.toString().size))
                 }
-                if (let Some(method) <-  getStringMethod(obj, e.propertyName)) {
-                    return method
+                let methodOpt = getStringMethod(obj, e.propertyName)
+                if (methodOpt.isSome()) {
+                    return methodOpt.getOrThrow()
                 }
             }
             // 数组属性 + 方法
-            if (let Some(arr) <-  obj.arrayData) {
+            if (obj.arrayData.isSome()) {
+                let arr = obj.arrayData.getOrThrow()
                 if (e.propertyName == "length") {
                     return JsValue(Float64(arr.size))
                 }
                 // 数组方法引用 (不立即调用时)
-                if (let Some(method) <-  getArrayMethod(obj, e.propertyName)) {
-                    return method
+                let methodOpt = getArrayMethod(obj, e.propertyName)
+                if (methodOpt.isSome()) {
+                    return methodOpt.getOrThrow()
                 }
             }
             // 函数属性
@@ -1673,8 +1705,9 @@ public class Interpreter {
                         let boundThis = if (args.size > 0) { args[0] } else { JsValue.UNDEFINED }
                         let callArgs = ArrayList<JsValue>()
                         if (args.size > 1) {
-                            if (let Some(arr) <-  args[1].arrayData) {
-                                for (a in arr) {
+                            if (args[1].arrayData.isSome()) {
+                                let applyArr = args[1].arrayData.getOrThrow()
+                                for (a in applyArr) {
                                     callArgs.append(a)
                                 }
                             }
@@ -1691,7 +1724,8 @@ public class Interpreter {
     //  严格翻译自: JS MemberExpression (computed access)
     private func evalIndex(e: Expr, env: Environment): JsValue {
         var targetVal = JsValue.UNDEFINED
-        if (let Some(target) <-  e.target) {
+        if (e.target.isSome()) {
+            let target = e.target.getOrThrow()
             targetVal = evalExpr(target, env)
 
             // 可选链 — 对应 obj?.[key]
@@ -1701,10 +1735,12 @@ public class Interpreter {
                 }
             }
         }
-        if (let Some(index) <-  e.indexExpr) {
+        if (e.indexExpr.isSome()) {
+            let index = e.indexExpr.getOrThrow()
             let idx = evalExpr(index, env)
             // 数组索引
-            if (let Some(arr) <-  targetVal.arrayData) {
+            if (targetVal.arrayData.isSome()) {
+                let arr = targetVal.arrayData.getOrThrow()
                 let i = Int64(jsToNumber(idx))
                 if (i >= 0 && i < arr.size) {
                     return arr[i]
@@ -1721,7 +1757,8 @@ public class Interpreter {
                 return JsValue.UNDEFINED
             }
             // 对象属性
-            if (let Some(obj) <-  targetVal.objectData) {
+            if (targetVal.objectData.isSome()) {
+                let obj = targetVal.objectData.getOrThrow()
                 let key = jsToString(idx)
                 return obj.get(key)
             }
@@ -1764,14 +1801,15 @@ public class Interpreter {
 
     /// 箭头函数
     private func evalArrow(e: Expr, env: Environment): JsValue {
-        if (let Some(fn) <-  e.fn) {
+        if (e.fn.isSome()) {
+            let fn = e.fn.getOrThrow()
             let paramNames = ArrayList<String>()
             for (arg in fn.args) {
                 paramNames.append(arg.binding.name)
             }
             let bodyStmts = match (fn.body) {
                 case GFnBody.StmtsBody(stmts) => stmts
-                case GFnBody.StmtBody(s) => ArrayList<Stmt>([s])
+                case GFnBody.StmtBody(_) => ArrayList<Stmt>()
                 case GFnBody.ExprBody(expr) =>
                     let loc = expr.loc
                     ArrayList<Stmt>([Stmt.return_(loc, expr)])
@@ -1784,14 +1822,15 @@ public class Interpreter {
 
     /// 函数表达式
     private func evalFunctionExpr(e: Expr, env: Environment): JsValue {
-        if (let Some(fn) <-  e.fn) {
+        if (e.fn.isSome()) {
+            let fn = e.fn.getOrThrow()
             let paramNames = ArrayList<String>()
             for (arg in fn.args) {
                 paramNames.append(arg.binding.name)
             }
             let bodyStmts = match (fn.body) {
                 case GFnBody.StmtsBody(stmts) => stmts
-                case GFnBody.StmtBody(s) => ArrayList<Stmt>([s])
+                case GFnBody.StmtBody(_) => ArrayList<Stmt>()
                 case GFnBody.ExprBody(expr) =>
                     let loc = expr.loc
                     ArrayList<Stmt>([Stmt.return_(loc, expr)])
@@ -1805,7 +1844,8 @@ public class Interpreter {
 
     /// 类表达式
     private func evalClassExpr(e: Expr, env: Environment): JsValue {
-        if (let Some(cls) <-  e.classData) {
+        if (e.classData.isSome()) {
+            let cls = e.classData.getOrThrow()
             let obj = newObject()
             obj.set("name", JsValue(BaoString(cls.name)))
             return JsValue(obj)
@@ -1880,30 +1920,30 @@ public class Interpreter {
     private func evalBinary(e: Expr, env: Environment): JsValue {
         // 短路运算符: &&, ||, ?? 先求值左侧
         if (e.op == OpCode.BinLoAnd) {
-            let left = if (let Some(l) <- e.left) { evalExpr(l, env) } else { JsValue.UNDEFINED }
+            let left = if (e.left.isSome()) { evalExpr(e.left.getOrThrow(), env) } else { JsValue.UNDEFINED }
             if (!jsToBoolean(left)) { return left }
-            return if (let Some(r) <- e.right) { evalExpr(r, env) } else { JsValue.UNDEFINED }
+            if (e.right.isSome()) { return evalExpr(e.right.getOrThrow(), env) } else { return JsValue.UNDEFINED }
         }
         if (e.op == OpCode.BinLoOr) {
-            let left = if (let Some(l) <- e.left) { evalExpr(l, env) } else { JsValue.UNDEFINED }
+            let left = if (e.left.isSome()) { evalExpr(e.left.getOrThrow(), env) } else { JsValue.UNDEFINED }
             if (jsToBoolean(left)) { return left }
-            return if (let Some(r) <- e.right) { evalExpr(r, env) } else { JsValue.UNDEFINED }
+            if (e.right.isSome()) { return evalExpr(e.right.getOrThrow(), env) } else { return JsValue.UNDEFINED }
         }
         if (e.op == OpCode.BinNullish) {
-            let left = if (let Some(l) <- e.left) { evalExpr(l, env) } else { JsValue.UNDEFINED }
+            let left = if (e.left.isSome()) { evalExpr(e.left.getOrThrow(), env) } else { JsValue.UNDEFINED }
             if (!left.isUndefinedOrNull()) { return left }
-            return if (let Some(r) <- e.right) { evalExpr(r, env) } else { JsValue.UNDEFINED }
+            if (e.right.isSome()) { return evalExpr(e.right.getOrThrow(), env) } else { return JsValue.UNDEFINED }
         }
 
         // 逗号运算符
         if (e.op == OpCode.Comma) {
-            if (let Some(l) <- e.left) { let _ = evalExpr(l, env) }
-            return if (let Some(r) <- e.right) { evalExpr(r, env) } else { JsValue.UNDEFINED }
+            if (e.left.isSome()) { let _ = evalExpr(e.left.getOrThrow(), env) }
+            if (e.right.isSome()) { return evalExpr(e.right.getOrThrow(), env) } else { return JsValue.UNDEFINED }
         }
 
         // 其他二元运算符: 两侧都要求值
-        let left = if (let Some(l) <- e.left) { evalExpr(l, env) } else { JsValue.UNDEFINED }
-        let right = if (let Some(r) <- e.right) { evalExpr(r, env) } else { JsValue.UNDEFINED }
+        let left = if (e.left.isSome()) { evalExpr(e.left.getOrThrow(), env) } else { JsValue.UNDEFINED }
+        let right = if (e.right.isSome()) { evalExpr(e.right.getOrThrow(), env) } else { JsValue.UNDEFINED }
         return evalBinaryOp(e.op, left, right)
     }
 
@@ -1988,12 +2028,13 @@ public class Interpreter {
 
     /// 三元表达式
     private func evalTernary(e: Expr, env: Environment): JsValue {
-        if (let Some(test) <-  e.test) {
+        if (e.test.isSome()) {
+            let test = e.test.getOrThrow()
             let cond = evalExpr(test, env)
             if (jsToBoolean(cond)) {
-                if (let Some(yes) <-  e.yes) { return evalExpr(yes, env) }
+                if (e.yes.isSome()) { return evalExpr(e.yes.getOrThrow(), env) }
             } else {
-                if (let Some(no) <-  e.no) { return evalExpr(no, env) }
+                if (e.no.isSome()) { return evalExpr(e.no.getOrThrow(), env) }
             }
         }
         return JsValue.UNDEFINED
@@ -2005,41 +2046,47 @@ public class Interpreter {
     //   解构赋值: let {a, b} = obj; let [x, y] = arr
     private func evalAssign(e: Expr, env: Environment): JsValue {
         var value = JsValue.UNDEFINED
-        if (let Some(rhs) <-  e.value) {
+        if (e.value.isSome()) {
+            let rhs = e.value.getOrThrow()
             value = evalExpr(rhs, env)
         }
-        if (let Some(target) <-  e.target) {
+        if (e.target.isSome()) {
+            let target = e.target.getOrThrow()
             match (target.tag) {
                 case ExprTag.Identifier =>
                     env.set(target.identifierName, value)
                 case ExprTag.Dot =>
-                    // 可选链赋值 — 对应 obj?.prop = value (语法错误，但处理安全)
-                    if (let Some(objExpr) <-  target.target) {
+                    if (target.target.isSome()) {
+                        let objExpr = target.target.getOrThrow()
                         let obj = evalExpr(objExpr, env)
                         if (target.optionalChain.isSome()) {
                             if (obj.valueType == JsValueType.Null || obj.valueType == JsValueType.Undefined) {
                                 return JsValue.UNDEFINED
                             }
                         }
-                        if (let Some(objData) <-  obj.objectData) {
+                        if (obj.objectData.isSome()) {
+                            let objData = obj.objectData.getOrThrow()
                             objData.set(target.propertyName, value)
                         }
                     }
                 case ExprTag.Index =>
-                    if (let Some(objExpr) <-  target.target) {
+                    if (target.target.isSome()) {
+                        let objExpr = target.target.getOrThrow()
                         let obj = evalExpr(objExpr, env)
-                        if (let Some(idxExpr) <-  target.indexExpr) {
+                        if (target.indexExpr.isSome()) {
+                            let idxExpr = target.indexExpr.getOrThrow()
                             let idx = evalExpr(idxExpr, env)
-                            if (let Some(arr) <-  obj.arrayData) {
+                            if (obj.arrayData.isSome()) {
+                                let arr = obj.arrayData.getOrThrow()
                                 let i = Int64(jsToNumber(idx))
                                 if (i >= 0) {
-                                    // 自动增长: 如果索引超出当前大小，填充 undefined
                                     while (arr.size <= i) {
                                         arr.append(JsValue.UNDEFINED)
                                     }
                                     arr[i] = value
                                 }
-                            } else if (let Some(objData) <-  obj.objectData) {
+                            } else if (obj.objectData.isSome()) {
+                                let objData = obj.objectData.getOrThrow()
                                 objData.set(jsToString(idx), value)
                             }
                         }
@@ -2156,7 +2203,8 @@ public class Interpreter {
     ///   super 单独使用时返回父类原型对象
     ///   在 super.x 和 super() 中由 evalDot/evalCall 单独处理
     private func evalSuper(env: Environment): JsValue {
-        if (let Some(superProto) <- getSuperPrototype(env)) {
+        if (getSuperPrototype(env).isSome()) {
+            let superProto = getSuperPrototype(env).getOrThrow()
             return JsValue(superProto)
         }
         return JsValue.UNDEFINED
@@ -2199,7 +2247,7 @@ public class Interpreter {
         }
 
         let targetProto = match (rhsPrototype.objectData) {
-            case Some(p) => p
+            case Some(proto) => proto
             case None => return false
         }
 

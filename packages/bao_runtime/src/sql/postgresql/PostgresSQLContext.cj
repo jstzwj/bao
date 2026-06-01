@@ -25,7 +25,7 @@ public class PostgresSQLContext {
     /// 参数:
     ///   resolveFn - 查询成功时的 JS 回调
     ///   rejectFn - 查询失败时的 JS 回调
-    public func init(resolveFn: Int64, rejectFn: Int64) {
+    public init(resolveFn: Int64, rejectFn: Int64) {
         onQueryResolveFn = resolveFn
         onQueryRejectFn = rejectFn
     }

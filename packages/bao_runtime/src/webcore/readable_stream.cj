@@ -1217,7 +1217,7 @@ public class ObjectURLFFI {
     public static func createObjectURL(global: JsGlobalObject, callFrame: CallFrame): JsValue {
         let args = callFrame.argumentsAsArray(1)
         if (args.size < 1) {
-            return JsValue(createErrorInstance(global, "createObjectURL expects a Blob object"))
+            return createErrorInstance(global, "createObjectURL expects a Blob object")
         }
         // TODO: extract Blob from args[0] and register with ObjectURLRegistry
         let uuid = Crypto.randomUUID()
@@ -1229,11 +1229,11 @@ public class ObjectURLFFI {
     public static func revokeObjectURL(global: JsGlobalObject, callFrame: CallFrame): JsValue {
         let args = callFrame.argumentsAsArray(1)
         if (args.size < 1) {
-            return JsValue(createErrorInstance(global, "revokeObjectURL expects a string"))
+            return createErrorInstance(global, "revokeObjectURL expects a string")
         }
         let urlStr = args[0]
         if (!urlStr.isString()) {
-            return JsValue(createErrorInstance(global, "revokeObjectURL expects a string"))
+            return createErrorInstance(global, "revokeObjectURL expects a string")
         }
         let str = urlStr.toString()
         if (!str.startsWith("blob:")) {

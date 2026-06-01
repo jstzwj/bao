@@ -3,6 +3,8 @@
 // 提供从字节缓冲区读取 PostgreSQL 协议消息的工具方法
 package bao_runtime.sql.postgresql
 
+import bao_runtime.sql.shared.*
+
 
 /// PostgreSQL 协议字节读取器
 /// 从字节数组中读取协议消息，支持偏移量跟踪
@@ -107,7 +109,11 @@ public class ProtocolReader {
                 let bytes = buffer[pos..i].toArray()
                 pos = i + 1  // 跳过 null 终止符
                 // 将字节转为 UTF-8 字符串
-                return bytes.toArray().map({ b => Char.fromUInt8(b) }).toString()
+                var sb = StringBuilder()
+                for (b in bytes) {
+                    sb.append(Rune(Int32(b)))
+                }
+                return sb.toString()
             }
             i += 1
         }
@@ -164,13 +170,12 @@ public class ProtocolReader {
     public func readLength(): ?UInt32 {
         let len = readUInt32()
         match (len) {
-            case Some(l) => {
-                if (l > 0 && !ensureCapacity(l - 4)) {
+            case Some(l) =>
+                if (l > 0 && !ensureCapacity(Int64(l) - 4)) {
                     None
                 } else {
                     Some(l)
                 }
-            }
             case None => None
         }
     }
@@ -193,7 +198,7 @@ public class ProtocolReader {
     /// 读取指定数量的字节并返回 SQLData
     public func readData(count: Int64): ?SQLData {
         match (readBytes(count)) {
-            case Some(bytes) => Some(SQLData(temporary: bytes))
+            case Some(bytes) => Some(SQLData.fromTemporary(bytes))
             case None => None
         }
     }

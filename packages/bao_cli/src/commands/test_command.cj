@@ -95,6 +95,7 @@ public class TestCommand {
         // 创建测试运行器
         // 严格翻译自: test_command.zig 中 CommandLineReporter + TestRunner
         let testRunner = TestRunner()
+        testRunner.setVm(vm)
         testRunner.defaultTimeoutMs = options.defaultTimeoutMs
         testRunner.bail = options.bail
         testRunner.runTodo = options.runTodo
@@ -288,8 +289,16 @@ public class TestCommand {
         }
 
         try {
-            // 解析入口点
-            // 对应 Bun: vm.transpiler.resolveEntryPoint(file_name)
+            // 重置测试套件 (隔离每个文件的测试)
+            runner.resetSuite(vm)
+
+            // 注册测试全局函数 (describe/it/expect 等) 到解释器
+            // 设置 activeRunner 使 bun:test 模块能注册测试
+            runner.registerGlobals(vm)
+
+            // 解析入口点并执行 — 测试文件中的 describe/it/expect
+            // 会在执行期间通过 bun:test 模块注册到 activeRunner
+            // 对应 Bun: vm.loadEntryPointForTestRunner(file_name)
             vm.executeFile(filePath)
 
             // 文件执行成功后，从真实测试运行器收集结果。
@@ -731,7 +740,11 @@ public class TestFileSummary {
 ///
 /// 严格翻译自: test_command.zig 中 TestRunner 引用。
 /// 包含完整的配置字段: 超时、并发、随机化、only、bail、快照、过滤器等。
+/// 内部委托 bao_runtime.TestRunner 执行实际测试逻辑。
 public class TestRunner {
+    /// 内部运行时测试运行器
+    private var inner: bao_runtime.TestRunner
+
     /// 分配器标签
     public var allocator: String
 
@@ -807,6 +820,7 @@ public class TestRunner {
     public var unhandledErrorsBetweenTests: Int64
 
     public init() {
+        inner = bao_runtime.TestRunner(VirtualMachine())
         allocator = ""
         defaultTimeoutMs = 5000
         defaultTimeoutOverride = Int64(9223372036854775807)
@@ -826,6 +840,30 @@ public class TestRunner {
         bunTestRoot = BunTestRoot()
         files = HashMap<Int64, TestFile>()
         unhandledErrorsBetweenTests = 0
+    }
+
+    /// 获取内部运行时 TestRunner
+    public func getInner(): bao_runtime.TestRunner {
+        return inner
+    }
+
+    /// 设置 VM，重新创建内部运行时
+    public func setVm(vm: VirtualMachine): Unit {
+        inner = bao_runtime.TestRunner(vm)
+    }
+
+    /// 注册测试全局函数到解释器
+    public func registerGlobals(vm: VirtualMachine): Unit {
+        // 设置全局活跃运行器
+        bao_runtime.TestRunner.activeRunner = inner
+        bao_runtime.TestRunner.activeRunnerVM = vm.getInterpreter()
+        // 在解释器中注册 describe/it/expect 等全局函数
+        inner.registerGlobals()
+    }
+
+    /// 重置测试套件 (每个文件执行前调用)
+    public func resetSuite(vm: VirtualMachine): Unit {
+        inner = bao_runtime.TestRunner(vm)
     }
 
     /// 获取或创建文件条目
@@ -867,12 +905,29 @@ public class TestRunner {
         return filterRegex
     }
 
-    /// 获取文件 summary
+    /// 获取文件 summary — 从内部运行时收集真实测试结果
     public func takeFileSummary(filePath: String): TestFileSummary {
         let s = TestFileSummary()
         s.filePath = filePath
-        // 真实实现由 bao_runtime.test_runner 在文件执行期间填充。
-        // 返回空 summary 会被调用方视为 runner 未注册任何测试并失败，避免假阳性。
+
+        // 从内部运行时收集已注册的测试并执行
+        let suiteResult = inner.runFile(filePath)
+
+        s.passed = suiteResult.passCount
+        s.failed = suiteResult.failCount
+        s.skipped = suiteResult.skipCount
+        s.todo = suiteResult.todoCount
+        s.expectations = suiteResult.totalCount
+
+        // 收集失败详情
+        for (failure in suiteResult.failures) {
+            let errMsg = match (failure.error) {
+                case Some(msg) => msg
+                case None => "unknown"
+            }
+            s.failures.append("  FAIL ${failure.name}: ${errMsg}")
+        }
+
         return s
     }
 

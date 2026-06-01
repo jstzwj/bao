@@ -29,9 +29,9 @@ public func postProcessCSSChunkDetailed(
     chunks: ArrayList<Chunk>
 ): Unit {
     let j = StringJoinerCSS()
-    j.watcher = CSSStringWatcher(input: chunk.uniqueKey)
+    j.watcher = CSSStringWatcher(chunk.uniqueKey)
 
-    var lineOffset: CSSLineColumnOffset = if (c.options.sourceMaps != SourceMapOption.None) {
+    var lineOffset: CSSLineColumnOffset = if (match (c.options.sourceMaps) { case SourceMapOption.None => false case _ => true }) {
         CSSLineColumnOffset()
     } else {
         CSSLineColumnOffset.none()
@@ -48,7 +48,7 @@ public func postProcessCSSChunkDetailed(
         let sourceIndex = compileResult.sourceIndex
 
         // 在 bundle 模式且未压缩时, 添加文件路径注释
-        if (c.options.mode == LinkerMode.Bundle &&
+        if ((match (c.options.mode) { case LinkerMode.Bundle => true case _ => false }) &&
             !c.options.minifyWhitespace &&
             sourceIndex >= 0) {
             if (newlineBeforeComment) {
@@ -81,7 +81,7 @@ public func postProcessCSSChunkDetailed(
         // 处理 source map 偏移
         match (compileResult.sourceMapChunk) {
             case Some(smChunk) =>
-                if (c.options.sourceMaps != SourceMapOption.None) {
+                if (match (c.options.sourceMaps) { case SourceMapOption.None => false case _ => true }) {
                     // source map 偏移重置 (新编译结果从 0,0 开始)
                     lineOffset.reset()
                 }
@@ -100,7 +100,7 @@ public func postProcessCSSChunkDetailed(
     chunk.isolatedHash = generateIsolatedHash(c, chunk)
 
     // 生成 source map (如果启用)
-    if (c.options.sourceMaps != SourceMapOption.None) {
+    if (match (c.options.sourceMaps) { case SourceMapOption.None => false case _ => true }) {
         generateSourceMapForCSSChunk(c, chunk)
     }
 }
@@ -115,7 +115,7 @@ private func getSourcePrettyPath(c: LinkerContext, sourceIndex: Int64): String {
     // 从 parse_graph 的 input_files 中获取源文件路径
     // 简化: 使用源索引获取路径
     if (sourceIndex >= 0 && sourceIndex < c.parseGraph.inputFiles.size) {
-        return c.parseGraph.inputFiles[Int64(sourceIndex)].path
+        return c.parseGraph.inputFiles[Int64(sourceIndex)].source
     }
     return ""
 }
@@ -130,7 +130,7 @@ private func escapeCommentClose(path: String): String {
     var result = StringBuilder()
     var i = 0
     while (i < path.size) {
-        if (i > 0 && path[i] == '/' && path[i - 1] == '*') {
+        if (i > 0 && path[i..(i + 1)] == "/" && path[(i - 1)..i] == "*") {
             result.append("\\")
         }
         result.append(path[i..(i + 1)])
@@ -244,7 +244,7 @@ public class StringJoinerCSS {
 
     public init() {
         parts = ArrayList<String>()
-        watcher = CSSStringWatcher(input: "")
+        watcher = CSSStringWatcher("")
     }
 
     /// 追加静态字符串 (不需要释放)
@@ -311,7 +311,7 @@ public class CSSLineColumnOffset {
     public func advance(text: String): Unit {
         if (isNull) { return }
         for (i in 0..text.size) {
-            if (text[i] == '\n') {
+            if (text[i..(i + 1)] == "\n") {
                 line++
                 column = 0
             } else {

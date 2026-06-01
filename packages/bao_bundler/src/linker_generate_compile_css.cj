@@ -249,6 +249,7 @@ public class CSSRule {
 
 /// CSS 导入条件
 // 严格翻译自: prepareCssAstsForChunk.rs CSSImportCondition
+// 对应 Bun: css.rules.import.ImportConditions
 public class CSSImportCondition {
     public var layer: ?CSSLayerName
     public var supports: ?String
@@ -258,6 +259,50 @@ public class CSSImportCondition {
         layer = None
         supports = None
         media = ""
+    }
+
+    /// 将导入条件转换为 CSS 文本
+    // 严格翻译自: bun/src/css/rules/import.zig ImportConditions.toCss()
+    // 生成: layer(name) supports(condition) media_query
+    public func toCssString(): String {
+        let sb = StringBuilder()
+
+        // @layer 条件
+        match (layer) {
+            case Some(layerName) =>
+                sb.append(" layer")
+                match (layerName.names) {
+                    case names =>
+                        if (names.size > 0) {
+                            sb.append("(")
+                            for (i in 0..names.size) {
+                                if (i > 0) {
+                                    sb.append(".")
+                                }
+                                sb.append(names[Int64(i)])
+                            }
+                            sb.append(")")
+                        }
+                }
+            case None => ()
+        }
+
+        // @supports 条件
+        match (supports) {
+            case Some(supportsText) =>
+                sb.append(" supports(")
+                sb.append(supportsText)
+                sb.append(")")
+            case None => ()
+        }
+
+        // @media 条件
+        if (media.size > 0) {
+            sb.append(" ")
+            sb.append(media)
+        }
+
+        sb.toString()
     }
 }
 
@@ -287,6 +332,8 @@ private func cssTargetsForBundlerTarget(target: BundleTarget): ArrayList<CssTarg
             targets.append(CssTarget("node14"))
         case BundleTarget.Bun =>
             targets.append(CssTarget("bun"))
+        case _ =>
+            targets.append(CssTarget("bun"))
     }
     return targets
 }
@@ -309,7 +356,7 @@ private func printCssStylesheet(ast: CssStylesheetRef, options: CssPrinterOption
     var output = StringBuilder()
     for (rule in ast.rules) {
         if (options.minify) {
-            output.append(rule.text.trim())
+            output.append(CssStrUtil.trim(rule.text))
         } else {
             output.append(rule.text)
             output.append("\n")

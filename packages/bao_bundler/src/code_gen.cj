@@ -776,7 +776,7 @@ public class ChunkHash {
         var chars = ArrayList<UInt8>()
         var v = value
         for (_ in 0..16) {
-            chars.add(UInt8(v & UInt64(0xF)))
+            chars.append(UInt8(v & UInt64(0xF)))
             v = v >> 4
         }
         var i = chars.size - 1

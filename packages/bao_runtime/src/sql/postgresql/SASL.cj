@@ -6,6 +6,16 @@ package bao_runtime.sql.postgresql
 
 import bao_core.*
 import bao_boringssl_sys.*
+import std.random.*
+import std.collection.ArrayList
+
+// BoringSSL FFI 函数本地声明 (子包无法访问父包的 foreign func)
+foreign func EVP_sha256(): CPointer<Unit>
+foreign func HMAC(evp_md: CPointer<Unit>, key: CPointer<Unit>, key_len: UIntNative, data: CPointer<Unit>, data_len: UIntNative, out: CPointer<UInt8>, out_len: CPointer<UIntNative>): CPointer<UInt8>
+foreign func SHA256(data: CPointer<UInt8>, len: UIntNative, out: CPointer<UInt8>): CPointer<UInt8>
+foreign func PKCS5_PBKDF2_HMAC(password: CString, password_len: UIntNative, salt: CPointer<UInt8>, salt_len: UIntNative, iterations: UInt32, digest: CPointer<Unit>, key_len: UIntNative, out: CPointer<UInt8>): Int32
+foreign func malloc(size: UIntNative): CPointer<Unit>
+foreign func free(ptr: CPointer<Unit>): Unit
 
 
 /// SASL SCRAM-SHA-256 认证状态
@@ -22,12 +32,6 @@ public class SASLAuth {
     public static let SERVER_SIGNATURE_BASE64_LEN: Int64 = 44
     /// 盐值密码字节长度
     public static let SALTED_PASSWORD_BYTE_LEN: Int64 = 32
-
-    /// SASL 认证阶段
-    public enum SASLStatus {
-        | Init       // 初始阶段
-        | Continue   // 继续阶段（已发送客户端响应）
-    }
 
     /// 客户端 nonce (Base64 编码)
     public var nonceBase64: Array<UInt8>
@@ -48,11 +52,11 @@ public class SASLAuth {
     public var status: SASLStatus
 
     public init() {
-        nonceBase64 = Array<UInt8>(SASLAuth.NONCE_BASE64_LEN, item: 0)
+        nonceBase64 = Array<UInt8>(SASLAuth.NONCE_BASE64_LEN, repeat: 0)
         nonceLen = 0
-        serverSignatureBase64 = Array<UInt8>(SASLAuth.SERVER_SIGNATURE_BASE64_LEN, item: 0)
+        serverSignatureBase64 = Array<UInt8>(SASLAuth.SERVER_SIGNATURE_BASE64_LEN, repeat: 0)
         serverSignatureLen = 0
-        saltedPassword = Array<UInt8>(SASLAuth.SALTED_PASSWORD_BYTE_LEN, item: 0)
+        saltedPassword = Array<UInt8>(SASLAuth.SALTED_PASSWORD_BYTE_LEN, repeat: 0)
         saltedPasswordCreated = false
         status = SASLStatus.Init
     }
@@ -63,9 +67,10 @@ public class SASLAuth {
     public func nonce(): Array<UInt8> {
         if (nonceLen == 0) {
             // 生成随机字节
-            let rawBytes = Array<UInt8>(SASLAuth.NONCE_BYTE_LEN, item: 0)
+            let rawBytes = Array<UInt8>(SASLAuth.NONCE_BYTE_LEN, repeat: 0)
+            let rng = Random()
             for (i in 0..SASLAuth.NONCE_BYTE_LEN) {
-                rawBytes[i] = UInt8.random()
+                rawBytes[i] = UInt8(rng.nextUInt64() % 256)
             }
             // Base64 编码
             nonceBase64 = base64Encode(rawBytes)
@@ -77,7 +82,11 @@ public class SASLAuth {
     /// 获取 nonce 的字符串形式
     public func nonceString(): String {
         let bytes = nonce()
-        bytes.toArray().map({ b => Char.fromUInt8(b) }).toString()
+        var sb = StringBuilder()
+        for (b in bytes) {
+            sb.append(Rune(Int32(b)))
+        }
+        sb.toString()
     }
 
     /// 计算盐值密码
@@ -106,7 +115,7 @@ public class SASLAuth {
         }
 
         // ServerKey = HMAC-SHA256(saltedPassword, "Server Key")
-        let serverKey = hmacSHA256(saltedPassword, Array<UInt8>("Server Key".toArray().map({ c => UInt8(c) })))
+        let serverKey = hmacSHA256(saltedPassword, "Server Key".toArray().map({ c: Char => UInt8(c) }))
 
         // ServerSignature = HMAC-SHA256(ServerKey, authString)
         let serverSignatureBytes = hmacSHA256(serverKey, authString)
@@ -127,7 +136,7 @@ public class SASLAuth {
     /// 对应 Bun SASL.clientKey()
     public func clientKey(): Array<UInt8> {
         // ClientKey = HMAC-SHA256(saltedPassword, "Client Key")
-        hmacSHA256(saltedPassword, Array<UInt8>("Client Key".toArray().map({ c => UInt8(c) })))
+        hmacSHA256(saltedPassword, "Client Key".toArray().map({ c: Char => UInt8(c) }))
     }
 
     /// 计算客户端 Key 签名
@@ -149,7 +158,7 @@ public class SASLAuth {
     ///   clientKey - 客户端 Key
     ///   clientKeySignature - 客户端 Key 的签名
     public static func xorClientProof(clientKey: Array<UInt8>, clientKeySignature: Array<UInt8>): Array<UInt8> {
-        let result = Array<UInt8>(32, item: 0)
+        let result = Array<UInt8>(32, repeat: 0)
         for (i in 0..32) {
             if (i < clientKey.size && i < clientKeySignature.size) {
                 result[i] = clientKey[i] ^ clientKeySignature[i]
@@ -185,7 +194,7 @@ public class SASLAuth {
     /// 对应 Bun SASL.hmac(): bun.hmac.generate(password, data, .sha256, &buf)
     /// BoringSSL: HMAC(EVP_sha256(), key, key_len, data, data_len, out, &out_len)
     private static func hmacSHA256(key: Array<UInt8>, data: Array<UInt8>): Array<UInt8> {
-        var out = Array<UInt8>(32, item: 0)
+        var out = Array<UInt8>(32, repeat: 0)
         unsafe {
             let md = EVP_sha256()
             let keyPtr = arrayToPtr(key)
@@ -216,7 +225,7 @@ public class SASLAuth {
     /// 对应 Bun SASL.clientKeySignature(): bun.sha.SHA256.hash(client_key, &sha_digest, engine)
     /// BoringSSL: SHA256(data, len, out) -> out
     private static func sha256(data: Array<UInt8>): Array<UInt8> {
-        var out = Array<UInt8>(32, item: 0)
+        var out = Array<UInt8>(32, repeat: 0)
         unsafe {
             let dataPtr = arrayToPtr(data)
             let outPtr = CPointer<UInt8>(malloc(UIntNative(32)))
@@ -234,12 +243,12 @@ public class SASLAuth {
     /// 对应 Bun SASL.computeSaltedPassword(): Crypto.EVP.pbkdf2(&out, password, salt, iterations, .sha256)
     /// BoringSSL: PKCS5_PBKDF2_HMAC(password, password_len, salt, salt_len, iterations, EVP_sha256(), key_len, out)
     private static func pbkdf2HmacSHA256(password: Array<UInt8>, salt: Array<UInt8>, iterations: UInt32, dkLen: Int64): Array<UInt8> {
-        var out = Array<UInt8>(dkLen, item: 0)
+        var out = Array<UInt8>(dkLen, repeat: 0)
         unsafe {
             let md = EVP_sha256()
             // PKCS5_PBKDF2_HMAC 的 password 参数类型是 CString (以 null 结尾)
             // 需要构造 null-terminated 的密码字节
-            var passwordWithNull = Array<UInt8>(password.size + 1, item: 0)
+            var passwordWithNull = Array<UInt8>(password.size + 1, repeat: 0)
             for (i in 0..password.size) {
                 passwordWithNull[i] = password[i]
             }
@@ -285,32 +294,38 @@ public class SASLAuth {
     private static func base64Encode(data: Array<UInt8>): Array<UInt8> {
         // 简化 Base64 编码实现
         let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-        let result = Array<UInt8>()
+        var result = ArrayList<UInt8>()
         var i = 0
         while (i < data.size) {
             let b0 = data[i]
-            let b1 = if (i + 1 < data.size) data[i + 1] else UInt8(0)
-            let b2 = if (i + 2 < data.size) data[i + 2] else UInt8(0)
+            let b1 = if (i + 1 < data.size) { data[i + 1] } else { UInt8(0) }
+            let b2 = if (i + 2 < data.size) { data[i + 2] } else { UInt8(0) }
 
-            let c0 = UInt8(b0 >> 2)
-            let c1 = UInt8(((b0 & 0x03) << 4) | (b1 >> 4))
-            let c2 = UInt8(((b1 & 0x0F) << 2) | (b2 >> 6))
-            let c3 = UInt8(b2 & 0x3F)
+            let c0 = Int64(b0 >> 2)
+            let c1 = Int64(((b0 & 0x03) << 4) | (b1 >> 4))
+            let c2 = Int64(((b1 & 0x0F) << 2) | (b2 >> 6))
+            let c3 = Int64(b2 & 0x3F)
 
-            result.append(UInt8(chars[c0]))
-            result.append(UInt8(chars[c1]))
+            result.add(UInt8(chars[c0]))
+            result.add(UInt8(chars[c1]))
             if (i + 1 < data.size) {
-                result.append(UInt8(chars[c2]))
+                result.add(UInt8(chars[c2]))
             } else {
-                result.append(UInt8('='))
+                result.add(61)  // '='
             }
             if (i + 2 < data.size) {
-                result.append(UInt8(chars[c3]))
+                result.add(UInt8(chars[c3]))
             } else {
-                result.append(UInt8('='))
+                result.add(61)  // '='
             }
             i += 3
         }
-        return result
+        return result.toArray()
     }
+}
+
+/// SASL 认证阶段 (moved out of class due to Cangjie restriction)
+public enum SASLStatus {
+    | Init       // 初始阶段
+    | Continue   // 继续阶段（已发送客户端响应）
 }

@@ -99,14 +99,13 @@ public enum LibcType {
     public static func current(): LibcType {
         let os = OSType.current()
         match (os) {
-            case Linux => {
+            case Linux =>
                 // 尝试检测 musl vs glibc
                 // musl 系统通常有 /etc/alpine-release 或 ld-musl 链接
                 if (System.fileExists("/etc/alpine-release")) { return LibcType.Musl }
                 if (System.fileExists("/lib/ld-musl-x86_64.so.1")) { return LibcType.Musl }
                 if (System.fileExists("/lib/ld-musl-aarch64.so.1")) { return LibcType.Musl }
                 LibcType.Glibc
-            }
             case Darwin | FreeBSD | OpenBSD | NetBSD => LibcType.SystemLibc
             case Windows => LibcType.MSVCRT
             case _ => LibcType.Unknown

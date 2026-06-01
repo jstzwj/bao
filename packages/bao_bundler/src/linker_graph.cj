@@ -49,6 +49,9 @@ public class LinkerGraph {
     public var tsEnums: HashMap<Ref, HashMap<String, InlinedEnumValue>>
     /// 分配器
     public var allocator: Allocator
+    /// CSS AST 列表 (对应 Bun: c.graph.ast.items(.css))
+    // 严格翻译自: Graph 多项目数组中的 .css 字段
+    public var cssAsts: ArrayList<CssStylesheetRef>
 
     public init() {
         this.files = ArrayList<LinkerFile>()
@@ -63,6 +66,7 @@ public class LinkerGraph {
         this.isScbBitset = BitSet()
         this.tsEnums = HashMap<Ref, HashMap<String, InlinedEnumValue>>()
         this.allocator = Allocator()
+        this.cssAsts = ArrayList<CssStylesheetRef>()
     }
 
     /// 获取运行时函数引用
@@ -122,6 +126,8 @@ public class LinkerGraph {
 
     /// 更新顶层符号到 parts 的 overlay
     private func updateTopLevelSymbolToParts(id: UInt32, ref: Ref, partId: UInt32): Unit {
+        return
+    }
 
     /// 获取文件的入口点位图 (用于 HTML import manifest)
     // 严格翻译自: LinkerGraph files.items_entry_bits()
@@ -143,8 +149,13 @@ public class LinkerGraph {
     public func getImportRecords(sourceIndex: Int64): ArrayList<ImportRecord> {
         return ArrayList<ImportRecord>()
     }
-    return
-}
+
+    /// 获取 CSS AST 列表
+    // 严格翻译自: c.graph.ast.items(.css)
+    // 对应 Bun 多项目数组中每个源文件的 CSS AST
+    public func getCssAsts(): ArrayList<CssStylesheetRef> {
+        return cssAsts
+    }
 }
 
 // ============================================================================
@@ -188,9 +199,13 @@ public class LinkerFile {
     public func isUserSpecifiedEntryPoint(): Bool {
         return entryPointKind == EntryPointKind.Client
     }
-}// ============================================================================
+}
+
+// ============================================================================
 // 辅助类型
-// ============================================================================/// 符号映射
+// ============================================================================
+
+/// 符号映射
 public class SymbolMap {
     public var symbolsForSource: ArrayList<ArrayList<Symbol>>
 

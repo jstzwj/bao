@@ -15,12 +15,12 @@ public type MySQLInt64 = UInt64 // int8 = u64
 /// 对应 Bun: CharacterSet (enum u8)
 /// 参考: https://dev.mysql.com/doc/refman/8.0/en/charset-charsets.html
 public enum CharacterSet {
-    | None
+    | Unknown
 
     /// 获取字符集名称
     public func name(): String {
         match (this) {
-            case None => "(unknown)"
+            case Unknown => "(unknown)"
         }
     }
 }

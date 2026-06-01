@@ -30,6 +30,8 @@ public class EncodeIntoResult {
     public var read: UInt32
     /// 已写入的 UTF-8 byte 数量
     /// 对应 Bun: pub written: u32
+    public var written: UInt32
+
     public init() {
         read = 0
         written = 0
@@ -190,7 +192,7 @@ public class TextEncoder {
             result.read += 1
         }
 
-        result.written = byteIndex
+        result.written = UInt32(byteIndex)
         return result
     }
 
@@ -346,7 +348,7 @@ public class TextEncoder {
             }
             result.read += 1
         }
-        result.written = outIdx
+        result.written = UInt32(outIdx)
         return result
     }
 
@@ -436,7 +438,7 @@ public class TextEncoder {
             }
             result.read += 1
         }
-        result.written = outIdx
+        result.written = UInt32(outIdx)
         return result
     }
 }

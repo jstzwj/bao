@@ -4,19 +4,20 @@
 package bao_runtime.sql.postgresql
 
 import bao_runtime.sql.shared.*
+import std.collection.ArrayList
 
 /// PostgreSQL 协议字节写入器
 /// 支持向动态缓冲区写入协议消息
 /// 对应 Bun NewWriter + ArrayList 的功能
 public class ProtocolWriter {
-    private var buffer: Array<UInt8>
+    private var buffer: ArrayList<UInt8>
 
     public init() {
-        buffer = Array<UInt8>()
+        buffer = ArrayList<UInt8>()
     }
 
     public init(capacity: Int64) {
-        buffer = Array<UInt8>(capacity)
+        buffer = ArrayList<UInt8>()
     }
 
     /// 当前写入偏移量
@@ -27,14 +28,14 @@ public class ProtocolWriter {
 
     /// 获取底层缓冲区
     public func getBuffer(): Array<UInt8> {
-        buffer
+        buffer.toArray()
     }
 
     /// 写入原始字节
     /// 对应 Bun NewWriter.write()
     public func write(data: Array<UInt8>) {
         for (b in data) {
-            buffer.append(b)
+            buffer.add(b)
         }
     }
 
@@ -48,7 +49,7 @@ public class ProtocolWriter {
 
     /// 写入单个字节
     public func writeByte(b: UInt8) {
-        buffer.append(b)
+        buffer.add(b)
     }
 
     /// 写入 UInt32（大端字节序）
@@ -103,19 +104,19 @@ public class ProtocolWriter {
     /// 对应 Bun NewWriter.string()
     public func writeString(s: String) {
         for (c in s) {
-            buffer.append(UInt8(c))
+            buffer.add(UInt8(c))
         }
-        buffer.append(0)  // null 终止符
+        buffer.add(0)  // null 终止符
     }
 
     /// 写入字节（带 null 终止符）
     /// 对应 Bun NewWriter.bytes()
     public func writeBytes(data: Array<UInt8>) {
         for (b in data) {
-            buffer.append(b)
+            buffer.add(b)
         }
         if (data.size == 0 || data[data.size - 1] != 0) {
-            buffer.append(0)
+            buffer.add(0)
         }
     }
 
@@ -123,16 +124,16 @@ public class ProtocolWriter {
     /// 对应 Bun NewWriter.bool()
     public func writeBool(value: Bool) {
         if (value) {
-            buffer.append(116)  // 't'
+            buffer.add(116)  // 't'
         } else {
-            buffer.append(102)  // 'f'
+            buffer.add(102)  // 'f'
         }
     }
 
     /// 写入 NULL 标记
     /// 对应 Bun NewWriter.null()
     public func writeNull() {
-        writeInt4(UInt32.MAX)  // -1 的无符号表示
+        writeInt4(4294967295)  // -1 的无符号表示
     }
 
     /// 创建长度写入器
@@ -141,12 +142,12 @@ public class ProtocolWriter {
     public func writeLengthPlaceholder(): LengthWriter {
         let index = offset()
         writeInt4(0)  // 占位
-        LengthWriter(writer: this, index: index)
+        LengthWriter(this, index)
     }
 
     /// 清空缓冲区
     public func clear() {
-        buffer = Array<UInt8>()
+        buffer = ArrayList<UInt8>()
     }
 }
 

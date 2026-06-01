@@ -8,6 +8,9 @@
 //   };
 package bao_runtime.sql.postgresql
 
+import std.random.*
+import std.convert.*
+
 
 /// PostgreSQL 认证状态
 /// 跟踪当前认证流程的状态
@@ -22,7 +25,7 @@ public enum AuthenticationState {
     public func zero() {
         match (this) {
             case SASL(state) => state.zero()
-            case _ => {}
+            case _ => ()
         }
     }
 }
@@ -30,14 +33,7 @@ public enum AuthenticationState {
 /// SASL SCRAM-SHA-256 认证状态
 /// 对应 Bun AuthenticationState.SASLState
 public class SASLState {
-    /// SASL 状态阶段
-    public enum Status {
-        | Init       // 初始阶段
-        | Continue   // 继续阶段
-        | Final      // 最终阶段
-    }
-
-    public var status: Status
+    public var status: SASLStateStatus
     /// 客户端 nonce (随机字符串)
     public var clientNonce: Array<UInt8>
     /// 盐值密码
@@ -46,31 +42,39 @@ public class SASLState {
     public var serverSignatureData: Array<UInt8>
 
     public init() {
-        status = Status.Init
+        status = SASLStateStatus.Init
         clientNonce = generateNonce()
-        saltedPassword = Array<UInt8>(32)
+        saltedPassword = Array<UInt8>(32, repeat: UInt8(0))
         serverSignatureData = Array<UInt8>()
     }
 
     /// 获取客户端 nonce 的十六进制字符串表示
     public func nonce(): String {
-        clientNonce.toArray().map({ b =>
-            let hex = UInt8.toHexString(b)
-            if (hex.size == 1) "0${hex}" else hex
-        }).toString()
+        var result = StringBuilder()
+        for (b in clientNonce) {
+            let hexChars = "0123456789abcdef"
+            let high = Int64(b >> 4)
+            let low = Int64(b & 0x0f)
+            let hex = String(Rune(Int32(hexChars[high]))) + String(Rune(Int32(hexChars[low])))
+            if (hex.size == 1) {
+                result.append("0")
+            }
+            result.append(hex)
+        }
+        return result.toString()
     }
 
     /// 获取客户端 key
     public func clientKey(): Array<UInt8> {
         // HMAC-SHA256(saltedPassword, "Client Key")
         // 这里需要 HMAC 实现
-        Array<UInt8>(32)
+        Array<UInt8>(32, repeat: UInt8(0))
     }
 
     /// 计算服务器签名
     public func clientKeySignature(clientKey: Array<UInt8>, authString: String): Array<UInt8> {
         // HMAC-SHA256(clientKey, authString)
-        Array<UInt8>(32)
+        Array<UInt8>(32, repeat: UInt8(0))
     }
 
     /// 计算盐值密码
@@ -111,10 +115,18 @@ public class SASLState {
     /// 生成随机 nonce
     private static func generateNonce(): Array<UInt8> {
         // 生成 18 字节随机数据
-        let nonce = Array<UInt8>(18)
+        let nonce = Array<UInt8>(18, repeat: UInt8(0))
+        let rng = Random()
         for (i in 0..18) {
-            nonce[i] = UInt8.random()
+            nonce[i] = UInt8(rng.nextUInt64() % 256)
         }
         nonce
     }
+}
+
+/// SASL 状态阶段 (moved out of class)
+public enum SASLStateStatus {
+    | Init       // 初始阶段
+    | Continue   // 继续阶段
+    | Final      // 最终阶段
 }

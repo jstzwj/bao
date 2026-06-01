@@ -246,17 +246,13 @@ public class WebSocket <: EventTarget {
         // 创建 TCP 连接
         let addr = SocketAddrV4(port, host)
         let socketResult = TcpSocket.create(AddressFamily.Inet)
-        let sock = match (socketResult) {
-            case Ok(s) => s
-            case Err(_) =>
-                readyState = WebSocketReadyState.Closed
-                let errorEvent = Event("error")
-                match (onerror) {
-                    case Some(cb) => cb(errorEvent)
-                    case None => ()
-                }
-                return
+        if (socketResult.isErr()) {
+            readyState = WebSocketReadyState.Closed
+            let errorEvent = Event("error")
+            if (onerror.isSome()) { onerror.getOrThrow()(errorEvent) }
+            return
         }
+        let sock = socketResult.result().getOrThrow()
 
         let connectResult = sock.connect(SocketAddr.V4(addr))
         match (connectResult) {

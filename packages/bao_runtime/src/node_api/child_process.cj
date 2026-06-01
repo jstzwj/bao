@@ -27,9 +27,8 @@ public class ChildProcessModule {
         // 转换环境变量
         if (options.env.size > 0) {
             for (key in options.env.keys()) {
-                match (options.env.get(key)) {
-                    case Some(v) => sysOpts.env.put(key, v)
-                    case None => ()
+                if (options.env.get(key).isSome()) {
+                    sysOpts.env.put(key, options.env.get(key).getOrThrow())
                 }
             }
         }
@@ -81,25 +80,19 @@ public class ChildProcessModule {
         // 收集输出 — 在同步回调中立即读取
         var stdout = ""
         var stderr = ""
-        match (child.stdout) {
-            case Some(reader) =>
-                let result = reader.readToEnd()
-                match (result) {
-                    case Ok(bytes) =>
-                        stdout = byteArrayToString(bytes)
-                    case Err(_) => ()
-                }
-            case None => ()
+        if (child.stdout.isSome()) {
+            let reader = child.stdout.getOrThrow()
+            let result = reader.readToEnd()
+            if (result.isOk()) {
+                stdout = byteArrayToString(result.result().getOrThrow())
+            }
         }
-        match (child.stderr) {
-            case Some(reader) =>
-                let result = reader.readToEnd()
-                match (result) {
-                    case Ok(bytes) =>
-                        stderr = byteArrayToString(bytes)
-                    case Err(_) => ()
-                }
-            case None => ()
+        if (child.stderr.isSome()) {
+            let reader = child.stderr.getOrThrow()
+            let result = reader.readToEnd()
+            if (result.isOk()) {
+                stderr = byteArrayToString(result.result().getOrThrow())
+            }
         }
 
         // 等待进程完成
@@ -146,23 +139,19 @@ public class ChildProcessModule {
         // 读取输出
         var stdout = ""
         var stderr = ""
-        match (child.stdout) {
-            case Some(reader) =>
-                let result = reader.readToEnd()
-                match (result) {
-                    case Ok(bytes) => stdout = byteArrayToString(bytes)
-                    case Err(_) => ()
-                }
-            case None => ()
+        if (child.stdout.isSome()) {
+            let reader = child.stdout.getOrThrow()
+            let result = reader.readToEnd()
+            if (result.isOk()) {
+                stdout = byteArrayToString(result.result().getOrThrow())
+            }
         }
-        match (child.stderr) {
-            case Some(reader) =>
-                let result = reader.readToEnd()
-                match (result) {
-                    case Ok(bytes) => stderr = byteArrayToString(bytes)
-                    case Err(_) => ()
-                }
-            case None => ()
+        if (child.stderr.isSome()) {
+            let reader = child.stderr.getOrThrow()
+            let result = reader.readToEnd()
+            if (result.isOk()) {
+                stderr = byteArrayToString(result.result().getOrThrow())
+            }
         }
 
         // 等待完成
@@ -240,10 +229,9 @@ public class ChildProcessModule {
             let command = Interpreter.jsToString(args[0])
             let spawnArgs = ArrayList<String>()
             if (args.size > 1) {
-                match (args[1].arrayData) {
-                    case Some(arr) =>
-                        for (a in arr) { spawnArgs.append(Interpreter.jsToString(a)) }
-                    case None => ()
+                if (args[1].arrayData.isSome()) {
+                    let arr = args[1].arrayData.getOrThrow()
+                    for (a in arr) { spawnArgs.append(Interpreter.jsToString(a)) }
                 }
             }
             let options = if (args.size > 2) { parseSpawnOptions(args[2]) } else { NodeSpawnOptions() }
@@ -273,10 +261,9 @@ public class ChildProcessModule {
             let file = Interpreter.jsToString(args[0])
             let fileArgs = ArrayList<String>()
             if (args.size > 1) {
-                match (args[1].arrayData) {
-                    case Some(arr) =>
-                        for (a in arr) { fileArgs.append(Interpreter.jsToString(a)) }
-                    case None => ()
+                if (args[1].arrayData.isSome()) {
+                    let arr = args[1].arrayData.getOrThrow()
+                    for (a in arr) { fileArgs.append(Interpreter.jsToString(a)) }
                 }
             }
             let options = if (args.size > 2) { parseSpawnOptions(args[2]) } else { NodeSpawnOptions() }
@@ -289,10 +276,9 @@ public class ChildProcessModule {
             let modulePath = Interpreter.jsToString(args[0])
             let forkArgs = ArrayList<String>()
             if (args.size > 1) {
-                match (args[1].arrayData) {
-                    case Some(arr) =>
-                        for (a in arr) { forkArgs.append(Interpreter.jsToString(a)) }
-                    case None => ()
+                if (args[1].arrayData.isSome()) {
+                    let arr = args[1].arrayData.getOrThrow()
+                    for (a in arr) { forkArgs.append(Interpreter.jsToString(a)) }
                 }
             }
             let options = if (args.size > 2) { parseSpawnOptions(args[2]) } else { NodeSpawnOptions() }
@@ -312,30 +298,28 @@ public class ChildProcessModule {
     /// 从 JsValue 解析 SpawnOptions
     private static func parseSpawnOptions(v: JsValue): NodeSpawnOptions {
         let opts = NodeSpawnOptions()
-        match (v.objectData) {
-            case Some(obj) =>
-                let cwdVal = obj.get("cwd")
-                if (cwdVal.valueType != JsValueType.Undefined) { opts.cwd = Interpreter.jsToString(cwdVal) }
-                let shellVal = obj.get("shell")
-                if (shellVal.valueType != JsValueType.Undefined) { opts.shell = Interpreter.jsToBoolean(shellVal) }
-                let detVal = obj.get("detached")
-                if (detVal.valueType != JsValueType.Undefined) { opts.detached = Interpreter.jsToBoolean(detVal) }
-                // 解析 env 对象
-                let envVal = obj.get("env")
-                match (envVal.objectData) {
-                    case Some(envObj) =>
-                        for (key in envObj.keys()) {
-                            let val = envObj.get(key)
-                            if (val.valueType != JsValueType.Undefined) { opts.env.put(key, Interpreter.jsToString(val)) }
-                        }
-                    case None => ()
+        if (v.objectData.isSome()) {
+            let obj = v.objectData.getOrThrow()
+            let cwdVal = obj.get("cwd")
+            if (cwdVal.valueType != JsValueType.Undefined) { opts.cwd = Interpreter.jsToString(cwdVal) }
+            let shellVal = obj.get("shell")
+            if (shellVal.valueType != JsValueType.Undefined) { opts.shell = Interpreter.jsToBoolean(shellVal) }
+            let detVal = obj.get("detached")
+            if (detVal.valueType != JsValueType.Undefined) { opts.detached = Interpreter.jsToBoolean(detVal) }
+            // 解析 env 对象
+            let envVal = obj.get("env")
+            if (envVal.objectData.isSome()) {
+                let envObj = envVal.objectData.getOrThrow()
+                for (key in envObj.keys()) {
+                    let val = envObj.get(key)
+                    if (val.valueType != JsValueType.Undefined) { opts.env.put(key, Interpreter.jsToString(val)) }
                 }
-                // 解析 uid/gid
-                let uidVal = obj.get("uid")
-                if (uidVal.valueType != JsValueType.Undefined) { opts.uid = Int64(Interpreter.jsToNumber(uidVal)) }
-                let gidVal = obj.get("gid")
-                if (gidVal.valueType != JsValueType.Undefined) { opts.gid = Int64(Interpreter.jsToNumber(gidVal)) }
-            case None => ()
+            }
+            // 解析 uid/gid
+            let uidVal = obj.get("uid")
+            if (uidVal.valueType != JsValueType.Undefined) { opts.uid = Int64(Interpreter.jsToNumber(uidVal)) }
+            let gidVal = obj.get("gid")
+            if (gidVal.valueType != JsValueType.Undefined) { opts.gid = Int64(Interpreter.jsToNumber(gidVal)) }
         }
         return opts
     }
@@ -343,19 +327,18 @@ public class ChildProcessModule {
     /// 从 JsValue 解析 ExecOptions
     private static func parseExecOptions(v: JsValue): NodeExecOptions {
         let opts = NodeExecOptions()
-        match (v.objectData) {
-            case Some(obj) =>
-                let cwdVal = obj.get("cwd")
-                if (cwdVal.valueType != JsValueType.Undefined) { opts.cwd = Interpreter.jsToString(cwdVal) }
-                let encVal = obj.get("encoding")
-                if (encVal.valueType != JsValueType.Undefined) { opts.encoding = Interpreter.jsToString(encVal) }
-                let tVal = obj.get("timeout")
-                if (tVal.valueType != JsValueType.Undefined) { opts.timeout = Int64(Interpreter.jsToNumber(tVal)) }
-                let mbVal = obj.get("maxBuffer")
-                if (mbVal.valueType != JsValueType.Undefined) { opts.maxBuffer = Int64(Interpreter.jsToNumber(mbVal)) }
-                let ksVal = obj.get("killSignal")
-                if (ksVal.valueType != JsValueType.Undefined) { opts.killSignal = Interpreter.jsToString(ksVal) }
-            case None => ()
+        if (v.objectData.isSome()) {
+            let obj = v.objectData.getOrThrow()
+            let cwdVal = obj.get("cwd")
+            if (cwdVal.valueType != JsValueType.Undefined) { opts.cwd = Interpreter.jsToString(cwdVal) }
+            let encVal = obj.get("encoding")
+            if (encVal.valueType != JsValueType.Undefined) { opts.encoding = Interpreter.jsToString(encVal) }
+            let tVal = obj.get("timeout")
+            if (tVal.valueType != JsValueType.Undefined) { opts.timeout = Int64(Interpreter.jsToNumber(tVal)) }
+            let mbVal = obj.get("maxBuffer")
+            if (mbVal.valueType != JsValueType.Undefined) { opts.maxBuffer = Int64(Interpreter.jsToNumber(mbVal)) }
+            let ksVal = obj.get("killSignal")
+            if (ksVal.valueType != JsValueType.Undefined) { opts.killSignal = Interpreter.jsToString(ksVal) }
         }
         return opts
     }
@@ -474,15 +457,15 @@ public class ChildProcessHandle {
     /// 对应 Node.js: child.kill(signal)
     public func kill(signal: String): Bool {
         if (killed) { return true }
-        match (sysChild) {
-            case Some(child) =>
-                let sigNum = signalToNumber(signal)
-                child.kill(sigNum)
-                killed = true
-                signalCode = signal
-                return true
-            case None => return false
+        if (sysChild.isSome()) {
+            let child = sysChild.getOrThrow()
+            let sigNum = signalToNumber(signal)
+            child.kill(sigNum)
+            killed = true
+            signalCode = signal
+            return true
         }
+        return false
     }
 
     /// child.kill() — 默认使用 SIGTERM 终止
@@ -496,11 +479,10 @@ public class ChildProcessHandle {
     public func send(message: JsValue): Unit {
         // IPC 通信需要序列化通道
         // 如果 stdin 可用，写入序列化消息
-        match (stdin) {
-            case Some(writer) =>
-                let serialized = JsonParser.stringify(message)
-                writer.write((serialized + "\n").toArray())
-            case None => ()
+        if (stdin.isSome()) {
+            let writer = stdin.getOrThrow()
+            let serialized = JsonParser.stringify(message)
+            writer.write((serialized + "\n").toArray())
         }
     }
 
@@ -508,11 +490,10 @@ public class ChildProcessHandle {
     /// 对应 Node.js: child.disconnect()
     public func disconnect(): Unit {
         // 关闭 stdin 管道以断开 IPC
-        match (stdin) {
-            case Some(writer) =>
-                writer.close()
-                stdin = None
-            case None => ()
+        if (stdin.isSome()) {
+            let writer = stdin.getOrThrow()
+            writer.close()
+            stdin = None
         }
     }
 
@@ -531,55 +512,51 @@ public class ChildProcessHandle {
 
     /// 读取 stdout 全部内容
     public func readStdout(): String {
-        match (stdout) {
-            case Some(reader) =>
-                let result = reader.readToEnd()
-                match (result) {
-                    case Ok(bytes) => return ChildProcessModule.byteArrayToString(bytes)
-                    case Err(_) => return ""
-                }
-            case None => return ""
+        if (stdout.isSome()) {
+            let reader = stdout.getOrThrow()
+            let result = reader.readToEnd()
+            if (result.isOk()) {
+                return ChildProcessModule.byteArrayToString(result.result().getOrThrow())
+            }
         }
+        return ""
     }
 
     /// 读取 stderr 全部内容
     public func readStderr(): String {
-        match (stderr) {
-            case Some(reader) =>
-                let result = reader.readToEnd()
-                match (result) {
-                    case Ok(bytes) => return ChildProcessModule.byteArrayToString(bytes)
-                    case Err(_) => return ""
-                }
-            case None => return ""
+        if (stderr.isSome()) {
+            let reader = stderr.getOrThrow()
+            let result = reader.readToEnd()
+            if (result.isOk()) {
+                return ChildProcessModule.byteArrayToString(result.result().getOrThrow())
+            }
         }
+        return ""
     }
 
     /// 写入 stdin
     public func writeStdin(data: String): Unit {
-        match (stdin) {
-            case Some(writer) =>
-                writer.write(data.toArray())
-            case None => ()
+        if (stdin.isSome()) {
+            let writer = stdin.getOrThrow()
+            writer.write(data.toArray())
         }
     }
 
     /// 关闭 stdin 管道
     public func closeStdin(): Unit {
-        match (stdin) {
-            case Some(writer) =>
-                writer.close()
-                stdin = None
-            case None => ()
+        if (stdin.isSome()) {
+            let writer = stdin.getOrThrow()
+            writer.close()
+            stdin = None
         }
     }
 
     /// 内部等待方法 — 通过 ChildProcess.wait()
     public func waitInner(): ExitStatus {
-        match (sysChild) {
-            case Some(child) => return child.wait()
-            case None => return ExitStatus.Exited(-1)
+        if (sysChild.isSome()) {
+            return sysChild.getOrThrow().wait()
         }
+        return ExitStatus.Exited(-1)
     }
 
     /// 将 ChildProcess 导出为 JsValue
@@ -593,27 +570,30 @@ public class ChildProcessHandle {
         obj.set("killed", JsValue(killed))
 
         // stdin — PipeWriter 或 null
-        match (stdin) {
-            case Some(_) => obj.set("stdin", JsValue(JsObject()))
-            case None => obj.set("stdin", JsValue.NULL)
+        if (stdin.isSome()) {
+            obj.set("stdin", JsValue(JsObject()))
+        } else {
+            obj.set("stdin", JsValue.NULL)
         }
 
         // stdout — PipeReader 或 null
-        match (stdout) {
-            case Some(reader) =>
-                let stdoutObj = JsObject()
-                stdoutObj.set("readable", JsValue(true))
-                obj.set("stdout", JsValue(stdoutObj))
-            case None => obj.set("stdout", JsValue.NULL)
+        if (stdout.isSome()) {
+            let reader = stdout.getOrThrow()
+            let stdoutObj = JsObject()
+            stdoutObj.set("readable", JsValue(true))
+            obj.set("stdout", JsValue(stdoutObj))
+        } else {
+            obj.set("stdout", JsValue.NULL)
         }
 
         // stderr — PipeReader 或 null
-        match (stderr) {
-            case Some(reader) =>
-                let stderrObj = JsObject()
-                stderrObj.set("readable", JsValue(true))
-                obj.set("stderr", JsValue(stderrObj))
-            case None => obj.set("stderr", JsValue.NULL)
+        if (stderr.isSome()) {
+            let reader = stderr.getOrThrow()
+            let stderrObj = JsObject()
+            stderrObj.set("readable", JsValue(true))
+            obj.set("stderr", JsValue(stderrObj))
+        } else {
+            obj.set("stderr", JsValue.NULL)
         }
 
         // kill 方法

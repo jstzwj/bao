@@ -376,10 +376,11 @@ public class ExpectMatcher {
             if (expected.valueType != JsValueType.Undefined) {
                 msg = msg + "(${expectedStr})"
             }
-            match (message) {
-                case Some(m) => msg = "${msg}\n  ${m}"
-                case None => ()
-            }
+            let msgOpt = message
+            if (msgOpt.isSome()) { msg = msg + "\n  " + msgOpt.getOrThrow() }
+
+
+
             return
         }
     }
@@ -702,7 +703,33 @@ public class TestDiscovery {
     }
 
     /// 递归遍历目录
-    private func walkDirectory(dir: String, results: ArrayList<String>): Unit {}
+    /// 对应 Bun: src/cli/test/Scanner.zig 中 scan + next 的目录遍历逻辑
+    private func walkDirectory(dir: String, results: ArrayList<String>): Unit {
+        if (!BaoFile.exists(dir)) { return }
+        if (!BaoFile.isDirectory(dir)) { return }
+
+        let entries = BaoFile.readdir(dir)
+        for (entry in entries) {
+            let nameLower = entry
+
+            // 跳过隐藏文件/目录 (以 . 开头)
+            if (nameLower.startsWith(".")) { continue }
+            // 跳过 node_modules
+            if (nameLower == "node_modules") { continue }
+            // 跳过忽略模式
+            if (shouldIgnore(entry)) { continue }
+
+            let fullPath = if (dir == ".") { entry } else { dir + "/" + entry }
+
+            if (BaoFile.isDirectory(fullPath)) {
+                // 递归扫描子目录
+                walkDirectory(fullPath, results)
+            } else if (isTestFile(entry)) {
+                // 匹配测试文件模式
+                results.append(fullPath)
+            }
+        }
+    }
 
     /// 检查文件名是否匹配测试文件模式
     private func isTestFile(filename: String): Bool {
@@ -854,6 +881,11 @@ public class TestReporter {
 /// 测试运行器 - 对应 Bun test runner
 /// Bun: bun test 命令发现并执行测试文件
 public class TestRunner {
+    /// 当前活跃的测试运行器
+    /// 供 bun:test 模块函数 (describe/test/expect 等) 注册测试用例
+    /// 对应 Bun: bun_test.BunTest 在测试文件加载期间通过 VM 上下文传递
+    public static var activeRunner: ?TestRunner = Option<TestRunner>.None
+
     /// 测试发现器
     private var discovery: TestDiscovery
     /// 测试报告器
@@ -863,7 +895,7 @@ public class TestRunner {
     /// 全局测试套件
     private var rootSuite: TestSuite
     /// 当前套件
-    private var currentSuite: TestSuite
+    public var currentSuite: TestSuite
     /// 全局结果
     private var globalResult: TestSuiteResult
 
@@ -872,8 +904,8 @@ public class TestRunner {
         reporter = TestReporter()
         this.vm = vm
         rootSuite = TestSuite("root")
-        currentSuite = rootSuite
         globalResult = TestSuiteResult()
+        currentSuite = rootSuite
     }
 
     /// 注册全局测试 API 到解释器环境
@@ -1094,7 +1126,23 @@ public class TestRunner {
                 result.status = TestStatus.Todo
                 result.duration = 0.0
                 return result
-            case TestCaseKind.Test | TestCaseKind.Only =>
+            case TestCaseKind.Test =>
+                match (test.fn) {
+                    case Some(fn) =>
+                        try {
+                            fn(ArrayList<JsValue>())
+                            result.status = TestStatus.Passed
+                        } catch (e: BaoError) {
+                            result.status = TestStatus.Failed
+                            result.error = Some(e.message)
+                        } catch (e: Exception) {
+                            result.status = TestStatus.Failed
+                            result.error = Some(e.message)
+                        }
+                    case None =>
+                        result.status = TestStatus.Skipped
+                }
+            case TestCaseKind.Only =>
                 match (test.fn) {
                     case Some(fn) =>
                         try {
@@ -1202,6 +1250,45 @@ public class TestRunner {
     private func currentTimeMillis(): Float64 {
         return Float64(SysModule.currentTimeMillis())
     }
+
+    /// 调用 JS 回调函数 — 供 bun:test 模块使用
+    /// 当 test/describe/beforeAll 等注册的回调是 JS 函数时，通过此方法调用
+    public static func callJsCallback(fnValue: JsValue, args: ArrayList<JsValue>): JsValue {
+        // 先尝试原生函数
+        match (fnValue.nativeFnData) {
+            case Some(nf) =>
+                return nf.fn(args)
+            case None => ()
+        }
+        // 再尝试 JS 函数 (JsFunction)
+        match (fnValue.functionData) {
+            case Some(jfn) =>
+                // 需要通过 Interpreter 来执行 JS 函数体
+                // 创建新的函数作用域
+                let fnEnv = Environment(jfn.closure)
+                // 绑定参数
+                for (i in 0..jfn.paramNames.size) {
+                    let argVal = if (i < args.size) { args[Int64(i)] } else { JsValue.UNDEFINED }
+                    fnEnv.define(jfn.paramNames[Int64(i)], argVal, true)
+                }
+                // 在 VM 上执行函数体
+                match (activeRunnerVM) {
+                    case Some(interp) =>
+                        var result = JsValue.UNDEFINED
+                        for (stmt in jfn.body) {
+                            result = interp.execStmt(stmt, fnEnv)
+                        }
+                        return result
+                    case None => ()
+                }
+                return JsValue.UNDEFINED
+            case None => ()
+        }
+        return JsValue.UNDEFINED
+    }
+
+    /// 当前 VM 引用 (供 callJsCallback 使用)
+    public static var activeRunnerVM: ?Interpreter = Option<Interpreter>.None
 }
 
 /// TestRunner 模块导出

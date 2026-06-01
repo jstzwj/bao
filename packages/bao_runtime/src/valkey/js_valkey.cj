@@ -146,15 +146,14 @@ public class SubscriptionCtx {
 
         for (callback in callbacks.getOrThrow()) {
             // 调用回调函数
-            match (callback.functionData) {
-                case Some(fn) =>
-                    // 对应 Bun: event_loop.runCallback(callback, globalObject, .js_undefined, args)
-                    let vm = VirtualMachine.get()
-                    let eventLoop = vm.getEventLoop()
-                    eventLoop.enter()
-                    eventLoop.runCallback(callback, vm.getGlobal(), JsValue.jsUndefined(), args)
-                    eventLoop.exit()
-                case None => ()
+            if (callback.functionData.isSome()) {
+                let fn = callback.functionData.getOrThrow()
+                // 对应 Bun: event_loop.runCallback(callback, globalObject, .js_undefined, args)
+                let vm = VirtualMachine.get()
+                let eventLoop = vm.getEventLoop()
+                eventLoop.enter()
+                eventLoop.runCallback(callback, vm.getGlobal(), JsValue.jsUndefined(), args)
+                eventLoop.exit()
             }
         }
     }
@@ -329,7 +328,8 @@ public class JSValkeyClient {
 
         // 从路径名解析数据库编号 (如 "/1" -> 数据库 1)
         let database: UInt32 = if (url.pathname.size > 1) {
-            UInt32(match (IntParser.parseDecimal(url.pathname[1..])) { case Some(v) => v case None => 0 })
+            let parsed = IntParser.parseDecimal(url.pathname[1..])
+            UInt32(if (parsed.isSome()) { parsed.getOrThrow() } else { 0 })
         } else {
             0
         }
@@ -1279,7 +1279,7 @@ public class ParsedUrl {
             let colonIdxOpt = result.host.indexOf(":")
             if (let Some(colonIdx) <- colonIdxOpt) {
                 let portOpt = IntParser.parseDecimal(result.host[(colonIdx + 1)..])
-                result.port = match (portOpt) { case Some(v) => v case None => 6379 }
+                result.port = if (portOpt.isSome()) { portOpt.getOrThrow() } else { 6379 }
                 result.host = result.host[0..colonIdx]
             } else {
                 result.port = 6379

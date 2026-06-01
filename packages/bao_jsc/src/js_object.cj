@@ -541,19 +541,17 @@ public class JsObject {
         if (fnProp.isSome()) {
             let desc = fnProp.getOrThrow()
             if (desc.hasValue) {
-                let callVal = desc.value
-                if (callVal.isFunction()) {
-                    let fnObj = callVal.toObject()
-                    // 递归调用但通过直接属性查找避免无限递归
-                    let cb = fnObj.properties.get("callback")
-                    if (cb.isSome()) {
-                        let cbDesc = cb.getOrThrow()
-                        if (cbDesc.hasValue && cbDesc.value.isFunction()) {
-                            // JsFunction 的 callback 存储为 JsValue, 需要取出
-                            // 这里直接调用 JsFunction.call
-                        }
+                let callValOpt = desc.value
+                if (callValOpt.isSome()) {
+                    let callVal = callValOpt.getOrThrow()
+                    // Check if the value is an object (proxy call target)
+                    match (callVal.objectValue) {
+                        case Some(obj) =>
+                            // Try to call the object
+                            let result = obj.call(thisObj, args)
+                            return result
+                        case None => ()
                     }
-                    return fnObj.call(thisObj, args)
                 }
             }
         }

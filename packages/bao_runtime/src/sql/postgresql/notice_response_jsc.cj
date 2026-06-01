@@ -3,6 +3,8 @@
 //   pub fn toJS(this: NoticeResponse, globalObject: *jsc.JSGlobalObject) JSValue
 package bao_runtime.sql.postgresql
 
+import bao_sql.postgres.protocol.*
+
 
 /// 通知响应 JSC 转换器
 /// 对应 Bun notice_response_jsc
@@ -15,11 +17,20 @@ public class NoticeResponseJSC {
     /// 通知消息被组合为单个字符串，每行一个字段
     public static func toJS(noticeResponse: NoticeResponse): String {
         var result = ""
-        for (field in noticeResponse.fields) {
+        for (field in noticeResponse.messages) {
             result = result + field.value + "\n"
         }
         if (result.size > 0) {
-            result = result.substring(0, result.size - 1)
+            if (result.size > 0) {
+                // Remove last character (trailing newline)
+                if (result.size > 1) {
+                    var sb = StringBuilder()
+                    for (i in 0..result.size - 1) {
+                        sb.append(result.toRuneArray()[i])
+                    }
+                    result = sb.toString()
+                }
+            }
         }
         return result
     }

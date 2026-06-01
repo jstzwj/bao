@@ -860,11 +860,11 @@ public class NodeRequire {
 
         // 2. 解析内置模块
         let builtins = BuiltinModules()
-        match (builtins.get(specifier)) {
-            case Some(v) =>
-                cache.put(specifier, v)
-                return v
-            case None => ()
+        let builtinOpt = builtins.get(specifier)
+        if (builtinOpt.isSome()) {
+            let v = builtinOpt.getOrThrow()
+            cache.put(specifier, v)
+            return v
         }
 
         // 3. 解析文件路径
@@ -945,9 +945,9 @@ public class NodeRequire {
         // require.cache
         let cacheObj = JsObject()
         for (key in cache.keys()) {
-            match (cache.get(key)) {
-                case Some(v) => cacheObj.set(key, v)
-                case None => ()
+            let vOpt = cache.get(key)
+            if (vOpt.isSome()) {
+                cacheObj.set(key, vOpt.getOrThrow())
             }
         }
         requireObj.set("cache", JsValue(cacheObj))

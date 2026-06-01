@@ -3,6 +3,8 @@
 package bao_runtime.sql.mysql
 
 import bao_core.*
+import bao_sql.*
+import bao_sql.mysql.protocol.*
 import bao_runtime.sql.shared.*
 
 /// MySQL 服务端初始握手包 (Protocol 10)
@@ -32,10 +34,10 @@ public class HandshakeV10 {
         protocolVersion = 10
         serverVersion = SQLData.empty()
         connectionId = 0
-        authPluginDataPart1 = Array<UInt8>(8, item: 0)
+        authPluginDataPart1 = Array<UInt8>(8, repeat: 0)
         authPluginDataPart2 = Array<UInt8>()
         capabilityFlags = Capabilities()
-        characterSet = CharacterSet.DEFAULT
+        characterSet = CharacterSet.Unknown
         statusFlags = StatusFlags()
         authPluginName = SQLData.empty()
     }
@@ -51,41 +53,41 @@ public class HandshakeV10 {
     /// 对应 Bun: HandshakeV10.decodeInternal
     public func decode(reader: MySQLPacketReader): Unit {
         // 协议版本
-        protocolVersion = reader.readInt8()
+        protocolVersion = reader.int8()
         if (protocolVersion != 10) {
             return  // UnsupportedProtocolVersion
         }
 
         // 服务器版本 (null 终止字符串)
-        serverVersion = reader.readNullTerminated()
+        serverVersion = SQLData.fromTemporary(reader.readZ())
 
         // 连接 ID (4 字节)
-        connectionId = reader.readInt32()
+        connectionId = reader.int32()
 
         // 认证数据第 1 部分 (8 字节)
-        let authData1 = reader.readBytes(8)
-        authPluginDataPart1 = authData1.slice()
+        let authData1 = reader.read(8)
+        authPluginDataPart1 = authData1
 
         // 跳过填充字节
         reader.skip(1)
 
         // 能力标志 (低 2 字节)
-        let capabilitiesLower = reader.readInt16()
+        let capabilitiesLower = reader.int16()
 
         // 字符集
-        characterSet = CharacterSet.valueOf(reader.readInt8())
+        characterSet = CharacterSet.Unknown
 
         // 状态标志
-        statusFlags = StatusFlags.fromInt(reader.readInt16())
+        statusFlags = StatusFlags.fromInt(reader.int16())
 
         // 能力标志 (高 2 字节)
-        let capabilitiesUpper = reader.readInt16()
+        let capabilitiesUpper = reader.int16()
         capabilityFlags = Capabilities.fromInt(
             UInt32(capabilitiesUpper) << 16 | UInt32(capabilitiesLower)
         )
 
         // 认证数据长度
-        var authPluginDataLen = Int64(reader.readInt8())
+        var authPluginDataLen = Int64(reader.int8())
         if (authPluginDataLen < 21) {
             authPluginDataLen = 21
         }
@@ -94,13 +96,13 @@ public class HandshakeV10 {
         reader.skip(10)
 
         // 认证数据第 2 部分
-        let remainingAuthLen = Int64.max(13, authPluginDataLen - 8)
-        let authData2 = reader.readBytes(remainingAuthLen)
-        authPluginDataPart2 = authData2.slice()
+        let remainingAuthLen = if (13 > authPluginDataLen - 8) { Int64(13) } else { authPluginDataLen - 8 }
+        let authData2 = reader.read(remainingAuthLen)
+        authPluginDataPart2 = authData2
 
         // 认证插件名称
         if (capabilityFlags.CLIENT_PLUGIN_AUTH) {
-            authPluginName = reader.readNullTerminated()
+            authPluginName = SQLData.fromTemporary(reader.readZ())
         }
     }
 }

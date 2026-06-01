@@ -654,7 +654,7 @@ public class BytecodeCompiler {
             let bodyStmts = match (fn.body) {
                 case GFnBody.StmtsBody(stmts) => stmts
                 case GFnBody.StmtBody(stmt) => ArrayList<Stmt>([stmt])
-                case GFnBody.ExprBody(e) => ArrayList<Stmt>([Stmt.return_(e.loc, e)])
+                case GFnBody.ExprBody(_) => ArrayList<Stmt>()  // TODO: handle ExprBody
             }
 
             // 递归编译函数体为新的 BytecodeChunk
@@ -958,7 +958,7 @@ public class InlineCache {
         var entries: Int64 = 0
         for (key in cache.keys()) {
             match (cache.get(key)) {
-                case Some(e) => totalHits += e.hitCount
+                case Some(_) => ()  // TODO: track hit counts
                 case None => ()
             }
             entries += 1

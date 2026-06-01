@@ -8,14 +8,14 @@ package bao_runtime.sql.postgresql
 /// 对应 Bun Tag (enum(short))
 public enum PGTag {
     // ===== 基本类型 =====
-    | Bool             // OID 16
+    | `Bool`             // OID 16
     | Bytea            // OID 17
     | Char             // OID 18
     | Name             // OID 19
-    | Int8             // OID 20 (int8/bigint)
-    | Int2             // OID 21 (int2/smallint)
-    | Int2Vector       // OID 22
-    | Int4             // OID 23 (int4/integer)
+    | PgInt8             // OID 20 (int8/bigint)
+    | PgInt2             // OID 21 (int2/smallint)
+    | PgInt2Vector       // OID 22
+    | PgInt4             // OID 23 (int4/integer)
     | Text             // OID 25
     | Oid              // OID 26
     | Xid              // OID 28
@@ -58,10 +58,10 @@ public enum PGTag {
     | ByteaArray         // OID 1001
     | CharArray          // OID 1002
     | NameArray          // OID 1003
-    | Int8Array          // OID 1016
-    | Int2Array          // OID 1005
-    | Int2VectorArray    // OID 1006
-    | Int4Array          // OID 1007
+    | PgInt8Array          // OID 1016
+    | PgInt2Array          // OID 1005
+    | PgInt2VectorArray    // OID 1006
+    | PgInt4Array          // OID 1007
     | TextArray          // OID 1009
     | OidArray           // OID 1028
     | TidArray           // OID 1010
@@ -106,14 +106,14 @@ public enum PGTag {
     /// 对应 Bun Tag 枚举的 @enumFromInt
     public static func fromOID(oid: UInt16): PGTag {
         match (oid) {
-            case 16 => Bool
+            case 16 => `Bool`
             case 17 => Bytea
             case 18 => Char
             case 19 => Name
-            case 20 => Int8
-            case 21 => Int2
-            case 22 => Int2Vector
-            case 23 => Int4
+            case 20 => PgInt8
+            case 21 => PgInt2
+            case 22 => PgInt2Vector
+            case 23 => PgInt4
             case 25 => Text
             case 26 => Oid
             case 28 => Xid
@@ -155,16 +155,16 @@ public enum PGTag {
             case 1001 => ByteaArray
             case 1002 => CharArray
             case 1003 => NameArray
-            case 1005 => Int2Array
-            case 1006 => Int2VectorArray
-            case 1007 => Int4Array
+            case 1005 => PgInt2Array
+            case 1006 => PgInt2VectorArray
+            case 1007 => PgInt4Array
             case 1009 => TextArray
             case 1010 => TidArray
             case 1011 => XidArray
             case 1012 => CidArray
             case 1014 => BpcharArray
             case 1015 => VarcharArray
-            case 1016 => Int8Array
+            case 1016 => PgInt8Array
             case 1017 => PointArray
             case 1018 => LsegArray
             case 1019 => PathArray
@@ -204,14 +204,14 @@ public enum PGTag {
     /// 对应 Bun Tag.tagName()
     public func tagName(): ?String {
         match (this) {
-            case Bool => "bool"
+            case `Bool` => "bool"
             case Bytea => "bytea"
             case Char => "char"
             case Name => "name"
-            case Int8 => "int8"
-            case Int2 => "int2"
-            case Int2Vector => "int2vector"
-            case Int4 => "int4"
+            case PgInt8 => "int8"
+            case PgInt2 => "int2"
+            case PgInt2Vector => "int2vector"
+            case PgInt4 => "int4"
             case Text => "text"
             case Oid => "oid"
             case Xid => "xid"
@@ -252,10 +252,10 @@ public enum PGTag {
             case ByteaArray => "bytea_array"
             case CharArray => "char_array"
             case NameArray => "name_array"
-            case Int8Array => "int8_array"
-            case Int2Array => "int2_array"
-            case Int2VectorArray => "int2vector_array"
-            case Int4Array => "int4_array"
+            case PgInt8Array => "int8_array"
+            case PgInt2Array => "int2_array"
+            case PgInt2VectorArray => "int2vector_array"
+            case PgInt4Array => "int4_array"
             case TextArray => "text_array"
             case OidArray => "oid_array"
             case TidArray => "tid_array"
@@ -300,8 +300,8 @@ public enum PGTag {
     /// 对应 Bun Tag.isBinaryFormatSupported()
     public func isBinaryFormatSupported(): Bool {
         match (this) {
-            case Bool | Timestamp | Timestamptz | Time |
-                 Int4Array | Float4Array | Int4 | Float8 | Float4 |
+            case `Bool` | Timestamp | Timestamptz | Time |
+                 PgInt4Array | Float4Array | PgInt4 | Float8 | Float4 |
                  Bytea | Numeric => true
             case _ => false
         }
@@ -321,14 +321,14 @@ public enum PGTag {
     /// 对应 Bun 中 @intFromEnum(tag)
     public func toInt(): Int32 {
         match (this) {
-            case Bool => 16
+            case `Bool` => 16
             case Bytea => 17
             case Char => 18
             case Name => 19
-            case Int8 => 20
-            case Int2 => 21
-            case Int2Vector => 22
-            case Int4 => 23
+            case PgInt8 => 20
+            case PgInt2 => 21
+            case PgInt2Vector => 22
+            case PgInt4 => 23
             case Text => 25
             case Oid => 26
             case Xid => 28
@@ -359,7 +359,7 @@ public enum PGTag {
     public func isArray(): Bool {
         match (this) {
             case BoolArray | ByteaArray | CharArray | NameArray |
-                 Int8Array | Int2Array | Int2VectorArray | Int4Array |
+                 PgInt8Array | PgInt2Array | PgInt2VectorArray | PgInt4Array |
                  TextArray | OidArray | TidArray | XidArray | CidArray |
                  JsonArray | XmlArray | PointArray | LsegArray |
                  PathArray | BoxArray | PolygonArray | LineArray |

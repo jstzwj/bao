@@ -321,19 +321,14 @@ public class Performance <: EventTarget {
     public func measure(name: String, startMark: String, endMark: String): ?PerformanceMeasure {
         let start = findMarkTime(startMark)
         let end = findMarkTime(endMark)
-        match (start) {
-            case Some(s) =>
-                let e = match (end) {
-                    case Some(v) => v
-                    case None => now()
-                }
-                let duration = e - s
-                let measure = PerformanceMeasure(name, s, duration)
-                entries.append(measure)
-                notifyObservers(measure)
-                return Some(measure)
-            case None => return None
-        }
+        if (start.isNone()) { return None }
+        let s = start.getOrThrow()
+        let e = if (end.isSome()) { end.getOrThrow() } else { now() }
+        let duration = e - s
+        let measure = PerformanceMeasure(name, s, duration)
+        entries.append(measure)
+        notifyObservers(measure)
+        return Some(measure)
     }
 
     /// 创建度量 (指定开始/结束时间)
@@ -408,14 +403,13 @@ public class Performance <: EventTarget {
     public func getEntriesByType(`type`: String): ArrayList<PerformanceEntry> {
         let result = ArrayList<PerformanceEntry>()
         let targetType = parseEntryType(`type`)
-        match (targetType) {
-            case Some(t) =>
-                for (entry in entries) {
-                    if (entry.entryType == t) {
-                        result.append(entry)
-                    }
+        if (targetType.isSome()) {
+            let t = targetType.getOrThrow()
+            for (entry in entries) {
+                if (entry.entryType == t) {
+                    result.append(entry)
                 }
-            case None => ()
+            }
         }
         return result
     }
@@ -437,14 +431,13 @@ public class Performance <: EventTarget {
     public func getEntriesByName(name: String, `type`: String): ArrayList<PerformanceEntry> {
         let result = ArrayList<PerformanceEntry>()
         let targetType = parseEntryType(`type`)
-        match (targetType) {
-            case Some(t) =>
-                for (entry in entries) {
-                    if (entry.name == name && entry.entryType == t) {
-                        result.append(entry)
-                    }
+        if (targetType.isSome()) {
+            let t = targetType.getOrThrow()
+            for (entry in entries) {
+                if (entry.name == name && entry.entryType == t) {
+                    result.append(entry)
                 }
-            case None => ()
+            }
         }
         return result
     }
@@ -517,9 +510,10 @@ public class Performance <: EventTarget {
                     } else {
                         Some(self.measure(name, 0.0, self.now()))
                     }
-                    match (measure) {
-                        case Some(m) => m.toJsValueMeasure()
-                        case None => JsValue.NULL
+                    if (measure.isSome()) {
+                        measure.getOrThrow().toJsValueMeasure()
+                    } else {
+                        JsValue.NULL
                     }
                 }))
 

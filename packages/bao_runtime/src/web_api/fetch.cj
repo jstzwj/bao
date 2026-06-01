@@ -48,12 +48,11 @@ public class Headers {
     public init(`init`: HashMap<String, String>) {
         headers = HashMap<String, ArrayList<String>>()
         for (key in `init`.keys()) {
-            match (`init`.get(key)) {
-                case Some(val) =>
-                    let arr = ArrayList<String>()
-                    arr.append(val)
-                    headers.put(normalizeName(key), arr)
-                case None => ()
+            if (`init`.get(key).isSome()) {
+                let val = `init`.get(key).getOrThrow()
+                let arr = ArrayList<String>()
+                arr.append(val)
+                headers.put(normalizeName(key), arr)
             }
         }
     }
@@ -62,13 +61,14 @@ public class Headers {
     /// 对应 Web API: headers.get(name)
     public func get(name: String): ?String {
         let normalizedName = normalizeName(name)
-        match (headers.get(normalizedName)) {
-            case Some(arr) =>
-                if (arr.size > 0) {
-                    return Some(arr[0])
-                }
-                return None
-            case None => None
+        if (headers.get(normalizedName).isSome()) {
+            let arr = headers.get(normalizedName).getOrThrow()
+            if (arr.size > 0) {
+                return Some(arr[0])
+            }
+            return None
+        } else {
+            return None
         }
     }
 
@@ -76,9 +76,10 @@ public class Headers {
     /// 对应 Web API: headers.getAll(name) (非标准但广泛使用)
     public func getAll(name: String): ArrayList<String> {
         let normalizedName = normalizeName(name)
-        match (headers.get(normalizedName)) {
-            case Some(arr) => arr
-            case None => ArrayList<String>()
+        if (headers.get(normalizedName).isSome()) {
+            return headers.get(normalizedName).getOrThrow()
+        } else {
+            return ArrayList<String>()
         }
     }
 
@@ -95,12 +96,13 @@ public class Headers {
     /// 对应 Web API: headers.append(name, value)
     public func append(name: String, value: String): Unit {
         let normalizedName = normalizeName(name)
-        match (headers.get(normalizedName)) {
-            case Some(arr) => arr.append(value)
-            case None =>
-                let arr = ArrayList<String>()
-                arr.append(value)
-                headers.put(normalizedName, arr)
+        if (headers.get(normalizedName).isSome()) {
+            let arr = headers.get(normalizedName).getOrThrow()
+            arr.append(value)
+        } else {
+            let arr = ArrayList<String>()
+            arr.append(value)
+            headers.put(normalizedName, arr)
         }
     }
 
@@ -120,12 +122,11 @@ public class Headers {
     /// 对应 Web API: headers.forEach(callback)
     public func forEach(callback: (String, String) -> Unit): Unit {
         for (key in headers.keys()) {
-            match (headers.get(key)) {
-                case Some(arr) =>
-                    for (val in arr) {
-                        callback(key, val)
-                    }
-                case None => ()
+            if (headers.get(key).isSome()) {
+                let arr = headers.get(key).getOrThrow()
+                for (val in arr) {
+                    callback(key, val)
+                }
             }
         }
     }
@@ -145,12 +146,11 @@ public class Headers {
     public func values(): ArrayList<String> {
         let result = ArrayList<String>()
         for (key in headers.keys()) {
-            match (headers.get(key)) {
-                case Some(arr) =>
-                    if (arr.size > 0) {
-                        result.append(arr[0])
-                    }
-                case None => ()
+            if (headers.get(key).isSome()) {
+                let arr = headers.get(key).getOrThrow()
+                if (arr.size > 0) {
+                    result.append(arr[0])
+                }
             }
         }
         return result
@@ -161,12 +161,11 @@ public class Headers {
     public func entries(): ArrayList<(String, String)> {
         let result = ArrayList<(String, String)>()
         for (key in headers.keys()) {
-            match (headers.get(key)) {
-                case Some(arr) =>
-                    for (val in arr) {
-                        result.append((key, val))
-                    }
-                case None => ()
+            if (headers.get(key).isSome()) {
+                let arr = headers.get(key).getOrThrow()
+                for (val in arr) {
+                    result.append((key, val))
+                }
             }
         }
         return result
@@ -176,12 +175,11 @@ public class Headers {
     public func toMap(): HashMap<String, String> {
         let result = HashMap<String, String>()
         for (key in headers.keys()) {
-            match (headers.get(key)) {
-                case Some(arr) =>
-                    if (arr.size > 0) {
-                        result.put(key, arr[0])
-                    }
-                case None => ()
+            if (headers.get(key).isSome()) {
+                let arr = headers.get(key).getOrThrow()
+                if (arr.size > 0) {
+                    result.put(key, arr[0])
+                }
             }
         }
         return result
@@ -191,9 +189,9 @@ public class Headers {
     public static func fromObject(obj: HashMap<String, String>): Headers {
         let h = Headers()
         for (key in obj.keys()) {
-            match (obj.get(key)) {
-                case Some(val) => h.set(key, val)
-                case None => ()
+            if (obj.get(key).isSome()) {
+                let val = obj.get(key).getOrThrow()
+                h.set(key, val)
             }
         }
         return h
@@ -206,9 +204,12 @@ public class Headers {
 
         obj.set("get", JsValue.nativeFunction(JsNativeFunction("get") { args =>
             if (args.size >= 1) {
-                match (self.get(Interpreter.jsToString(args[0]))) {
-                    case Some(v) => return JsValue(BaoString(v))
-                    case None => return JsValue.NULL
+                let getResult = self.get(Interpreter.jsToString(args[0]))
+                if (getResult.isSome()) {
+                    let v = getResult.getOrThrow()
+                    return JsValue(BaoString(v))
+                } else {
+                    return JsValue.NULL
                 }
             }
             return JsValue.NULL
@@ -376,27 +377,33 @@ public class Request {
     /// 解析响应体为 JSON
     /// 对应 Web API: request.json()
     public func json(): JsValue {
-        match (body) {
-            case Some(b) => return b.json()
-            case None => return JsValue.NULL
+        if (body.isSome()) {
+            let b = body.getOrThrow()
+            return b.json()
+        } else {
+            return JsValue.NULL
         }
     }
 
     /// 解析响应体为文本
     /// 对应 Web API: request.text()
     public func text(): String {
-        match (body) {
-            case Some(b) => return b.text()
-            case None => return ""
+        if (body.isSome()) {
+            let b = body.getOrThrow()
+            return b.text()
+        } else {
+            return ""
         }
     }
 
     /// 获取响应体的原始字节数组
     /// 对应 Web API: request.arrayBuffer()
     public func arrayBuffer(): Array<UInt8> {
-        match (body) {
-            case Some(b) => return b.arrayBuffer()
-            case None => return Array<UInt8>()
+        if (body.isSome()) {
+            let b = body.getOrThrow()
+            return b.arrayBuffer()
+        } else {
+            return Array<UInt8>()
         }
     }
 
@@ -476,9 +483,11 @@ public class Response {
     /// 对应 Web API: response.json()
     public func json(): JsValue {
         bodyUsed = true
-        match (body) {
-            case Some(b) => return b.json()
-            case None => return JsValue.NULL
+        if (body.isSome()) {
+            let b = body.getOrThrow()
+            return b.json()
+        } else {
+            return JsValue.NULL
         }
     }
 
@@ -486,9 +495,11 @@ public class Response {
     /// 对应 Web API: response.text()
     public func text(): String {
         bodyUsed = true
-        match (body) {
-            case Some(b) => return b.text()
-            case None => return ""
+        if (body.isSome()) {
+            let b = body.getOrThrow()
+            return b.text()
+        } else {
+            return ""
         }
     }
 
@@ -496,9 +507,11 @@ public class Response {
     /// 对应 Web API: response.arrayBuffer()
     public func arrayBuffer(): Array<UInt8> {
         bodyUsed = true
-        match (body) {
-            case Some(b) => return b.arrayBuffer()
-            case None => return Array<UInt8>()
+        if (body.isSome()) {
+            let b = body.getOrThrow()
+            return b.arrayBuffer()
+        } else {
+            return Array<UInt8>()
         }
     }
 
@@ -513,14 +526,15 @@ public class Response {
         cloned.ok = ok
         cloned.bodyUsed = false
         // 克隆 body
-        match (body) {
-            case Some(b) =>
-                let clonedData = Array<UInt8>(b.data.size, { _ => 0 })
-                for (i in 0..b.data.size) {
-                    clonedData[Int64(i)] = b.data[Int64(i)]
-                }
-                cloned.body = Some(Body(clonedData, b.mimeType))
-            case None => cloned.body = None
+        if (body.isSome()) {
+            let b = body.getOrThrow()
+            let clonedData = Array<UInt8>(b.data.size, { _ => 0 })
+            for (i in 0..b.data.size) {
+                clonedData[Int64(i)] = b.data[Int64(i)]
+            }
+            cloned.body = Some(Body(clonedData, b.mimeType))
+        } else {
+            cloned.body = None
         }
         // 克隆 headers
         cloned.headers = Headers()
@@ -633,15 +647,14 @@ public class HttpClient {
         // 创建 TCP 连接
         let addr = SocketAddrV4(port, host)
         let socketResult = TcpSocket.create(AddressFamily.Inet)
-        let sock = match (socketResult) {
-            case Ok(s) => s
-            case Err(_) =>
-                let errResp = Response()
-                errResp.status = 0
-                errResp.statusText = "Connection failed"
-                errResp.ok = false
-                return errResp
+        if (socketResult.isErr()) {
+            let errResp = Response()
+            errResp.status = 0
+            errResp.statusText = "Connection failed"
+            errResp.ok = false
+            return errResp
         }
+        let sock = socketResult.result().getOrThrow()
 
         // 连接服务器
         let connectResult = sock.connect(SocketAddr.V4(addr))
@@ -670,27 +683,27 @@ public class HttpClient {
 
         // 添加自定义 headers
         for (name in request.headers.keys()) {
-            match (request.headers.get(name)) {
-                case Some(value) => httpReq.append("${name}: ${value}\r\n")
-                case None => ()
+            if (request.headers.get(name).isSome()) {
+                let value = request.headers.get(name).getOrThrow()
+                httpReq.append("${name}: ${value}\r\n")
             }
         }
 
         // 添加 body (如果有)
-        match (request.body) {
-            case Some(b) =>
-                let bodyBytes = b.arrayBuffer()
-                httpReq.append("Content-Length: ${bodyBytes.size}\r\n")
-                httpReq.append("\r\n")
-                // 发送 headers
-                let headerBytes = Utf8Codec.encode(httpReq.toString())
-                sock.send(headerBytes)
-                // 发送 body
-                sock.send(bodyBytes)
-            case None =>
-                httpReq.append("\r\n")
-                let headerBytes = Utf8Codec.encode(httpReq.toString())
-                sock.send(headerBytes)
+        if (request.body.isSome()) {
+            let b = request.body.getOrThrow()
+            let bodyBytes = b.arrayBuffer()
+            httpReq.append("Content-Length: ${bodyBytes.size}\r\n")
+            httpReq.append("\r\n")
+            // 发送 headers
+            let headerBytes = Utf8Codec.encode(httpReq.toString())
+            sock.send(headerBytes)
+            // 发送 body
+            sock.send(bodyBytes)
+        } else {
+            httpReq.append("\r\n")
+            let headerBytes = Utf8Codec.encode(httpReq.toString())
+            sock.send(headerBytes)
         }
 
         // 接收响应
@@ -792,16 +805,15 @@ public func fetch(url: String, `init`: RequestInit): Response {
 /// 对应 Bun: src/api/fetch.zig fetchImpl
 private func fetchWithRequest(request: Request): Response {
     // 检查 abort signal
-    match (request.signal) {
-        case Some(signal) =>
-            if (signal.aborted) {
-                let errResp = Response()
-                errResp.status = 0
-                errResp.statusText = "Aborted"
-                errResp.ok = false
-                return errResp
-            }
-        case None => ()
+    if (request.signal.isSome()) {
+        let signal = request.signal.getOrThrow()
+        if (signal.aborted) {
+            let errResp = Response()
+            errResp.status = 0
+            errResp.statusText = "Aborted"
+            errResp.ok = false
+            return errResp
+        }
     }
 
     // 解析 URL
@@ -836,20 +848,21 @@ private func fetchWithRequest(request: Request): Response {
             case RequestRedirect.Follow =>
                 // 获取 Location 头
                 let location = response.headers.get("location")
-                match (location) {
-                    case Some(loc) =>
-                        redirectCount++
-                        response.redirected = true
-                        let redirectUrl = if (loc.startsWith("http://") || loc.startsWith("https://")) {
-                            loc
-                        } else {
-                            // 相对路径: 拼接
-                            parsedUrl.protocol + "//" + parsedUrl.hostname + loc
-                        }
-                        let redirectRequest = Request(redirectUrl)
-                        response = HttpClient.sendRequest(BaoUrl(redirectUrl), redirectRequest)
-                        response.url = redirectUrl
-                    case None => return response
+                if (location.isSome()) {
+                    let loc = location.getOrThrow()
+                    redirectCount++
+                    response.redirected = true
+                    let redirectUrl = if (loc.startsWith("http://") || loc.startsWith("https://")) {
+                        loc
+                    } else {
+                        // 相对路径: 拼接
+                        parsedUrl.protocol + "//" + parsedUrl.hostname + loc
+                    }
+                    let redirectRequest = Request(redirectUrl)
+                    response = HttpClient.sendRequest(BaoUrl(redirectUrl), redirectRequest)
+                    response.url = redirectUrl
+                } else {
+                    return response
                 }
         }
     }
@@ -873,14 +886,13 @@ public class FetchModule {
             let response = if (args.size >= 2) {
                 // 简化: 第二个参数为 init 对象
                 let `init` = RequestInit()
-                match (args[1].objectData) {
-                    case Some(obj) =>
-                        // method
-                        let method = obj.get("method")
-                        if (method.valueType == JsValueType.String) {
-                            `init`.method = method.stringValue.toString()
-                        }
-                    case None => ()
+                if (args[1].objectData.isSome()) {
+                    let obj = args[1].objectData.getOrThrow()
+                    // method
+                    let method = obj.get("method")
+                    if (method.valueType == JsValueType.String) {
+                        `init`.method = method.stringValue.toString()
+                    }
                 }
                 fetch(url, `init`)
             } else {
@@ -909,13 +921,12 @@ public class FetchModule {
         env.define("Headers", Interpreter.makeNativeFn("Headers") { args =>
             let headers = Headers()
             if (args.size >= 1) {
-                match (args[0].objectData) {
-                    case Some(obj) =>
-                        for (key in obj.keys()) {
-                            let val = obj.get(key)
-                            headers.set(key, val.toString())
-                        }
-                    case None => ()
+                if (args[0].objectData.isSome()) {
+                    let obj = args[0].objectData.getOrThrow()
+                    for (key in obj.keys()) {
+                        let val = obj.get(key)
+                        headers.set(key, val.toString())
+                    }
                 }
             }
             return headers.toJsValue()

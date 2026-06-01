@@ -3,6 +3,7 @@
 package bao_runtime.sql.mysql
 
 import bao_core.*
+import bao_sql.mysql.protocol.*
 
 /// MySQL SSL 请求包
 /// 对应 Bun: SSLRequest
@@ -21,7 +22,7 @@ public class SSLRequest {
     public init() {
         capabilityFlags = Capabilities()
         maxPacketSize = 0xFFFFFF
-        characterSet = CharacterSet.DEFAULT
+        characterSet = CharacterSet.Unknown
         hasConnectionAttributes = false
     }
 
@@ -40,7 +41,7 @@ public class SSLRequest {
         writer.writeInt32(maxPacketSize)
 
         // 写入字符集 (1 字节)
-        writer.writeInt8(characterSet.value)
+        writer.writeInt8(0)  // characterSet value placeholder
 
         // 写入 23 字节填充
         writer.writeZeros(23)

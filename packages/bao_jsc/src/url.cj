@@ -70,13 +70,13 @@ public class URLComponents {
 /// Used for FFI interop with JSC's URL implementation.
 public class UrlHandle {
     /// Native pointer (non-zero when backed by a C++ WTF::URL)
-    public var nativePtr: UIntPtr
+    public var nativePtr: UInt64
 
     public init() {
         nativePtr = 0
     }
 
-    public init(ptr: UIntPtr) {
+    public init(ptr: UInt64) {
         this.nativePtr = ptr
     }
 
@@ -147,7 +147,7 @@ public class UrlHandle {
     /// Returns u32 MAX if the port is not set. Otherwise in u16 range.
     public func port(): UInt32 {
         // TODO: restore URL__port FFI call
-        UInt32.MAX
+        UInt32(0xFFFFFFFF)
     }
 
     /// pathname — 对应 Bun: URL__pathname(url) -> String
@@ -404,12 +404,12 @@ public class URL {
         obj.set("hash", JsValue(hash))
         obj.set("origin", JsValue(origin))
         obj.set("searchParams", searchParams.toJsValue())
-        obj.set("toString", JsValue.nativeFunction(JsNativeFunction("toString") { _ =>
+        obj.set("toString", JsValue.nativeFunction("toString") { args =>
             JsValue(href)
-        }))
-        obj.set("toJSON", JsValue.nativeFunction(JsNativeFunction("toJSON") { _ =>
+        })
+        obj.set("toJSON", JsValue.nativeFunction("toJSON") { args =>
             JsValue(href)
-        }))
+        })
         JsValue(obj)
     }
 

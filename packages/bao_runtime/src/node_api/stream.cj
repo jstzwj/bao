@@ -164,13 +164,11 @@ public class NodeReadable {
         }
         isDestroyed = true
         stream.cancel()
-        match (error) {
-            case Some(e) =>
-                match (errorCallback) {
-                    case Some(cb) => cb(e)
-                    case None => ()
-                }
-            case None => ()
+        if (error.isSome()) {
+            let errVal = error.getOrThrow()
+            if (errorCallback.isSome()) {
+                errorCallback.getOrThrow()(errVal)
+            }
         }
         for (cb in closeCallbacks) {
             cb()
@@ -316,13 +314,11 @@ public class NodeWritable {
         }
         isDestroyed = true
         stream.abort()
-        match (error) {
-            case Some(e) =>
-                match (errorCallback) {
-                    case Some(cb) => cb(e)
-                    case None => ()
-                }
-            case None => ()
+        if (error.isSome()) {
+            let errVal = error.getOrThrow()
+            if (errorCallback.isSome()) {
+                errorCallback.getOrThrow()(errVal)
+            }
         }
         for (cb in closeCallbacks) {
             cb()

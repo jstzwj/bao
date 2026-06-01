@@ -88,8 +88,13 @@ private func prepareLayersAst(chunk: Chunk, index: Int64, entry: CSSImportOrderE
     let rules = ArrayList<CSSRule>()
     if (layerNames.size > 0) {
         // 生成 @layer 声明: @layer name1, name2, name3;
-        let names = layerNames.join(", ")
-        rules.append(CSSRule("layer_statement", "@layer ${names};"))
+        var names = StringBuilder()
+        for (k in 0..layerNames.size) {
+            if (k > 0) { names.append(", ") }
+            names.append(layerNames[Int64(k)])
+        }
+        let namesStr = names.toString()
+        rules.append(CSSRule("layer_statement", "@layer ${namesStr};"))
     }
 
     // 创建样式表
@@ -130,10 +135,10 @@ private func prepareExternalPathAst(c: LinkerContext, chunk: Chunk,
             // 创建嵌套 @import 的 CSS 代码
             // @import url("path") condition;
             let conditionCss = condition.toCssString()
-            let nestedImport = "@import url(\"${path}\") ${conditionCss};"
+            let nestedImport = "@import url(\"${path}\")${conditionCss};"
 
             // 将嵌套 CSS 编码为 data URL
-            let encoded = encodeDataUrl("text/css", nestedImport.trim())
+            let encoded = encodeDataUrl("text/css", CssStrUtil.trim(nestedImport))
 
             // 更新路径为 data URL
             // 在下一次迭代中, 这个 data URL 会成为外层 @import 的目标
@@ -153,7 +158,7 @@ private func prepareExternalPathAst(c: LinkerContext, chunk: Chunk,
         // 创建 @import 规则 AST
         let rules = ArrayList<CSSRule>()
         let conditionCss = actualCondition.toCssString()
-        let importRule = "@import url(\"${path}\") ${conditionCss};"
+        let importRule = "@import url(\"${path}\")${conditionCss};"
         rules.append(CSSRule("import", importRule))
 
         let ast = CssStylesheetRef()
@@ -283,7 +288,12 @@ public func wrapRulesWithConditions(ast: CssStylesheetRef,
         // 1. @layer 包装
         match (condition.layer) {
             case Some(layer) =>
-                let layerName = layer.names.join(".")
+                var layerNameBuilder = StringBuilder()
+                for (li in 0..layer.names.size) {
+                    if (li > 0) { layerNameBuilder.append(".") }
+                    layerNameBuilder.append(layer.names[Int64(li)])
+                }
+                let layerName = layerNameBuilder.toString()
                 let doBlockRule = if (ast.rules.size > 0) {
                     true
                 } else if (layerName.size == 0) {

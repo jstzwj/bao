@@ -696,9 +696,9 @@ public class JsonParser {
         space: ?String, depth: Int64): Unit {
         var v = value
         // 应用 replacer
-        match (replacer) {
-            case Some(r) => v = r(key, v)
-            case None => ()
+        if (replacer.isSome()) {
+            let r = replacer.getOrThrow()
+            v = r(key, v)
         }
 
         match (v.valueType) {
@@ -805,14 +805,15 @@ public class JsonParser {
 
     /// 获取缩进字符串
     private static func getIndent(space: ?String, depth: Int64): String {
-        match (space) {
-            case Some(s) =>
-                let sb = BaoStringBuilder()
-                for (_ in 0..depth) {
-                    sb.appendString(s)
-                }
-                sb.build().toString()
-            case None => ""
+        if (space.isSome()) {
+            let s = space.getOrThrow()
+            let sb = BaoStringBuilder()
+            for (_ in 0..depth) {
+                sb.appendString(s)
+            }
+            sb.build().toString()
+        } else {
+            ""
         }
     }
 

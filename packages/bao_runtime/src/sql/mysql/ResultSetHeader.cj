@@ -2,6 +2,8 @@
 // 严格翻译自: src/sql/mysql/protocol/ResultSetHeader.zig
 package bao_runtime.sql.mysql
 
+import bao_sql.mysql.protocol.*
+
 /// MySQL 结果集头部
 /// 对应 Bun: ResultSetHeader
 /// 表示查询返回的列数
@@ -16,6 +18,6 @@ public class ResultSetHeader {
     /// 从 Reader 解码
     /// 对应 Bun: ResultSetHeader.decodeInternal
     public func decode(reader: MySQLPacketReader): Unit {
-        fieldCount = reader.readEncodedLenInt()
+        fieldCount = reader.encodedLenInt()
     }
 }

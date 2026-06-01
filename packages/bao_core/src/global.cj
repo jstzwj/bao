@@ -58,6 +58,13 @@ public class Global {
     // 版本字符串 - 对应 Bun Global 中的版本常量
     // ========================================================================
 
+    /// 包版本快捷访问
+    public static func getPackageVersion(): String { PACKAGE_JSON_VERSION }
+    public static func getPackageVersionWithRevision(): String { PACKAGE_JSON_VERSION_WITH_REVISION }
+
+    /// CLI 参数列表
+    public static var argv: Array<String> = []
+
     /// 包 JSON 版本 - 对应 Bun package_json_version
     /// pub const package_json_version = if (Environment.isDebug) version_string ++ "-debug" else version_string;
     public static let PACKAGE_JSON_VERSION: String = Environment.VERSION_STRING +

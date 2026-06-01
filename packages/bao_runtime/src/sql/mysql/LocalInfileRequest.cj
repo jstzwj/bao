@@ -3,6 +3,8 @@
 package bao_runtime.sql.mysql
 
 import bao_core.*
+import bao_sql.*
+import bao_sql.mysql.protocol.*
 import bao_runtime.sql.shared.*
 
 /// MySQL LOCAL INFILE 请求包
@@ -28,11 +30,11 @@ public class LocalInfileRequest {
     /// 从 Reader 解码
     /// 对应 Bun: LocalInfileRequest.decodeInternal
     public func decode(reader: MySQLPacketReader): Unit {
-        let header = reader.readInt8()
+        let header = reader.int8()
         if (header != 0xFB) {
             return  // InvalidLocalInfileRequest
         }
 
-        filename = reader.readBytes(Int64(packetSize) - 1)
+        filename = SQLData.fromTemporary(reader.read(Int64(packetSize) - 1))
     }
 }

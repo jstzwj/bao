@@ -9,22 +9,22 @@
 package bao_runtime.sql.postgresql
 
 /// PostgreSQL int4 类型（无符号 32 位）
-public typealias PostgresInt32 = UInt32
+public type PostgresInt32 = UInt32
 
 /// PostgreSQL int8 类型（有符号 64 位）
-public typealias PostgresInt64 = Int64
+public type PostgresInt64 = Int64
 
 /// PostgreSQL short 类型（无符号 16 位）
-public typealias PostgresShort = UInt16
+public type PostgresShort = UInt16
 
 /// int4 类型别名
-public typealias Int4 = UInt32
+public type PGInt4 = UInt32
 
 /// int8 类型别名
-public typealias Int8 = Int64
+public type PGInt8 = Int64
 
 /// short 类型别名
-public typealias PGShort = UInt16
+public type PGShort = UInt16
 
 /// 将 int4 值转为大端字节数组
 /// 对应 Bun Int32()

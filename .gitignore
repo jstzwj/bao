@@ -12,3 +12,4 @@ target/
 /test/**/.tmp.*
 /test/**/fails.txt
 a.out
+.bak/

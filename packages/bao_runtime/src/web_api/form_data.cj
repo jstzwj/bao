@@ -29,10 +29,10 @@ public enum FormDataEncoding {
         }
         if (contentType.contains("multipart/form-data")) {
             let boundary = extractBoundary(contentType)
-            match (boundary) {
-                case Some(b) => return Some(FormDataEncoding.Multipart(b))
-                case None => return None
+            if (boundary.isSome()) {
+                return Some(FormDataEncoding.Multipart(boundary.getOrThrow()))
             }
+            return None
         }
         return None
     }
@@ -414,10 +414,10 @@ public class WebFormData {
         obj.set("get", JsValue.nativeFunction(JsNativeFunction("get") { args =>
             if (args.size >= 1) {
                 let name = Interpreter.jsToString(args[0])
-                match (self.get(name)) {
-                    case Some(v) => return JsValue(BaoString(v))
-                    case None => return JsValue.NULL
+                if (self.get(name).isSome()) {
+                    return JsValue(BaoString(self.get(name).getOrThrow()))
                 }
+                return JsValue.NULL
             }
             return JsValue.NULL
         }))
@@ -523,20 +523,20 @@ class FormDataFieldEntry {
     /// 获取值 (文本)
     func getValue(): String {
         if (isFileFlag) {
-            match (blobValue) {
-                case Some(b) => return b.text()
-                case None => return ""
+            if (blobValue.isSome()) {
+                return blobValue.getOrThrow().text()
             }
+            return ""
         }
         return textValue
     }
 
     /// 获取二进制值
     func getBinaryValue(): Array<UInt8> {
-        match (blobValue) {
-            case Some(b) => return b.arrayBuffer()
-            case None => return Utf8Codec.encode(textValue)
+        if (blobValue.isSome()) {
+            return blobValue.getOrThrow().arrayBuffer()
         }
+        return Utf8Codec.encode(textValue)
     }
 
     /// 获取文件名
@@ -546,10 +546,10 @@ class FormDataFieldEntry {
 
     /// 获取 Content-Type
     func getContentType(): String {
-        match (blobValue) {
-            case Some(b) => return b.`type`
-            case None => return "text/plain"
+        if (blobValue.isSome()) {
+            return blobValue.getOrThrow().`type`
         }
+        return "text/plain"
     }
 
     /// 是否为文件

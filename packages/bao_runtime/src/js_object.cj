@@ -146,13 +146,11 @@ public class JsObjectOps {
 
     /// 获取对象原型 - 对应 Object.getPrototypeOf
     public static func getPrototypeOf(obj: JsObject): ?JsObject {
-        // JsObject 内部 proto 字段通过 get 访问
-        // 需要间接方式获取，通过 __proto__ 属性
         let protoVal = obj.get("__proto__")
-        match (protoVal.objectData) {
-            case Some(p) => return Some(p)
-            case None => return None
+        if (protoVal.objectData.isSome()) {
+            return protoVal.objectData
         }
+        return None
     }
 
     /// 设置对象原型 - 对应 Object.setPrototypeOf
@@ -166,9 +164,10 @@ public class JsObjectOps {
     public static func defineProperty(obj: JsObject, name: String,
         descriptor: PropertyDescriptor): Bool {
         if (descriptor.hasValue) {
-            match (descriptor.value) {
-                case Some(v) => obj.set(name, v)
-                case None => obj.set(name, JsValue.UNDEFINED)
+            if (descriptor.value.isSome()) {
+                obj.set(name, descriptor.value.getOrThrow())
+            } else {
+                obj.set(name, JsValue.UNDEFINED)
             }
         }
         return true
@@ -332,9 +331,10 @@ public class JsSymbol {
 
     /// 转为字符串 - 对应 Symbol.prototype.toString
     public func toString(): String {
-        match (description) {
-            case Some(d) => "Symbol(${d})"
-            case None => "Symbol()"
+        if (description.isSome()) {
+            "Symbol(${description.getOrThrow()})"
+        } else {
+            "Symbol()"
         }
     }
 
@@ -369,26 +369,24 @@ public class JsSymbol {
     /// 全局 Symbol 查找/注册 - 对应 Symbol.for(key)
     /// 如果 key 已注册则返回已有 Symbol，否则创建新的并注册
     public static func for_(key: String): JsSymbol {
-        match (globalRegistry.get(key)) {
-            case Some(sym) => sym
-            case None =>
-                let sym = JsSymbol(Some(key))
-                globalRegistry.put(key, sym)
-                sym
+        let opt = globalRegistry.get(key)
+        if (opt.isSome()) {
+            return opt.getOrThrow()
         }
+        let sym = JsSymbol(Some(key))
+        globalRegistry.put(key, sym)
+        return sym
     }
 
     /// 获取全局 Symbol 的 key - 对应 Symbol.keyFor(sym)
-    /// 仅对 Symbol.for() 注册的 Symbol 有效
     public static func keyFor(sym: JsSymbol): ?String {
         let keys = globalRegistry.keys()
         for (key in keys) {
-            match (globalRegistry.get(key)) {
-                case Some(s) =>
-                    if (s.id == sym.id) {
-                        return Some(key)
-                    }
-                case None => continue
+            let sOpt = globalRegistry.get(key)
+            if (sOpt.isSome()) {
+                if (sOpt.getOrThrow().id == sym.id) {
+                    return Some(key)
+                }
             }
         }
         return None

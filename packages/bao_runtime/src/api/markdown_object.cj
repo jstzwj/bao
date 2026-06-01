@@ -136,12 +136,17 @@ public class MDTypes {
     }
 
     public static func alignmentFromData(data!: UInt32): String {
-        match ((data >> 8u32) & 0x3u32) {
-            case 0u32 => "default"
-            case 1u32 => "left"
-            case 2u32 => "center"
-            case 3u32 => "right"
-            case _ => "default"
+        let val = (data >> UInt32(8)) & UInt32(3)
+        if (val == UInt32(0)) {
+            "default"
+        } else if (val == UInt32(1)) {
+            "left"
+        } else if (val == UInt32(2)) {
+            "center"
+        } else if (val == UInt32(3)) {
+            "right"
+        } else {
+            "default"
         }
     }
 
@@ -336,13 +341,18 @@ public class ParseRenderer {
     public func getBlockComponent(blockType!: MDBlockType, data!: UInt32): JsValue {
         match (blockType) {
             case MDBlockType.h =>
-                match (data) {
-                    case 1u32 => components.h1
-                    case 2u32 => components.h2
-                    case 3u32 => components.h3
-                    case 4u32 => components.h4
-                    case 5u32 => components.h5
-                    case _ => components.h6
+                if (data == UInt32(1)) {
+                    components.h1
+                } else if (data == UInt32(2)) {
+                    components.h2
+                } else if (data == UInt32(3)) {
+                    components.h3
+                } else if (data == UInt32(4)) {
+                    components.h4
+                } else if (data == UInt32(5)) {
+                    components.h5
+                } else {
+                    components.h6
                 }
             case MDBlockType.p => components.p
             case MDBlockType.`quote` => components.blockquote
@@ -1370,13 +1380,18 @@ public func extractLanguage(srcText!: String, infoBeg!: UInt32): String {
 public func getBlockTypeTag(blockType!: MDBlockType, data!: UInt32): TagIndex {
     match (blockType) {
         case MDBlockType.h =>
-            match (data) {
-                case 1u32 => TagIndex.h1
-                case 2u32 => TagIndex.h2
-                case 3u32 => TagIndex.h3
-                case 4u32 => TagIndex.h4
-                case 5u32 => TagIndex.h5
-                case _ => TagIndex.h6
+            if (data == UInt32(1)) {
+                TagIndex.h1
+            } else if (data == UInt32(2)) {
+                TagIndex.h2
+            } else if (data == UInt32(3)) {
+                TagIndex.h3
+            } else if (data == UInt32(4)) {
+                TagIndex.h4
+            } else if (data == UInt32(5)) {
+                TagIndex.h5
+            } else {
+                TagIndex.h6
             }
         case MDBlockType.p => TagIndex.p
         case MDBlockType.`quote` => TagIndex.blockquote

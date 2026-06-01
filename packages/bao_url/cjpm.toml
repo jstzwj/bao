@@ -15,3 +15,4 @@ target-dir = ""
 bao_hash = { path = "../bao_hash" }
 bao_core = { path = "../bao_core" }
 bao_collections = { path = "../bao_collections" }
+bao_string = { path = "../bao_string" }

@@ -192,7 +192,7 @@ public class WebSocketWritableStream {
             case Some(w) =>
                 let bytes = Utf8Codec.encode(text)
                 let status = w.sendText(text)
-                if (let SendStatus.Success = status) {
+                if (let SendStatus.Success <- status) {
                     totalBytesWritten += Int64(bytes.size)
                 }
                 return status
@@ -206,7 +206,7 @@ public class WebSocketWritableStream {
         match (ws) {
             case Some(w) =>
                 let status = w.sendBinary(data)
-                if (let SendStatus.Success = status) {
+                if (let SendStatus.Success <- status) {
                     totalBytesWritten += Int64(data.size)
                 }
                 return status
@@ -289,12 +289,12 @@ public class WebSocketMessageEvent {
     /// Event origin
     public var origin: String
     /// Event type
-    public var type: String
+    public var `type`: String
 
-    public init(data: JsValue, origin: String, type: String) {
+    public init(data: JsValue, origin: String, `type`: String) {
         this.data = data
         this.origin = origin
-        this.type = type
+        this.`type` = `type`
     }
 }
 
@@ -308,13 +308,13 @@ public class WebSocketCloseEvent {
     /// Whether the close was clean
     public var wasClean: Bool
     /// Event type
-    public var type: String
+    public var `type`: String
 
     public init(code: Int32, reason: String, wasClean: Bool) {
         this.code = code
         this.reason = reason
         this.wasClean = wasClean
-        this.type = "close"
+        this.`type` = "close"
     }
 
     /// Convert to JS value
@@ -333,11 +333,11 @@ public class WebSocketErrorEvent {
     /// Error message
     public var message: String
     /// Event type
-    public var type: String
+    public var `type`: String
 
     public init(message: String) {
         this.message = message
-        this.type = "error"
+        this.`type` = "error"
     }
 
     /// Convert to JS value

@@ -18,7 +18,7 @@ import bao_jsc.Strong
 public class FrameworkRouter {
     public var root: String = ""
     public var types: Array<FrameworkRouterType> = []
-    public var routes: ArrayListUnmanaged<FrameworkRouterRoute> = ArrayListUnmanaged<FrameworkRouterRoute>()
+    public var routes: ArrayList<FrameworkRouterRoute> = ArrayList<FrameworkRouterRoute>()
     /// 键是完整 URL，带前导 /，无尾随 /
     /// 值是 Route Index
     public var static_routes: StaticRouteMap = StaticRouteMap()
@@ -33,7 +33,7 @@ public class FrameworkRouter {
     public static func initEmpty(root: String, types: Array<FrameworkRouterType>, allocator: Allocator): FrameworkRouter {
         assert(root.startsWith("/"))
 
-        var routes = ArrayListUnmanaged<FrameworkRouterRoute>()
+        var routes = ArrayList<FrameworkRouterRoute>()
         var typeIndex: Int64 = 0
         for (ty in types) {
             ty.abs_root = StringsRef.withoutTrailingSlashWindowsPath(ty.abs_root)
@@ -56,10 +56,9 @@ public class FrameworkRouter {
     }
 
     public func deinit(allocator: Allocator): Unit {
-        routes.deinit(allocator)
+        // ArrayList is GC managed in Cangjie, no manual deinit needed
         static_routes.deinit(allocator)
         dynamic_routes.deinit(allocator)
-        // allocator.free(types) -- GC managed
     }
 
     public func memoryCost(): UInt64 {
@@ -81,7 +80,7 @@ public class FrameworkRouter {
 
     /// 获取路由指针
     public func routePtr(i: FrameworkRouterRouteIndex): FrameworkRouterRoute {
-        return routes.items[Int64(i.value)]
+        return routes[Int64(i.value)]
     }
 
     /// 获取类型指针
@@ -90,7 +89,7 @@ public class FrameworkRouter {
     }
 
     func newRoute(alloc: Allocator, route_data: FrameworkRouterRoute): FrameworkRouterRouteIndex {
-        let i = routes.items.size
+        let i = routes.size
         routes.append(route_data)
         var idx = FrameworkRouterRouteIndex()
         idx.value = UInt32(i)
@@ -164,7 +163,7 @@ public class FrameworkRouterRoute {
     public var file_page: ?OpaqueFileId = Option<OpaqueFileId>.None
     public var file_layout: ?OpaqueFileId = Option<OpaqueFileId>.None
     /// 仅用于 DevServer
-    public var bundle: ?RouteBundleIndex = Option<RouteBundleIndex>.None
+    public var bundle: ?Int32 = Option<Int32>.None
 
     public init() {}
 

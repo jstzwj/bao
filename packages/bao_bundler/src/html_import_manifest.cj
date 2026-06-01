@@ -70,12 +70,7 @@ public class HtmlImportManifest {
         let serverSourceIndex = graph.getHTMLServerSourceIndex(index)
         let sources = graph.inputFiles
         let options = graph.getBundleOptions()
-        let options = graph.getBundleOptions()
-        let rootDir = if (options.rootDir.size > 0) {
-            options.rootDir
-        } else {
-            graph.getTopLevelDir()
-        }
+        let rootDir = graph.getTopLevelDir()
 
         sb.append("{")
 
@@ -86,7 +81,7 @@ public class HtmlImportManifest {
                 ch.entryPoint.isEntryPoint) {
                 entryPointBits.set(ch.entryPoint.entryPointId)
 
-                if (ch.contentType == ChunkContentType.HTML) {
+                if (match (ch.contentType) { case ChunkContentType.HTML => true case _ => false }) {
                     sb.append("\"index\":")
                     if (options.compile && options.publicPath.size > 0) {
                         let fullPath = options.publicPath + removeLeadingDotSlash(ch.finalRelPath)
@@ -149,7 +144,7 @@ public class HtmlImportManifest {
 
         // 额外输出文件 (如资源文件)
         let additionalFiles = graph.getAdditionalOutputFiles()
-        let fileEntryBits = linkerGraph.filesEntryBits
+        let fileEntryBits = linkerGraph.filesEntryBits()
         var alreadyVisited = BitSet()
 
         for (i in 0..additionalFiles.size) {
@@ -164,7 +159,7 @@ public class HtmlImportManifest {
 
             match (outputFile.sourceIndex) {
                 case Some(srcIdx) =>
-                    let bits = fileEntryBits.get(srcIdx)
+                    let bits = fileEntryBits[srcIdx]
                     if (bits.hasIntersection(entryPointBits)) {
                         alreadyVisited.set(Int64(i))
                         if (!first) {
@@ -303,16 +298,16 @@ public class HtmlImportManifest {
 // 使用 URL-safe Base64 (无填充) 编码 8 字节哈希
 private func encodeBase64UrlSafe(hash: UInt64): String {
     let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
-    let bytes = Array<Byte>([
-        Byte(hash & 0xFF),
-        Byte((hash >> 8) & 0xFF),
-        Byte((hash >> 16) & 0xFF),
-        Byte((hash >> 24) & 0xFF),
-        Byte((hash >> 32) & 0xFF),
-        Byte((hash >> 40) & 0xFF),
-        Byte((hash >> 48) & 0xFF),
-        Byte((hash >> 56) & 0xFF)
-    ])
+    let bytesInit = ArrayList<UInt8>()
+    bytesInit.append(UInt8(hash & 0xFF))
+    bytesInit.append(UInt8((hash >> 8) & 0xFF))
+    bytesInit.append(UInt8((hash >> 16) & 0xFF))
+    bytesInit.append(UInt8((hash >> 24) & 0xFF))
+    bytesInit.append(UInt8((hash >> 32) & 0xFF))
+    bytesInit.append(UInt8((hash >> 40) & 0xFF))
+    bytesInit.append(UInt8((hash >> 48) & 0xFF))
+    bytesInit.append(UInt8((hash >> 56) & 0xFF))
+    let bytes = Array<UInt8>(bytesInit.size, {i => bytesInit[i]})
 
     var result = StringBuilder()
     var i = 0

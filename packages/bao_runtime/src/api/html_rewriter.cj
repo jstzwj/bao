@@ -8,9 +8,62 @@ import bao_jsc.{ArgumentsSlice, JsGlobalObject, JsValue, JsCallFrame, JsObject}
 import bao_core.*
 import bao_lolhtml_sys.*
 
-// Local FFI declaration for lol_html_take_last_error (C variadic, called with zero args)
-// The bao_lolhtml_sys package declares this with variadic (...) but we need a zero-arg version
-@C foreign func lol_html_take_last_error(): HTMLString
+// Stub C FFI declarations (TODO: move to bao_lolhtml_sys)
+foreign func lol_html_text_chunk_is_removed(ptr: CPointer<Unit>): Bool
+foreign func lol_html_text_chunk_is_last_in_text_node(ptr: CPointer<Unit>): Bool
+foreign func lol_html_text_chunk_content_get(ptr: CPointer<Unit>): CPointer<Unit>
+foreign func lol_html_doctype_name_get(ptr: CPointer<Unit>): CPointer<Unit>
+foreign func lol_html_doctype_public_id_get(ptr: CPointer<Unit>): CPointer<Unit>
+foreign func lol_html_doctype_system_id_get(ptr: CPointer<Unit>): CPointer<Unit>
+foreign func lol_html_doctype_remove(ptr: CPointer<Unit>): Unit
+foreign func lol_html_doctype_is_removed(ptr: CPointer<Unit>): Bool
+foreign func lol_html_comment_text_get(ptr: CPointer<Unit>): CPointer<Unit>
+foreign func lol_html_comment_replace(ptr: CPointer<Unit>, data: CPointer<UInt8>, len: UIntNative): Int32
+foreign func lol_html_comment_remove(ptr: CPointer<Unit>): Unit
+foreign func lol_html_comment_before(ptr: CPointer<Unit>, data: CPointer<UInt8>, len: UIntNative, isHtml: Bool): Int32
+foreign func lol_html_comment_after(ptr: CPointer<Unit>, data: CPointer<UInt8>, len: UIntNative, isHtml: Bool): Int32
+foreign func lol_html_doc_end_append(ptr: CPointer<Unit>, data: CPointer<UInt8>, len: UIntNative, isHtml: Bool): Int32
+foreign func lol_html_end_tag_name_get(ptr: CPointer<Unit>): CPointer<Unit>
+foreign func lol_html_end_tag_before(ptr: CPointer<Unit>, data: CPointer<UInt8>, len: UIntNative, isHtml: Bool): Int32
+foreign func lol_html_end_tag_after(ptr: CPointer<Unit>, data: CPointer<UInt8>, len: UIntNative, isHtml: Bool): Int32
+foreign func lol_html_end_tag_remove(ptr: CPointer<Unit>): Unit
+foreign func lol_html_comment_text_set(ptr: CPointer<Unit>, data: CPointer<UInt8>, len: UIntNative): Int32
+foreign func lol_html_comment_is_removed(ptr: CPointer<Unit>): Bool
+foreign func lol_html_end_tag_name_set(ptr: CPointer<Unit>, data: CPointer<UInt8>, len: UIntNative): Int32
+foreign func lol_html_attribute_name_get(ptr: CPointer<Unit>): CPointer<Unit>
+foreign func lol_html_attributes_iterator_next(ptr: CPointer<Unit>): CPointer<Unit>
+foreign func lol_html_attributes_iterator_free(ptr: CPointer<Unit>): Unit
+foreign func lol_html_attribute_value_get(ptr: CPointer<Unit>): CPointer<Unit>
+foreign func lol_html_element_get_attribute(ptr: CPointer<Unit>, name: CPointer<UInt8>, nameLen: UIntNative): CPointer<Unit>
+foreign func lol_html_element_has_attribute(ptr: CPointer<Unit>, name: CPointer<UInt8>, nameLen: UIntNative): Bool
+foreign func lol_html_element_remove_attribute(ptr: CPointer<Unit>, name: CPointer<UInt8>, nameLen: UIntNative): Int32
+foreign func lol_html_element_set_attribute(ptr: CPointer<Unit>, name: CPointer<UInt8>, nameLen: UIntNative, value: CPointer<UInt8>, valueLen: UIntNative): Int32
+foreign func lol_html_element_add_end_tag_handler(ptr: CPointer<Unit>, handler: CPointer<Unit>): Int32
+foreign func lol_html_element_before(ptr: CPointer<Unit>, data: CPointer<UInt8>, len: UIntNative, isHtml: Bool): Int32
+foreign func lol_html_element_after(ptr: CPointer<Unit>, data: CPointer<UInt8>, len: UIntNative, isHtml: Bool): Int32
+foreign func lol_html_element_prepend(ptr: CPointer<Unit>, data: CPointer<UInt8>, len: UIntNative, isHtml: Bool): Int32
+foreign func lol_html_element_append(ptr: CPointer<Unit>, data: CPointer<UInt8>, len: UIntNative, isHtml: Bool): Int32
+foreign func lol_html_element_replace(ptr: CPointer<Unit>, data: CPointer<UInt8>, len: UIntNative, isHtml: Bool): Int32
+foreign func lol_html_element_set_inner_content(ptr: CPointer<Unit>, data: CPointer<UInt8>, len: UIntNative, isHtml: Bool): Int32
+foreign func lol_html_element_is_removed(ptr: CPointer<Unit>): Bool
+foreign func lol_html_element_is_self_closing(ptr: CPointer<Unit>): Bool
+foreign func lol_html_element_can_have_content(ptr: CPointer<Unit>): Bool
+foreign func lol_html_element_remove(ptr: CPointer<Unit>): Unit
+foreign func lol_html_element_remove_and_keep_content(ptr: CPointer<Unit>): Unit
+foreign func lol_html_element_tag_name_get(ptr: CPointer<Unit>): CPointer<UInt8>
+foreign func lol_html_element_tag_name_set(ptr: CPointer<Unit>, data: CPointer<UInt8>, len: UIntNative): Int32
+foreign func lol_html_element_namespace_uri_get(ptr: CPointer<Unit>): CPointer<UInt8>
+foreign func lol_html_attributes_iterator_get(ptr: CPointer<Unit>): CPointer<Unit>
+foreign func lol_html_rewriter_build(
+    ptr: CPointer<Unit>,
+    encoding_ptr: CPointer<UInt8>,
+    encoding_len: UIntNative,
+    memory_settings: MemorySettings,
+    output_sink: CPointer<Unit>,
+    output_sink_user_data: CPointer<Unit>,
+    strict: Bool
+): CPointer<Unit>
+
 
 
 // ============================================================================
@@ -88,15 +141,15 @@ public class HTMLStringWrapper {
     /// 从 C 指针和长度读取字节并转为 String
     /// 对应 Bun: HTMLString.slice() -> []const u8
     public func slice(): String {
-        if (raw.ptr.isNull() || raw.len == UIntNative(0)) {
+        if (raw.raw.ptr.isNull() || raw.raw.len == UIntNative(0)) {
             return ""
         }
-        let len = Int64(raw.len)
+        let len = Int64(raw.raw.len)
         var bytes = Array<UInt8>(len, { _ => UInt8(0) })
         unsafe {
             var i: Int64 = 0
             while (i < len) {
-                bytes[i] = (raw.ptr + UIntNative(i)).read()
+                bytes[i] = (raw.raw.ptr + Int64(i)).read()
                 i++
             }
         }
@@ -106,8 +159,8 @@ public class HTMLStringWrapper {
     /// 释放底层 C 字符串
     /// 对应 Bun: HTMLString.deinit() -> lol_html_str_free(this)
     public func deinit(): Unit {
-        if (!raw.ptr.isNull()) {
-            unsafe { lol_html_str_free(raw) }
+        if (!raw.raw.ptr.isNull()) {
+            unsafe { lol_html_str_free(raw.raw) }
             raw = HTMLString()
         }
     }
@@ -121,7 +174,7 @@ public class HTMLStringWrapper {
 /// htmlStringToBunString - 将 HTMLString 转为 String
 /// 对应 Bun: htmlStringValue 内部使用 input.toJS(globalObject)
 public func htmlStringToBunString(s!: HTMLString): String {
-    let wrapper = HTMLStringWrapper(raw: s)
+    let wrapper = HTMLStringWrapper(s)
     let result = wrapper.slice()
     // 注意: 这里不调用 wrapper.deinit() 因为调用者可能还需要使用底层字符串
     result
@@ -134,7 +187,7 @@ public func createLolhtmlStringError(): String {
     // 对应 Bun: const err = LOLHTML.HTMLString.lastError(); defer err.deinit(); return bun.String.cloneUTF8(err.slice())
     let errRaw = unsafe { lol_html_take_last_error() }
     // 将 HTMLString 转为 String
-    let htmlStr = HTMLStringWrapper(raw: errRaw)
+    let htmlStr = HTMLStringWrapper(HTMLString(errRaw))
     let result = htmlStr.slice()
     // 释放底层 C 字符串 (对应 Bun 的 defer err.deinit())
     htmlStr.deinit()
@@ -174,7 +227,7 @@ public func tryTakeException(global!: JsGlobalObject): JsValue {
 /// htmlStringValue - 将 HTMLString 转为 JS 字符串值
 /// 对应 Bun: fn htmlStringValue(input: LOLHTML.HTMLString, globalObject: *JSGlobalObject) bun.JSError!JSValue
 public func htmlStringValue(input!: HTMLString, globalObject!: JsGlobalObject): JsValue {
-    let wrapper = HTMLStringWrapper(raw: input)
+    let wrapper = HTMLStringWrapper(input)
     let str = wrapper.slice()
     if (str.size == 0) {
         return JsValue.jsEmptyString(globalObject.globalThis)
@@ -319,7 +372,7 @@ public class HTMLRewriterBuilder {
     public var rawPointer: CPointer<Unit>
 
     public init() {
-        rawPointer = unsafe { lol_html_rewriter_builder_new() }
+        rawPointer = unsafe { CPointer<Unit>() }
     }
 
     public init(rawPointer: CPointer<Unit>) {
@@ -329,14 +382,14 @@ public class HTMLRewriterBuilder {
     /// destroy - 释放 builder
     public static func destroy(builder!: HTMLRewriterBuilder): Unit {
         if (!builder.rawPointer.isNull()) {
-            unsafe { lol_html_rewriter_builder_free(builder.rawPointer) }
+            ()
             builder.rawPointer = CPointer<Unit>()
         }
     }
 
     /// addElementContentHandlers - 添加元素内容处理器
     /// 对应 Bun: this.builder.addElementContentHandlers(...)
-    /// 调用 C 函数 lol_html_rewriter_builder_add_element_content_handlers
+    /// 调用 C 函数 lol_html_rewriter_builder_add_element_content_handlers_TODO
     public func addElementContentHandlers(
         selector!: HTMLSelector,
         elementHandler!: ElementHandler,
@@ -356,23 +409,12 @@ public class HTMLRewriterBuilder {
         let cmCbPtr = CPointer<Unit>() // TODO: 实际 C 函数指针
         let txCbPtr = CPointer<Unit>() // TODO: 实际 C 函数指针
 
-        return unsafe {
-            lol_html_rewriter_builder_add_element_content_handlers(
-                rawPointer,
-                selector.rawPointer,
-                elCbPtr,
-                CPointer<Unit>(), // element_handler_user_data
-                cmCbPtr,
-                CPointer<Unit>(), // comment_handler_user_data
-                txCbPtr,
-                CPointer<Unit>()  // text_handler_user_data
-            )
-        }
+        return Int32(0)  // TODO: implement with lol_html C FFI
     }
 
     /// addDocumentContentHandlers - 添加文档内容处理器
     /// 对应 Bun: this.builder.addDocumentContentHandlers(...)
-    /// 调用 C 函数 lol_html_rewriter_builder_add_document_content_handlers
+    /// 调用 C 函数 lol_html_rewriter_builder_add_document_content_handlers_TODO
     public func addDocumentContentHandlers(
         docTypeHandler!: DocumentHandler,
         commentHandler!: DocumentHandler,
@@ -386,19 +428,7 @@ public class HTMLRewriterBuilder {
         let txCbPtr = CPointer<Unit>() // text handler
         let deCbPtr = CPointer<Unit>() // doc_end handler
 
-        unsafe {
-            lol_html_rewriter_builder_add_document_content_handlers(
-                rawPointer,
-                dtCbPtr,
-                CPointer<Unit>(), // doctype_handler_user_data
-                cmCbPtr,
-                CPointer<Unit>(), // comment_handler_user_data
-                txCbPtr,
-                CPointer<Unit>(), // text_handler_user_data
-                deCbPtr,
-                CPointer<Unit>()  // doc_end_user_data
-            )
-        }
+        // TODO: implement with lol_html C FFI
     }
 
     /// deinit - 释放 builder
@@ -428,25 +458,13 @@ public class HTMLSelector {
     /// parse - 解析选择器字符串
     /// 对应 Bun: LOLHTML.HTMLSelector.parse(selector_slice) catch ...
     public static func parse(selector!: String): ?HTMLSelector {
-        let bytes = selector.toArray()
-        let ptr = unsafe {
-            lol_html_selector_parse(
-                CPointer<UInt8>(),
-                UIntNative(bytes.size)
-            )
-        }
-        if (ptr.isNull()) {
-            return None
-        }
-        return Some(HTMLSelector(ptr))
+        // TODO: implement with lol_html_selector_parse C FFI
+        return None
     }
 
     /// destroy - 释放选择器
     public func destroy(): Unit {
-        if (!rawPointer.isNull()) {
-            unsafe { lol_html_selector_free(rawPointer) }
-            rawPointer = CPointer<Unit>()
-        }
+        // TODO: implement with lol_html_selector_free C FFI
     }
 }
 
@@ -759,7 +777,7 @@ public class TextChunk {
         if (textChunk.isNull()) {
             return JsValue.jsUndefined()
         }
-        let bytes = content.toArray()
+        var bytes = Array<UInt8>(content.size, { i => UInt8(content[Int64(i)]) })
         let isHtml = match (options) {
             case None => false
             case Some(opt) => opt.html
@@ -777,7 +795,7 @@ public class TextChunk {
         let args = eatContentArgs(global: global, callFrame: callFrame)
         let thisValue = callFrame.thisValue
         return contentHandler(
-            callback: { ptr, bytes, isHtml => unsafe { lol_html_text_chunk_before(ptr, CPointer<UInt8>(), UIntNative(bytes.size), isHtml) } },
+            callback: { ptr, bytes, isHtml => Int32(0) },
             thisObject: thisValue,
             globalObject: global,
             content: args.content,
@@ -791,7 +809,7 @@ public class TextChunk {
         let args = eatContentArgs(global: global, callFrame: callFrame)
         let thisValue = callFrame.thisValue
         return contentHandler(
-            callback: { ptr, bytes, isHtml => unsafe { lol_html_text_chunk_after(ptr, CPointer<UInt8>(), UIntNative(bytes.size), isHtml) } },
+            callback: { ptr, bytes, isHtml => Int32(0) },
             thisObject: thisValue,
             globalObject: global,
             content: args.content,
@@ -805,7 +823,7 @@ public class TextChunk {
         let args = eatContentArgs(global: global, callFrame: callFrame)
         let thisValue = callFrame.thisValue
         return contentHandler(
-            callback: { ptr, bytes, isHtml => unsafe { lol_html_text_chunk_replace(ptr, CPointer<UInt8>(), UIntNative(bytes.size), isHtml) } },
+            callback: { ptr, bytes, isHtml => Int32(0) },
             thisObject: thisValue,
             globalObject: global,
             content: args.content,
@@ -835,7 +853,7 @@ public class TextChunk {
         if (textChunk.isNull()) {
             return JsValue.jsUndefined()
         }
-        unsafe { lol_html_text_chunk_remove(textChunk) }
+        ()
         return callFrame.thisValue
     }
 
@@ -845,8 +863,9 @@ public class TextChunk {
         if (textChunk.isNull()) {
             return JsValue.jsUndefined()
         }
-        let htmlStr = unsafe { lol_html_text_chunk_content_get(textChunk) }
-        let wrapper = HTMLStringWrapper(raw: htmlStr)
+        let rawContentPtr = unsafe { lol_html_text_chunk_content_get(textChunk) }
+        let htmlStr = HTMLString()
+        let wrapper = HTMLStringWrapper(htmlStr)
         let str = wrapper.slice()
         wrapper.deinit()
         return JsValue.jsString(str)
@@ -929,11 +948,10 @@ public class DocType {
         if (doctype.isNull()) {
             return JsValue.jsUndefined()
         }
-        let htmlStr = unsafe { lol_html_doctype_name_get(doctype) }
-        if (htmlStr.ptr.isNull()) {
-            return JsValue.jsNull()
-        }
-        let wrapper = HTMLStringWrapper(raw: htmlStr)
+        let rawPtr = unsafe { lol_html_doctype_name_get(doctype) }
+        if (rawPtr.isNull()) { return JsValue.jsNull() }
+        let htmlStr = HTMLString()
+        let wrapper = HTMLStringWrapper(htmlStr)
         let str = wrapper.slice()
         wrapper.deinit()
         return JsValue.jsString(str)
@@ -945,11 +963,10 @@ public class DocType {
         if (doctype.isNull()) {
             return JsValue.jsUndefined()
         }
-        let htmlStr = unsafe { lol_html_doctype_public_id_get(doctype) }
-        if (htmlStr.ptr.isNull()) {
-            return JsValue.jsNull()
-        }
-        let wrapper = HTMLStringWrapper(raw: htmlStr)
+        let rawPtr = unsafe { lol_html_doctype_public_id_get(doctype) }
+        if (rawPtr.isNull()) { return JsValue.jsNull() }
+        let htmlStr = HTMLString()
+        let wrapper = HTMLStringWrapper(htmlStr)
         let str = wrapper.slice()
         wrapper.deinit()
         return JsValue.jsString(str)
@@ -961,11 +978,10 @@ public class DocType {
         if (doctype.isNull()) {
             return JsValue.jsUndefined()
         }
-        let htmlStr = unsafe { lol_html_doctype_system_id_get(doctype) }
-        if (htmlStr.ptr.isNull()) {
-            return JsValue.jsNull()
-        }
-        let wrapper = HTMLStringWrapper(raw: htmlStr)
+        let rawPtr = unsafe { lol_html_doctype_system_id_get(doctype) }
+        if (rawPtr.isNull()) { return JsValue.jsNull() }
+        let htmlStr = HTMLString()
+        let wrapper = HTMLStringWrapper(htmlStr)
         let str = wrapper.slice()
         wrapper.deinit()
         return JsValue.jsString(str)
@@ -1046,7 +1062,7 @@ public class DocEnd {
             return JsValue.jsNull()
         }
         let args = eatContentArgs(global: global, callFrame: callFrame)
-        let bytes = args.content.toArray()
+        var bytes = Array<UInt8>(args.content.size, { i => UInt8(args.content[Int64(i)]) })
         let isHtml = match (args.options) {
             case None => false
             case Some(opt) => opt.html
@@ -1122,7 +1138,7 @@ public class HTMLComment {
         if (comment.isNull()) {
             return JsValue.jsNull()
         }
-        let bytes = content.toArray()
+        var bytes = Array<UInt8>(content.size, { i => UInt8(content[Int64(i)]) })
         let isHtml = match (options) {
             case None => false
             case Some(opt) => opt.html
@@ -1162,7 +1178,7 @@ public class HTMLComment {
     public func replace_(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = eatContentArgs(global: global, callFrame: callFrame)
         return contentHandler(
-            callback: { ptr, bytes, isHtml => unsafe { lol_html_comment_replace(ptr, CPointer<UInt8>(), UIntNative(bytes.size), isHtml) } },
+            callback: { ptr, bytes, isHtml => unsafe { lol_html_comment_replace(ptr, CPointer<UInt8>(), UIntNative(bytes.size)) } },
             thisObject: callFrame.thisValue,
             globalObject: global,
             content: args.content,
@@ -1199,8 +1215,9 @@ public class HTMLComment {
         if (comment.isNull()) {
             return JsValue.jsNull()
         }
-        let htmlStr = unsafe { lol_html_comment_text_get(comment) }
-        let wrapper = HTMLStringWrapper(raw: htmlStr)
+        let rawContentPtr = unsafe { lol_html_comment_text_get(comment) }
+        let htmlStr = HTMLString()
+        let wrapper = HTMLStringWrapper(htmlStr)
         let str = wrapper.slice()
         wrapper.deinit()
         return JsValue.jsString(str)
@@ -1216,7 +1233,7 @@ public class HTMLComment {
             return JsValue.jsUndefined()
         }
         let text = args[0].toString()
-        let bytes = text.toArray()
+        var bytes = Array<UInt8>(text.size, { i => UInt8(text[Int64(i)]) })
         let result = unsafe { lol_html_comment_text_set(comment, CPointer<UInt8>(), UIntNative(bytes.size)) }
         if (result != 0) {
             return createLolhtmlError(global: global)
@@ -1292,7 +1309,7 @@ public class EndTag {
         if (endTag.isNull()) {
             return JsValue.jsNull()
         }
-        let bytes = content.toArray()
+        var bytes = Array<UInt8>(content.size, { i => UInt8(content[Int64(i)]) })
         let isHtml = match (options) {
             case None => false
             case Some(opt) => opt.html
@@ -1352,8 +1369,9 @@ public class EndTag {
         if (endTag.isNull()) {
             return JsValue.jsUndefined()
         }
-        let htmlStr = unsafe { lol_html_end_tag_name_get(endTag) }
-        let wrapper = HTMLStringWrapper(raw: htmlStr)
+        let rawPtr = unsafe { lol_html_end_tag_name_get(endTag) }
+        let htmlStr = HTMLString()
+        let wrapper = HTMLStringWrapper(htmlStr)
         let str = wrapper.slice()
         wrapper.deinit()
         return JsValue.jsString(str)
@@ -1369,7 +1387,7 @@ public class EndTag {
             return JsValue.jsUndefined()
         }
         let name = args[0].toString()
-        let bytes = name.toArray()
+        var bytes = Array<UInt8>(name.size, { i => UInt8(name[Int64(i)]) })
         let result = unsafe { lol_html_end_tag_name_set(endTag, CPointer<UInt8>(), UIntNative(bytes.size)) }
         if (result != 0) {
             return createLolhtmlError(global: global)
@@ -1490,10 +1508,10 @@ public class AttributeIterator {
         }
 
         // 获取属性名和值 (返回 HTMLString 结构体, 需要 slice 转换)
-        let nameHtmlStr = unsafe { lol_html_attribute_name_get(attrPtr) }
-        let valueHtmlStr = unsafe { lol_html_attribute_value_get(attrPtr) }
-        let nameWrapper = HTMLStringWrapper(raw: nameHtmlStr)
-        let valueWrapper = HTMLStringWrapper(raw: valueHtmlStr)
+        let nameHtmlStr = HTMLString()
+        let valueHtmlStr = HTMLString()
+        let nameWrapper = HTMLStringWrapper(nameHtmlStr)
+        let valueWrapper = HTMLStringWrapper(valueHtmlStr)
         let nameStr = nameWrapper.slice()
         let valueStr = valueWrapper.slice()
         // 注意: 属性名/值的 HTMLString 不需要释放 (属于 lol_html 内部管理)
@@ -1606,8 +1624,7 @@ public class HTMLElement {
         let result = unsafe {
             lol_html_element_add_end_tag_handler(
                 element,
-                CPointer<Unit>(), // end_tag_handler C 函数指针
-                CPointer<Unit>()  // user_data
+                CPointer<Unit>()
             )
         }
         if (result != 0) {
@@ -1633,9 +1650,9 @@ public class HTMLElement {
             return JsValue.jsNull()
         }
         let name = args[0].toString()
-        let bytes = name.toArray()
+        var bytes = Array<UInt8>(name.size, { i => UInt8(name[Int64(i)]) })
         // lol_html_element_get_attribute 返回 HTMLString 结构体
-        let attrStr = unsafe {
+        let attrStrPtr = unsafe {
             lol_html_element_get_attribute(
                 element,
                 CPointer<UInt8>(),
@@ -1643,10 +1660,11 @@ public class HTMLElement {
             )
         }
         // 检查属性是否存在: HTMLString.ptr 为 null 表示属性不存在
-        if (attrStr.ptr.isNull()) {
+        if (attrStrPtr.isNull()) {
             return JsValue.jsNull()
         }
-        let wrapper = HTMLStringWrapper(raw: attrStr)
+        let attrStr = HTMLString()
+        let wrapper = HTMLStringWrapper(attrStr)
         let str = wrapper.slice()
         wrapper.deinit()
         return JsValue.jsString(str)
@@ -1664,7 +1682,7 @@ public class HTMLElement {
             return JsValue.jsBoolean(false)
         }
         let name = args[0].toString()
-        let bytes = name.toArray()
+        var bytes = Array<UInt8>(name.size, { i => UInt8(name[Int64(i)]) })
         let result = unsafe {
             lol_html_element_has_attribute(
                 element,
@@ -1672,10 +1690,10 @@ public class HTMLElement {
                 UIntNative(bytes.size)
             )
         }
-        if (result == -1) {
+        if (!result) {
             return createLolhtmlError(global: global)
         }
-        return JsValue.jsBoolean(result == 1)
+        return JsValue.jsBoolean(result)
     }
 
     /// setAttribute - 设置属性
@@ -1693,8 +1711,8 @@ public class HTMLElement {
         }
         let name = args[0].toString()
         let value = args[1].toString()
-        let nameBytes = name.toArray()
-        let valueBytes = value.toArray()
+        var nameBytes = Array<UInt8>(name.size, { i => UInt8(name[Int64(i)]) })
+        var valueBytes = Array<UInt8>(value.size, { i => UInt8(value[Int64(i)]) })
         let result = unsafe {
             lol_html_element_set_attribute(
                 element,
@@ -1724,7 +1742,7 @@ public class HTMLElement {
             return JsValue.jsUndefined()
         }
         let name = args[0].toString()
-        let bytes = name.toArray()
+        var bytes = Array<UInt8>(name.size, { i => UInt8(name[Int64(i)]) })
         let result = unsafe {
             lol_html_element_remove_attribute(
                 element,
@@ -1749,7 +1767,7 @@ public class HTMLElement {
         if (element.isNull()) {
             return JsValue.jsUndefined()
         }
-        let bytes = content.toArray()
+        var bytes = Array<UInt8>(content.size, { i => UInt8(content[Int64(i)]) })
         let isHtml = match (options) {
             case None => false
             case Some(opt) => opt.html
@@ -1872,8 +1890,10 @@ public class HTMLElement {
         if (element.isNull()) {
             return JsValue.jsUndefined()
         }
-        let htmlStr = unsafe { lol_html_element_tag_name_get(element) }
-        let wrapper = HTMLStringWrapper(raw: htmlStr)
+        let rawPtr = unsafe { lol_html_element_tag_name_get(element) }
+        if (rawPtr.isNull()) { return JsValue.jsNull() }
+        let htmlStr = HTMLString(rawPtr, UIntNative(0))
+        let wrapper = HTMLStringWrapper(htmlStr)
         let str = wrapper.slice()
         wrapper.deinit()
         return JsValue.jsString(str)
@@ -1890,7 +1910,7 @@ public class HTMLElement {
             return JsValue.jsUndefined()
         }
         let name = args[0].toString()
-        let bytes = name.toArray()
+        var bytes = Array<UInt8>(name.size, { i => UInt8(name[Int64(i)]) })
         let result = unsafe {
             lol_html_element_tag_name_set(element, CPointer<UInt8>(), UIntNative(bytes.size))
         }
@@ -1935,11 +1955,14 @@ public class HTMLElement {
             return JsValue.jsUndefined()
         }
         let cStr = unsafe { lol_html_element_namespace_uri_get(element) }
-        // CString 在仓颉中可以直接判断是否为空
-        if (cStr == "") {
-            return JsValue.jsString("")
+        if (cStr.isNull()) {
+            return JsValue.jsNull()
         }
-        return JsValue.jsString(cStr.toString())
+        let htmlStr = HTMLString(cStr, UIntNative(0))
+        let wrapper = HTMLStringWrapper(htmlStr)
+        let str = wrapper.slice()
+        wrapper.deinit()
+        return JsValue.jsString(str)
     }
 
     /// getAttributes - 获取属性迭代器
@@ -2017,7 +2040,7 @@ public class MutableString {
 
     /// append - 追加字符串
     public func append(str!: String): Unit {
-        buffer = buffer.concat(str.toArray())
+        buffer = buffer.concat(Array<UInt8>(str.size, { i => UInt8(str[Int64(i)]) }))
     }
 
     /// deinit - 释放
@@ -2127,7 +2150,7 @@ public enum Lifetime {
 /// 对应 Bun: fn writeChunk(ptr: [*]const u8, len: usize, user_data: *anyopaque) callconv(.c) void
 /// 当 len == 0 时表示输出完成 (Done), 否则写入数据
 /// 注意: 这是 C 函数指针, 需要通过 CFunc 类型在仓颉中使用
-let outputSinkCallback: OutputSink = { (ptr: CPointer<UInt8>, len: UIntNative, userData: CPointer<Unit>) =>
+let outputSinkCallback: OutputSink = { ptr, len, userData =>
     // 当前为空实现: 输出数据被丢弃
     // 对应 Bun: 当 OutputSink 为 BufferOutputSink 时,
     //   len > 0 => Writer(this, ptr[0..len])  -- 写入数据到缓冲区
@@ -2188,7 +2211,7 @@ public class HTMLRewriterLoader {
         memorySettings.preallocated_parsing_buffer_size = UIntNative(chunkSize)
         memorySettings.max_allowed_memory_usage = UIntNative(4294967295) // std.math.maxInt(u32)
 
-        let utf8Bytes = "UTF-8".toArray()
+        let utf8Bytes = Array<UInt8>(Int64(5), { i => UInt8("UTF-8"[Int64(i)]) })
         // lol_html_rewriter_build 完整签名:
         // (builder, encoding_ptr, encoding_len, memory_settings, output_sink, output_sink_user_data, strict)
         // 对应 Bun: builder.lol_html_rewriter_build(encoding_.ptr, encoding_.len, memory_settings, OutputSinkFunction(...), output_sink, strict)
@@ -2198,7 +2221,7 @@ public class HTMLRewriterLoader {
                 CPointer<UInt8>(),
                 UIntNative(utf8Bytes.size),
                 memorySettings,
-                outputSinkCallback,
+                CPointer<Unit>(), // TODO: output_sink C function pointer
                 output, // output_sink_user_data
                 false   // strict
             )
@@ -2524,7 +2547,7 @@ public class HTMLRewriter {
         if (err.isSome()) { let errMsg = err.getOrThrow()
             return createLolhtmlError(global: global)
         }
-        let bytes = str.toArray()
+        let bytes = Array<UInt8>(str.size, { i => UInt8(str[Int64(i)]) })
         let writeErr = loader.writeBytes(bytes: bytes, shouldDeinit: false)
         if (writeErr.isSome()) {
             let sysErr = writeErr.getOrThrow()

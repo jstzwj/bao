@@ -92,6 +92,16 @@ public class HeadersRef {
             ptr = 0
         }
     }
+
+    /// Convert to JsValue — stub
+    public func toJsValue(global: JsGlobalObject): JsValue {
+        return JsValue()
+    }
+
+    /// Get referrer — stub
+    public func getReferrer(): ?String {
+        return None
+    }
 }
 
 // ============================================================================
@@ -257,41 +267,6 @@ public class ResponseInit {
 // 对应 Bun: Response (Request.rs:1670-1707)
 // ============================================================================
 
-/// 内部 JS 事件回调
-/// 对应 Bun: InternalJSEventCallback
-public class InternalJSEventCallback {
-    /// JS 函数引用 — 对应 Bun: jsc.strong.Optional
-    public var function: ?JsValue
-
-    public init() {
-        function = None
-    }
-
-    public init(function: JsValue, global: JsGlobalObject) {
-        this.function = Some(function)
-    }
-
-    /// 是否有回调
-    public func hasCallback(): Bool {
-        return function.isSome()
-    }
-
-    /// 释放资源
-    public func deinit(): Unit {
-        function = None
-    }
-
-    /// 触发回调
-    /// 对应 Bun: InternalJSEventCallback::trigger
-    public func trigger(eventType: Int64, global: JsGlobalObject): Bool {
-        if (function.isSome()) {
-            let callback = function.getOrThrow()
-            callback.call(global.globalThis, JsValue.undefined(), [JsValue(Float64(eventType))])
-            return true
-        }
-        return false
-    }
-}
 
 // ============================================================================
 // WeakPtrData - 弱引用数据 (简化版)
@@ -387,12 +362,12 @@ public func jsFunctionRequestOrResponseHasBodyValue(global: JsGlobalObject, call
     if (thisValue.isResponse()) {
         let response = thisValue.toResponse()
         if (response.isSome()) {
-            return JsValue(!response.getOrThrow().body.getOrThrow().isDefinitelyEmpty())
+            return JsValue(!response.getOrThrow().body.isDefinitelyEmpty())
         }
     } else if (thisValue.isRequest()) {
         let request = thisValue.toRequest()
         if (request.isSome()) {
-            return JsValue(!request.getOrThrow().body.getOrThrow().isDefinitelyEmpty())
+            return JsValue(!request.getOrThrow().bodyValue.isDefinitelyEmpty())
         }
     }
 
@@ -418,7 +393,7 @@ public func jsFunctionGetCompleteRequestOrResponseBodyValueAsArrayBuffer(global:
     } else if (thisValue.isRequest()) {
         let request = thisValue.toRequest()
         if (request.isSome()) {
-            bodyValue = request.getOrThrow().body
+            bodyValue = request.getOrThrow().bodyValue
         }
     }
 
@@ -538,7 +513,7 @@ public class Response {
     public var reportedEstimatedSize: Int64
 
     public init() {
-        body = BodyValue.Empty
+        body = BodyValue()
         `init` = ResponseInit()
         url = ""
         redirected = false
@@ -639,10 +614,17 @@ public class Response {
 
     /// 获取 body 长度 — 对应 Bun: Response.getBodyLen (Response.rs:415-417)
     public func getBodyLen(): Int64 {
-        match (body) {
-            case BodyValue.Blob(b) => Int64(b.sharedView().size)
-            case BodyValue.InternalBlob(ib) => Int64(ib.bytes.size)
-            case BodyValue.WTFStringImpl(s) => 0
+        match (body.tag) {
+            case BodyValueTag.Blob =>
+                match (body.blob) {
+                    case Some(b) => Int64(b.sharedView().size)
+                    case None => 0
+                }
+            case BodyValueTag.InternalBlob =>
+                match (body.internalBlob) {
+                    case Some(ib) => Int64(ib.bytes.size)
+                    case None => 0
+                }
             case _ => 0
         }
     }
@@ -709,12 +691,16 @@ public class Response {
     public func getOrCreateHeaders(global: JsGlobalObject): ?HeadersRef {
         if (`init`.headers.isNone()) {
             `init`.headers = Some(HeadersRef.createEmpty())
-            match (body) {
-                case BodyValue.Blob(blob) =>
-                    let ct = blob.contentType
-                    if (ct.size > 0) {
-                        // stub: simplified — would call headers.put(ContentType, ct)
-                        ()
+            match (body.tag) {
+                case BodyValueTag.Blob =>
+                    match (body.blob) {
+                        case Some(blob) =>
+                            let ct = blob.contentType
+                            if (ct.size > 0) {
+                                // stub: simplified — would call headers.put(ContentType, ct)
+                                ()
+                            }
+                        case None => ()
                     }
                 case _ => ()
             }
@@ -726,7 +712,7 @@ public class Response {
     public func getHeaders(global: JsGlobalObject): JsValue {
         let h = getOrCreateHeaders(global)
         match (h) {
-            case Some(headers) => return headers.toJsValue(global)
+            case Some(hdrs) => return hdrs.toJsValue(global)
             case None => return JsValue()
         }
     }
@@ -739,11 +725,15 @@ public class Response {
                 ()
             case None => ()
         }
-        match (body) {
-            case BodyValue.Blob(blob) =>
-                let ct = blob.contentType
-                if (ct.size > 0) {
-                    return Some(ct)
+        match (body.tag) {
+            case BodyValueTag.Blob =>
+                match (body.blob) {
+                    case Some(blob) =>
+                        let ct = blob.contentType
+                        if (ct.size > 0) {
+                            return Some(ct)
+                        }
+                    case None => ()
                 }
             case _ => ()
         }
@@ -760,9 +750,27 @@ public class Response {
         return `init`.headers
     }
 
+    /// 创建错误响应 — 对应 Bun: Response.error (static)
+    public static func error(): Response {
+        let resp = Response()
+        resp.`init`.statusCode = 0
+        resp.`init`.statusText = ""
+        return resp
+    }
+
     // ========================================================================
     // 克隆 — 对应 Bun: Response.doClone / cloneValue / clone (Response.rs:830-876)
     // ========================================================================
+
+    /// Get body used — stub
+    public func getBodyUsed(): Bool {
+        return body.tag == BodyValueTag.Used
+    }
+
+    /// Get body readable stream — stub
+    public func getBodyReadableStream(): JsValue {
+        return JsValue()
+    }
 
     /// 克隆 Response — 对应 Bun: Response.doClone (Response.rs:830-842)
     public func doClone(global: JsGlobalObject): JsValue {
@@ -778,9 +786,9 @@ public class Response {
 
     /// 克隆值 — 对应 Bun: Response.cloneValue (Response.rs:855-870)
     public func cloneValue(global: JsGlobalObject): Response {
-        let clonedBody = BodyValue.Empty // stub: simplified — should clone body value via cached stream
+        let clonedBody = BodyValue() // stub: simplified — should clone body value via cached stream
         let clonedInit = `init`.clone(global)
-        let cloned = Response(`init`: clonedInit, body: clonedBody, url: url, redirected: redirected)
+        let cloned = Response(clonedInit, clonedBody, url, redirected)
         return cloned
     }
 
@@ -818,7 +826,7 @@ public class Response {
     /// 销毁 — 对应 Bun: Response.destroy (Response.rs:878-914)
     public func destroy(): Unit {
         `init` = ResponseInit()
-        body = BodyValue.Empty
+        body = BodyValue()
         url = ""
         jsRef = JsRef()
     }
@@ -829,7 +837,7 @@ public class Response {
 
     /// 格式化输出 — 对应 Bun: Response.writeFormat
     public func writeFormat(): String {
-        let sizeStr = formatResponseSize(getBodyLen())
+        let sizeStr = "${getBodyLen()}"
         var result = "Response (${sizeStr}) {\n"
         result += "  ok: ${isOk()},\n"
         result += "  url: \"${url}\",\n"
@@ -885,9 +893,9 @@ public class Response {
         obj.set("clone", JsValue("clone"))
 
         // body property
-        match (body) {
-            case BodyValue.Null => obj.set("body", JsValue())
-            case BodyValue.Empty => obj.set("body", JsValue())
+        match (body.tag) {
+            case BodyValueTag.Null => obj.set("body", JsValue())
+            case BodyValueTag.Empty => obj.set("body", JsValue())
             case _ => obj.set("body", JsValue("body"))
         }
 
@@ -913,7 +921,7 @@ public class Response {
 
             let str = jsonValue.toString()
             if (str.size > 0) {
-                response.body = BodyValue.InternalBlob(InternalBlob(Utf8Codec.encode(str), true))
+                response.body = BodyValue(str)
             }
         }
 
@@ -1004,7 +1012,7 @@ public class Response {
     public static func constructError(global: JsGlobalObject): JsValue {
         let response = Response()
         response.`init`.statusCode = 0
-        response.body = BodyValue.Empty
+        response.body = BodyValue()
         return response.toJs(global)
     }
 
@@ -1032,23 +1040,27 @@ public class Response {
         // 解析 body
         var responseBody: BodyValue
         if (bodyValue.isUndefined() || bodyValue.isNull()) {
-            responseBody = BodyValue.Null
+            responseBody = BodyValue()
         } else {
             responseBody = extractBody(global, bodyValue)
         }
 
         // 如果 body 是 Blob 且有 content type，且 init 没有显式设置 content type
-        match (responseBody) {
-            case BodyValue.Blob(blob) =>
-                let ct = blob.contentType
-                if (ct.size > 0) {
-                    // stub: check if headers already have content-type
-                    ()
+        match (responseBody.tag) {
+            case BodyValueTag.Blob =>
+                match (responseBody.blob) {
+                    case Some(blob) =>
+                        let ct = blob.contentType
+                        if (ct.size > 0) {
+                            // stub: check if headers already have content-type
+                            ()
+                        }
+                    case None => ()
                 }
             case _ => ()
         }
 
-        let response = Response(`init`: responseInit, body: responseBody, url: "", redirected: false)
+        let response = Response(responseInit, responseBody, "", false)
         response.calculateEstimatedByteSize()
         return response.toJs(global)
     }
@@ -1057,211 +1069,29 @@ public class Response {
     public static func extractBody(global: JsGlobalObject, value: JsValue): BodyValue {
         if (value.isString()) {
             let str = value.toString()
-            return BodyValue.InternalBlob(InternalBlob(Utf8Codec.encode(str), true))
+            return BodyValue(str)
         }
         if (value.isTypedArray()) {
             let abOpt = value.asArrayBuffer(global.globalThis)
             if (abOpt.isSome()) {
                 let ab = abOpt.getOrThrow()
-                return BodyValue.Blob(Blob(ab.bytes(), "application/octet-stream"))
+                return BodyValue(Blob(ab.bytes(), "application/octet-stream"))
             }
         }
         if (value.isObject()) {
             // 检查是否是 Blob
             let blobOpt = Blob.fromJs(global, value)
             if (blobOpt.isSome()) {
-                return BodyValue.Blob(blobOpt.getOrThrow())
+                return BodyValue(blobOpt.getOrThrow())
             }
             // 检查是否是 ArrayBuffer
             let abOpt2 = value.asArrayBuffer(global.globalThis)
             if (abOpt2.isSome()) {
                 let ab = abOpt2.getOrThrow()
-                return BodyValue.Blob(Blob(ab.bytes(), "application/octet-stream"))
+                return BodyValue(Blob(ab.bytes(), "application/octet-stream"))
             }
         }
-        return BodyValue.Null
+        return BodyValue()
     }
 }
 
-// ============================================================================
-// BodyValue — 响应体值枚举
-// 对应 Bun: body::Value (BodyValue)
-// ============================================================================
-
-public enum BodyValueTag {
-    | Used
-    | Empty
-    | Null
-    | Blob
-    | WTFStringImpl
-    | InternalBlob
-    | Error
-    | Locked
-}
-
-/// BodyValue — 响应体值
-/// 对应 Bun: body::Value
-public class BodyValue {
-    public var tag: BodyValueTag
-    public var blob: ?Blob
-    public var wtfStringImpl: ?String
-    public var internalBlob: ?InternalBlob
-    public var errorMessage: ?String
-
-    public init() {
-        tag = BodyValueTag.Empty
-        blob = None
-        wtfStringImpl = None
-        internalBlob = None
-        errorMessage = None
-    }
-
-    public static func Empty(): BodyValue {
-        let v = BodyValue()
-        v.tag = BodyValueTag.Empty
-        return v
-    }
-
-    public static func Null(): BodyValue {
-        let v = BodyValue()
-        v.tag = BodyValueTag.Null
-        return v
-    }
-
-    public static func Used(): BodyValue {
-        let v = BodyValue()
-        v.tag = BodyValueTag.Used
-        return v
-    }
-
-    public static func fromBlob(b: Blob): BodyValue {
-        let v = BodyValue()
-        v.tag = BodyValueTag.Blob
-        v.blob = Some(b)
-        return v
-    }
-
-    public static func fromInternalBlob(ib: InternalBlob): BodyValue {
-        let v = BodyValue()
-        v.tag = BodyValueTag.InternalBlob
-        v.internalBlob = Some(ib)
-        return v
-    }
-
-    public static func fromString(s: String): BodyValue {
-        let v = BodyValue()
-        v.tag = BodyValueTag.WTFStringImpl
-        v.wtfStringImpl = Some(s)
-        return v
-    }
-
-    public static func fromError(msg: String): BodyValue {
-        let v = BodyValue()
-        v.tag = BodyValueTag.Error
-        v.errorMessage = Some(msg)
-        return v
-    }
-
-    /// 是否确定是空的 — 对应 Bun: BodyValue.isDefinitelyEmpty
-    public func isDefinitelyEmpty(): Bool {
-        match (tag) {
-            case BodyValueTag.Empty => true
-            case BodyValueTag.Null => true
-            case BodyValueTag.Used => true
-            case BodyValueTag.InternalBlob =>
-                match (internalBlob) {
-                    case Some(ib) => ib.bytes.size == 0
-                    case None => true
-                }
-            case BodyValueTag.Blob =>
-                match (blob) {
-                    case Some(b) => b.size == 0
-                    case None => true
-                }
-            case BodyValueTag.WTFStringImpl =>
-                match (wtfStringImpl) {
-                    case Some(s) => s.size == 0
-                    case None => true
-                }
-            case _ => false
-        }
-    }
-
-    /// 估计大小 — 对应 Bun: BodyValue.estimatedSize
-    public func estimatedSize(): Int64 {
-        match (tag) {
-            case BodyValueTag.Blob =>
-                match (blob) {
-                    case Some(b) => b.size
-                    case None => 0
-                }
-            case BodyValueTag.InternalBlob =>
-                match (internalBlob) {
-                    case Some(ib) => Int64(ib.bytes.size)
-                    case None => 0
-                }
-            case BodyValueTag.WTFStringImpl =>
-                match (wtfStringImpl) {
-                    case Some(s) => Int64(s.size)
-                    case None => 0
-                }
-            case _ => 0
-        }
-    }
-}
-
-// ============================================================================
-// InternalBlob — Blob 内部表示 (简化版)
-// ============================================================================
-
-public class InternalBlob {
-    public var bytes: Array<UInt8>
-    public var wasString: Bool
-
-    public init() {
-        bytes = Array<UInt8>()
-        wasString = false
-    }
-
-    public init(bytes: Array<UInt8>, wasString: Bool) {
-        this.bytes = bytes
-        this.wasString = wasString
-    }
-}
-
-// ============================================================================
-// 辅助函数
-// ============================================================================
-
-/// 格式化响应大小 — 对应 Bun: bun.fmt.size
-public func formatResponseSize(bytes: Int64): String {
-    if (bytes < 1024) {
-        return "${bytes} B"
-    }
-    if (bytes < 1024 * 1024) {
-        return "${Float64(bytes) / 1024.0} KB"
-    }
-    if (bytes < 1024 * 1024 * 1024) {
-        return "${Float64(bytes) / (1024.0 * 1024.0)} MB"
-    }
-    return "${Float64(bytes) / (1024.0 * 1024.0 * 1024.0)} GB"
-}
-
-/// 创建 404 响应 — 对应 Bun: status_404 (Response.rs:1492-1494)
-public func status404(global: JsGlobalObject): Response {
-    return emptyWithStatus(global, 404)
-}
-
-/// 创建 200 响应 — 对应 Bun: status_200 (Response.rs:1496-1498)
-public func status200(global: JsGlobalObject): Response {
-    return emptyWithStatus(global, 200)
-}
-
-/// 创建指定状态码的空响应 — 对应 Bun: empty_with_status (Response.rs:1500-1512)
-public func emptyWithStatus(global: JsGlobalObject, status: UInt16): Response {
-    let `init` = ResponseInit(status)
-    let response = Response(`init`: `init`, body: BodyValue.Null, url: "", redirected: false)
-    return response
-}
-
-// ported from: src/runtime/webcore/Response.rs

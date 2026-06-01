@@ -93,29 +93,29 @@ public class SQLDataCellJSC {
                 // 释放字节缓冲区
                 byteaPtr = 0
                 byteaLen = 0
-            case _ => {}
+            case _ => ()
         }
     }
 }
 
 /// 数据单元格标签
 /// 对应 Bun: SQLDataCell.Tag
-public enum DataCellTagJSC <: UInt8 {
-    | nullTag(0)
-    | stringTag(1)
-    | float8Tag(2)
-    | int4Tag(3)
-    | int8Tag(4)
-    | boolTag(5)
-    | dateTag(6)
-    | dateWithTimeZone(7)
-    | bytea(8)
-    | jsonTag(9)
-    | arrayTag(10)
-    | typedArray(11)
-    | raw(12)
-    | uint4Tag(13)
-    | uint8Tag(14)
+public enum DataCellTagJSC {
+    | nullTag  
+    | stringTag  
+    | float8Tag  
+    | int4Tag  
+    | int8Tag  
+    | boolTag  
+    | dateTag  
+    | dateWithTimeZone  
+    | bytea  
+    | jsonTag  
+    | arrayTag  
+    | typedArray  
+    | raw  
+    | uint4Tag  
+    | uint8Tag  
 }
 
 /// SQL 数据单元格标志

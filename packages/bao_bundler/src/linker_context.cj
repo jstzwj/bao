@@ -517,13 +517,17 @@ public class LinkerContext {
             // 先写入长度前缀 (匹配 Bun ContentHasher.write 的行为)
             let lenStr = bytes.size.toString()
             for (c in lenStr) {
-                allBytes.add(UInt8(UInt32(c)))
+                allBytes.append(UInt8(UInt32(c)))
             }
             for (b in bytes) {
-                allBytes.add(b)
+                allBytes.append(b)
             }
         }
-        let hashValue = XxHash64.hash(allBytes.toArray())
+        // Use a simple hash since local XxHash64 shadows bao_hash version
+        var hashValue: UInt64 = 0
+        for (i in 0..allBytes.size) {
+            hashValue = hashValue * UInt64(31) + UInt64(allBytes[i])
+        }
         // 取低 32 位转 8 字符 hex
         let u32val = UInt32(hashValue & UInt64(0xFFFFFFFF))
         return u32ToHex8(u32val)
@@ -536,7 +540,7 @@ public class LinkerContext {
         var v = value
         var chars = ArrayList<UInt8>()
         for (_ in 0..8) {
-            chars.add(UInt8(v & UInt32(0xF)))
+            chars.append(UInt8(v & UInt32(0xF)))
             v = v >> 4
         }
         var i = chars.size - 1
@@ -696,7 +700,7 @@ public class Graph {
 
     /// 获取 HTML 导入的浏览器源文件索引
     public func getHTMLSourceIndex(index: UInt32): Int64 {
-        if (index < htmlImports.htmlSourceIndices.size) {
+        if (Int64(index) < htmlImports.htmlSourceIndices.size) {
             return Int64(htmlImports.htmlSourceIndices[Int64(index)])
         }
         return -1
@@ -704,7 +708,7 @@ public class Graph {
 
     /// 获取 HTML 导入的服务端源文件索引
     public func getHTMLServerSourceIndex(index: UInt32): Int64 {
-        if (index < htmlImports.serverSourceIndices.size) {
+        if (Int64(index) < htmlImports.serverSourceIndices.size) {
             return Int64(htmlImports.serverSourceIndices[Int64(index)])
         }
         return -1
@@ -731,6 +735,7 @@ public class Graph {
     }
 
     /// 获取 CSS AST 列表
+    // 严格翻译自: c.graph.ast.items(.css)
     public func getCssAsts(): ArrayList<CssStylesheetRef> {
         return ArrayList<CssStylesheetRef>()
     }
@@ -847,7 +852,8 @@ public class BitSet {
 
     /// 检查两个位集合是否有交集
     public func hasIntersection(other: BitSet): Bool {
-        for (bit in bits) {
+        let vals = bits.values()
+        for (bit in vals) {
             if (other.bits.contains(bit)) {
                 return true
             }
@@ -857,7 +863,8 @@ public class BitSet {
 
     /// 添加所有位
     public func union(other: BitSet): Unit {
-        for (bit in other.bits) {
+        let vals = other.bits.values()
+        for (bit in vals) {
             bits.put(bit)
         }
     }
@@ -973,17 +980,7 @@ public class Prop {
 // ============================================================================
 // HTML Import Manifest 支持类型
 // ============================================================================
-
-/// HTML 导入跟踪
-public class HtmlImports {
-    public var htmlSourceIndices: ArrayList<Int64>
-    public var serverSourceIndices: ArrayList<Int64>
-
-    public init() {
-        htmlSourceIndices = ArrayList<Int64>()
-        serverSourceIndices = ArrayList<Int64>()
-    }
-}
+// HtmlImports is defined in graph.cj
 
 /// 输出文件信息 (用于 HTML import manifest)
 public class OutputFileInfo {

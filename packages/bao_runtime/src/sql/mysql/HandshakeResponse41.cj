@@ -3,7 +3,9 @@
 package bao_runtime.sql.mysql
 
 import bao_core.*
+import bao_collections.*
 import bao_runtime.sql.shared.*
+import bao_sql.mysql.protocol.*
 
 /// MySQL 客户端认证响应包 (4.1 协议)
 /// 对应 Bun: HandshakeResponse41
@@ -31,7 +33,7 @@ public class HandshakeResponse41 {
     public init() {
         capabilityFlags = Capabilities()
         maxPacketSize = 0xFFFFFF  // 16MB
-        characterSet = CharacterSet.DEFAULT
+        characterSet = CharacterSet.Utf8mb4GeneralCi
         username = SQLData.empty()
         authResponse = SQLData.empty()
         database = SQLData.empty()
@@ -65,7 +67,7 @@ public class HandshakeResponse41 {
         writer.writeInt32(maxPacketSize)
 
         // 写入字符集 (1 字节)
-        writer.writeInt8(characterSet.value)
+        writer.writeInt8(0)
 
         // 写入 23 字节填充
         writer.writeZeros(23)
@@ -97,16 +99,18 @@ public class HandshakeResponse41 {
         // 写入连接属性
         if (capabilityFlags.CLIENT_CONNECT_ATTRS) {
             var totalLength: Int64 = 0
-            for ((key, value) in connectAttrs) {
-                totalLength += encodeLengthInt(UInt64(key.size)).size
+            for (key in connectAttrs.keys()) {
+                let value = connectAttrs.get(key).getOrThrow()
+                totalLength += EncodeInt.encodeLengthInt(UInt64(key.size)).size
                 totalLength += key.size
-                totalLength += encodeLengthInt(UInt64(value.size)).size
+                totalLength += EncodeInt.encodeLengthInt(UInt64(value.size)).size
                 totalLength += value.size
             }
 
             writer.writeLengthEncodedInt(UInt64(totalLength))
 
-            for ((key, value) in connectAttrs) {
+            for (key in connectAttrs.keys()) {
+                let value = connectAttrs.get(key).getOrThrow()
                 writer.writeLengthEncodedString(key.toArray())
                 writer.writeLengthEncodedString(value.toArray())
             }

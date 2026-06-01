@@ -437,14 +437,14 @@ public class JsObject {
 
     /// 获取属性
     public func get(key: String): JsValue {
-        match (properties.get(key)) {
-            case Some(v) => v
-            case None =>
-                match (proto) {
-                    case Some(p) => p.get(key)
-                    case None => JsValue.UNDEFINED
-                }
+        let opt = properties.get(key)
+        if (opt.isSome()) {
+            return opt.getOrThrow()
         }
+        if (proto.isSome()) {
+            return proto.getOrThrow().get(key)
+        }
+        return JsValue.UNDEFINED
     }
 
     /// 设置属性
@@ -595,9 +595,9 @@ public class JsParser {
             }
             if (isError) {
                 var loc = ParserSourceLoc()
-                match (msg.data.location) {
-                    case Some(l) => loc = l
-                    case None => ()
+                let locOpt = msg.data.location
+                if (locOpt.isSome()) {
+                    loc = locOpt.getOrThrow()
                 }
                 result.errors.append(ParseResultError(msg.data.text))
             }
@@ -666,9 +666,10 @@ public class VirtualMachine {
     /// 读取文件内容 — 使用 SysFs 系统调用
     private static func readFileContents(path: String): String {
         let fdResult = SysFs.openRead(path)
-        let fd = match (fdResult) {
-            case SysMaybe.Ok(v) => v
-            case SysMaybe.Err(_) => return ""
+        let fd = if (fdResult.isOk()) {
+            fdResult.result().getOrThrow()
+        } else {
+            return ""
         }
 
         // 循环读取文件内容

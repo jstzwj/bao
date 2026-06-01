@@ -4,10 +4,10 @@ package bao_runtime.sql.mysql
 
 /// MySQL SSL 连接模式
 /// 对应 Bun: SSLMode (enum u8)
-public enum SSLMode <: UInt8 {
-    | disable(0)
-    | prefer(1)
-    | require(2)
-    | verify_ca(3)
-    | verify_full(4)
+public enum SSLMode {
+    | Disable     // 0
+    | Prefer      // 1
+    | Require     // 2
+    | VerifyCA    // 3
+    | VerifyFull  // 4
 }

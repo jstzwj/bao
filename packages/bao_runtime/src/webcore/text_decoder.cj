@@ -28,95 +28,10 @@ import bao_jsc.JsGlobalObject
 
 /// 编码标签 — 对应 Bun: jsc.WebCore.EncodingLabel
 /// Bun 支持的编码标签 (WHATWG Encoding 标准)
-public enum EncodingLabel {
-    | Utf8               // "utf-8" (默认)
-    | Utf16Le            // "utf-16le"
-    | Utf16Be            // "utf-16be"
-    | Latin1             // "windows-1252" / "iso-8859-1" / "latin-1"
-    | Big5               // "big5"
-    | EucJp              // "euc-jp"
-    | EucKr              // "euc-kr"
-    | Gb18030            // "gb18030" / "gbk"
-    | Iso2022Jp          // "iso-2022-jp"
-    | ShiftJis           // "shift-jis"
-    | Utf16              // "utf-16" (自动检测 BOM)
-    | XUserDefined       // "x-user-defined"
-    | Replacement        // "replacement"
-
-    /// 获取标签的标准名称
-    /// 对应 Bun: EncodingLabel.getLabel()
-    public func getLabel(): String {
-        match (this) {
-            case Utf8 => "utf-8"
-            case Utf16Le => "utf-16le"
-            case Utf16Be => "utf-16be"
-            case Latin1 => "windows-1252"
-            case Big5 => "big5"
-            case EucJp => "euc-jp"
-            case EucKr => "euc-kr"
-            case Gb18030 => "gb18030"
-            case Iso2022Jp => "iso-2022-jp"
-            case ShiftJis => "shift-jis"
-            case Utf16 => "utf-16"
-            case XUserDefined => "x-user-defined"
-            case Replacement => "replacement"
-        }
-    }
-
-    /// 从字符串解析编码标签
-    /// 对应 Bun: EncodingLabel.which()
-    public static func which(label: String): ?EncodingLabel {
-        let lower = label.toAsciiLower()
-        // UTF-8 variants
-        if (lower == "utf-8" || lower == "utf8" || lower == "unicode-1-1-utf-8") {
-            return Some(Utf8)
-        }
-        // UTF-16LE
-        if (lower == "utf-16le" || lower == "utf-16") {
-            return Some(Utf16Le)
-        }
-        // UTF-16BE
-        if (lower == "utf-16be") {
-            return Some(Utf16Be)
-        }
-        // Latin1 / windows-1252
-        if (lower == "windows-1252" || lower == "iso-8859-1" || lower == "latin1" ||
-            lower == "latin-1" || lower == "ascii" || lower == "us-ascii" ||
-            lower == "ansi_x3.4-1968" || lower == "cp1252") {
-            return Some(Latin1)
-        }
-        // Big5
-        if (lower == "big5" || lower == "big5-hkscs" || lower == "cn-big5" || lower == "csbig5") {
-            return Some(Big5)
-        }
-        // EUC-JP
-        if (lower == "euc-jp" || lower == "cseucpkdfmtjapanese") {
-            return Some(EucJp)
-        }
-        // EUC-KR
-        if (lower == "euc-kr" || lower == "cseuckr" || lower == "korean") {
-            return Some(EucKr)
-        }
-        // GB18030
-        if (lower == "gb18030" || lower == "gbk" || lower == "csgb2312" || lower == "gb2312") {
-            return Some(Gb18030)
-        }
-        // ISO-2022-JP
-        if (lower == "iso-2022-jp" || lower == "csiso2022jp") {
-            return Some(Iso2022Jp)
-        }
-        // Shift-JIS
-        if (lower == "shift-jis" || lower == "shift_jis" || lower == "sjis" ||
-            lower == "csshiftjis" || lower == "ms_kanji") {
-            return Some(ShiftJis)
-        }
-        return None
-    }
-}
 
 /// Unicode 替换字符 U+FFFD
 /// 对应 Bun: strings.UNICODE_REPLACEMENT
-public const let UNICODE_REPLACEMENT: UInt16 = 0xFFFD
+public let UNICODE_REPLACEMENT: UInt16 = 0xFFFD
 
 // ============================================================================
 // Buffered - UTF-8 流式缓冲 (最多 3 字节)
@@ -207,7 +122,7 @@ public class TextDecoder {
 
     /// 默认构造
     public init() {
-        encodingLabel = EncodingLabel.Utf8
+        encodingLabel = EncodingLabel.UTF8
         encoding = "utf-8"
         fatal = false
         ignoreBOM = false
@@ -220,11 +135,11 @@ public class TextDecoder {
     /// 对应 Bun: TextDecoder.constructor(globalThis, callframe)
     ///   解析 encoding_value 和 options_value (fatal, ignoreBOM)
     public init(encoding: String) {
-        let label = EncodingLabel.which(encoding)
+        let label = EncodingLabel.fromString(encoding)
         if (label.isSome()) {
             encodingLabel = label.getOrThrow()
         } else {
-            encodingLabel = EncodingLabel.Utf8
+            encodingLabel = EncodingLabel.UTF8
         }
         this.encoding = encodingLabel.getLabel()
         fatal = false
@@ -237,11 +152,11 @@ public class TextDecoder {
     /// 完整构造
     /// 对应 Bun: TextDecoder.constructor — 解析所有参数
     public init(encoding: String, fatal: Bool, ignoreBOM: Bool) {
-        let label = EncodingLabel.which(encoding)
+        let label = EncodingLabel.fromString(encoding)
         if (label.isSome()) {
             encodingLabel = label.getOrThrow()
         } else {
-            encodingLabel = EncodingLabel.Utf8
+            encodingLabel = EncodingLabel.UTF8
         }
         this.encoding = encodingLabel.getLabel()
         this.fatal = fatal
@@ -296,10 +211,10 @@ public class TextDecoder {
     public func decode(input: Array<UInt8>, stream: Bool): String {
         let flush = !stream
         match (encodingLabel) {
-            case Latin1 => return decodeLatin1(input)
-            case Utf8 => return decodeUtf8(input, flush)
-            case Utf16Le => return decodeUtf16(input, false, flush)
-            case Utf16Be => return decodeUtf16(input, true, flush)
+            case EncodingLabel.Windows1252 => return decodeLatin1(input)
+            case EncodingLabel.UTF8 => return decodeUtf8(input, flush)
+            case EncodingLabel.UTF16LE => return decodeUtf16(input, false, flush)
+            case EncodingLabel.UTF16BE => return decodeUtf16(input, true, flush)
             case _ => return decodeUtf8(input, flush)
         }
     }
@@ -348,7 +263,7 @@ public class TextDecoder {
             }
             buffered.len = 0
         }
-        for (i in Int64(start)..<Int64(input.size)) {
+        for (i in Int64(start)..Int64(input.size)) {
             bytes.append(input[Int64(i)])
         }
         let data = bytes.items()
@@ -365,7 +280,7 @@ public class TextDecoder {
                     // 流模式: 保存不完整的字节到 buffered
                     // 对应 Bun: this.buffered.buf = leftover; this.buffered.len = leftover_len
                     buffered.len = UInt8(data.size - Int64(idx))
-                    for (j in Int64(idx)..<Int64(data.size)) {
+                    for (j in Int64(idx)..Int64(data.size)) {
                         buffered.buf[Int64(j) - Int64(idx)] = data[Int64(j)]
                     }
                 } else {
@@ -721,14 +636,3 @@ public class TextDecoder {
 // ============================================================================
 
 /// 编码标签辅助
-public class EncodingLabelHelper {
-    public static func getCanonical(label: String): ?String {
-        let enc = EncodingLabel.which(label)
-        match (enc) {
-            case Some(e) => Some(e.getLabel())
-            case None => None
-        }
-    }
-}
-
-// ported from: src/runtime/webcore/TextDecoder.zig + TextDecoder.rs

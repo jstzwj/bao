@@ -283,9 +283,10 @@ public class ValkeyAddress {
     /// 对应 Bun Address.hostname()
     public func hostname(): String {
         if (isUnix) {
-            match (unixPath) {
-                case Some(path) => path
-                case None => ""
+            if (unixPath.isSome()) {
+                unixPath.getOrThrow()
+            } else {
+                ""
             }
         } else {
             host
@@ -1700,9 +1701,10 @@ public class ValkeyReader {
                 let num = IntParser.parseDecimal(numStr)
                 let value = RESPValue(RESPType.Null)
                 value.respType = RESPType.Integer
-                match (num) {
-                    case Some(n) => value.integerValue = n
-                    case None => return ParseResult.Error(RedisError.InvalidInteger)
+                if (num.isSome()) {
+                    value.integerValue = num.getOrThrow()
+                } else {
+                    return ParseResult.Error(RedisError.InvalidInteger)
                 }
                 return ParseResult.Complete(ParseResultData(end + 2, value))
 
@@ -1715,26 +1717,26 @@ public class ValkeyReader {
                 let end = lineEnd.getOrThrow()
                 let lenStr = String.fromUtf8(data[1..end])
                 let bulkLen = IntParser.parseDecimal(lenStr)
-                match (bulkLen) {
-                    case None => return ParseResult.Error(RedisError.InvalidBulkString)
-                    case Some(len) =>
-                        if (len == -1) {
-                            // Null bulk string
-                            let value = RESPValue(RESPType.Null)
-                            value.respType = RESPType.BulkString
-                            value.bulkString = None
-                            return ParseResult.Complete(ParseResultData(end + 2, value))
-                        }
-                        let totalLen = end + 2 + len + 2 // \r\n after length + data + \r\n
-                        if (data.size < totalLen) {
-                            return ParseResult.Incomplete
-                        }
-                        let bulkData = String.fromUtf8(data[(end + 2)..(end + 2 + len)])
-                        let value = RESPValue(RESPType.Null)
-                        value.respType = RESPType.BulkString
-                        value.bulkString = Some(bulkData)
-                        return ParseResult.Complete(ParseResultData(totalLen, value))
+                if (bulkLen.isNone()) {
+                    return ParseResult.Error(RedisError.InvalidBulkString)
                 }
+                let len = bulkLen.getOrThrow()
+                if (len == -1) {
+                    // Null bulk string
+                    let value = RESPValue(RESPType.Null)
+                    value.respType = RESPType.BulkString
+                    value.bulkString = None
+                    return ParseResult.Complete(ParseResultData(end + 2, value))
+                }
+                let totalLen = end + 2 + len + 2 // \r\n after length + data + \r\n
+                if (data.size < totalLen) {
+                    return ParseResult.Incomplete
+                }
+                let bulkData = String.fromUtf8(data[(end + 2)..(end + 2 + len)])
+                let value = RESPValue(RESPType.Null)
+                value.respType = RESPType.BulkString
+                value.bulkString = Some(bulkData)
+                return ParseResult.Complete(ParseResultData(totalLen, value))
 
             // Array: "*2\r\n..."
             case 42 => // '*'
@@ -1745,36 +1747,36 @@ public class ValkeyReader {
                 let end = lineEnd.getOrThrow()
                 let countStr = String.fromUtf8(data[1..end])
                 let arrayCount = IntParser.parseDecimal(countStr)
-                match (arrayCount) {
-                    case None => return ParseResult.Error(RedisError.InvalidArray)
-                    case Some(count) =>
-                        if (count == -1) {
-                            let value = RESPValue(RESPType.Null)
-                            value.respType = RESPType.Array
-                            return ParseResult.Complete(ParseResultData(end + 2, value))
-                        }
-                        // 递归解析数组元素
-                        var offset: Int64 = end + 2
-                        let items = ArrayList<RESPValue>()
-                        var i: Int64 = 0
-                        while (i < count) {
-                            if (offset >= data.size) {
-                                return ParseResult.Incomplete
-                            }
-                            let elemResult = tryParse(data[offset..])
-                            match (elemResult) {
-                                case ParseResult.Incomplete => return ParseResult.Incomplete
-                                case ParseResult.Error(err) => return ParseResult.Error(err)
-                                case ParseResult.Complete(result) =>
-                                    items.append(result.value)
-                                    offset += result.bytesConsumed
-                            }
-                            i += 1
-                        }
-                        let value = RESPValue(RESPType.Null)
-                        value.respType = RESPType.Array
-                        return ParseResult.Complete(ParseResultData(offset, value))
+                if (arrayCount.isNone()) {
+                    return ParseResult.Error(RedisError.InvalidArray)
                 }
+                let count = arrayCount.getOrThrow()
+                if (count == -1) {
+                    let value = RESPValue(RESPType.Null)
+                    value.respType = RESPType.Array
+                    return ParseResult.Complete(ParseResultData(end + 2, value))
+                }
+                // 递归解析数组元素
+                var offset: Int64 = end + 2
+                let items = ArrayList<RESPValue>()
+                var i: Int64 = 0
+                while (i < count) {
+                    if (offset >= data.size) {
+                        return ParseResult.Incomplete
+                    }
+                    let elemResult = tryParse(data[offset..])
+                    match (elemResult) {
+                        case ParseResult.Incomplete => return ParseResult.Incomplete
+                        case ParseResult.Error(err) => return ParseResult.Error(err)
+                        case ParseResult.Complete(result) =>
+                            items.append(result.value)
+                            offset += result.bytesConsumed
+                    }
+                    i += 1
+                }
+                let value = RESPValue(RESPType.Null)
+                value.respType = RESPType.Array
+                return ParseResult.Complete(ParseResultData(offset, value))
 
             // Null: "_\r\n"
             case 95 => // '_'
@@ -1818,19 +1820,19 @@ public class ValkeyReader {
                 let end = lineEnd.getOrThrow()
                 let lenStr = String.fromUtf8(data[1..end])
                 let blobLen = IntParser.parseDecimal(lenStr)
-                match (blobLen) {
-                    case None => return ParseResult.Error(RedisError.InvalidBlobError)
-                    case Some(len) =>
-                        let totalLen = end + 2 + len + 2
-                        if (data.size < totalLen) {
-                            return ParseResult.Incomplete
-                        }
-                        let errStr = String.fromUtf8(data[(end + 2)..(end + 2 + len)])
-                        let value = RESPValue(RESPType.Null)
-                        value.respType = RESPType.BlobError
-                        value.blobError = errStr
-                        return ParseResult.Complete(ParseResultData(totalLen, value))
+                if (blobLen.isNone()) {
+                    return ParseResult.Error(RedisError.InvalidBlobError)
                 }
+                let len = blobLen.getOrThrow()
+                let totalLen = end + 2 + len + 2
+                if (data.size < totalLen) {
+                    return ParseResult.Incomplete
+                }
+                let errStr = String.fromUtf8(data[(end + 2)..(end + 2 + len)])
+                let value = RESPValue(RESPType.Null)
+                value.respType = RESPType.BlobError
+                value.blobError = errStr
+                return ParseResult.Complete(ParseResultData(totalLen, value))
 
             // VerbatimString: "=15\r\ntxt:Some string\r\n"
             case 61 => // '='
@@ -1841,21 +1843,21 @@ public class ValkeyReader {
                 let end = lineEnd.getOrThrow()
                 let lenStr = String.fromUtf8(data[1..end])
                 let vLen = IntParser.parseDecimal(lenStr)
-                match (vLen) {
-                    case None => return ParseResult.Error(RedisError.InvalidVerbatimString)
-                    case Some(len) =>
-                        let totalLen = end + 2 + len + 2
-                        if (data.size < totalLen) {
-                            return ParseResult.Incomplete
-                        }
-                        let content = String.fromUtf8(data[(end + 2)..(end + 2 + len)])
-                        let vs = VerbatimStringData()
-                        vs.format = content[0..3]
-                        vs.content = content[4..]
-                        let value = RESPValue(RESPType.Null)
-                        value.respType = RESPType.VerbatimString
-                        return ParseResult.Complete(ParseResultData(totalLen, value))
+                if (vLen.isNone()) {
+                    return ParseResult.Error(RedisError.InvalidVerbatimString)
                 }
+                let len = vLen.getOrThrow()
+                let totalLen = end + 2 + len + 2
+                if (data.size < totalLen) {
+                    return ParseResult.Incomplete
+                }
+                let content = String.fromUtf8(data[(end + 2)..(end + 2 + len)])
+                let vs = VerbatimStringData()
+                vs.format = content[0..3]
+                vs.content = content[4..]
+                let value = RESPValue(RESPType.Null)
+                value.respType = RESPType.VerbatimString
+                return ParseResult.Complete(ParseResultData(totalLen, value))
 
             // Map: "%2\r\n..."
             case 37 => // '%'
@@ -1866,42 +1868,42 @@ public class ValkeyReader {
                 let end = lineEnd.getOrThrow()
                 let countStr = String.fromUtf8(data[1..end])
                 let mapCount = IntParser.parseDecimal(countStr)
-                match (mapCount) {
-                    case None => return ParseResult.Error(RedisError.InvalidMap)
-                    case Some(count) =>
-                        var offset: Int64 = end + 2
-                        let entries = ArrayList<MapEntry>()
-                        var i: Int64 = 0
-                        while (i < count) {
-                            // 解析 key
+                if (mapCount.isNone()) {
+                    return ParseResult.Error(RedisError.InvalidMap)
+                }
+                let count = mapCount.getOrThrow()
+                var offset: Int64 = end + 2
+                let entries = ArrayList<MapEntry>()
+                var i: Int64 = 0
+                while (i < count) {
+                    // 解析 key
+                    if (offset >= data.size) {
+                        return ParseResult.Incomplete
+                    }
+                    let keyResult = tryParse(data[offset..])
+                    match (keyResult) {
+                        case ParseResult.Incomplete => return ParseResult.Incomplete
+                        case ParseResult.Error(err) => return ParseResult.Error(err)
+                        case ParseResult.Complete(kr) =>
+                            offset += kr.bytesConsumed
+                            // 解析 value
                             if (offset >= data.size) {
                                 return ParseResult.Incomplete
                             }
-                            let keyResult = tryParse(data[offset..])
-                            match (keyResult) {
+                            let valResult = tryParse(data[offset..])
+                            match (valResult) {
                                 case ParseResult.Incomplete => return ParseResult.Incomplete
-                                case ParseResult.Error(err) => return ParseResult.Error(err)
-                                case ParseResult.Complete(kr) =>
-                                    offset += kr.bytesConsumed
-                                    // 解析 value
-                                    if (offset >= data.size) {
-                                        return ParseResult.Incomplete
-                                    }
-                                    let valResult = tryParse(data[offset..])
-                                    match (valResult) {
-                                        case ParseResult.Incomplete => return ParseResult.Incomplete
-                                        case ParseResult.Error(err2) => return ParseResult.Error(err2)
-                                        case ParseResult.Complete(vr) =>
-                                            offset += vr.bytesConsumed
-                                            entries.append(MapEntry(kr.value, vr.value))
-                                    }
+                                case ParseResult.Error(err2) => return ParseResult.Error(err2)
+                                case ParseResult.Complete(vr) =>
+                                    offset += vr.bytesConsumed
+                                    entries.append(MapEntry(kr.value, vr.value))
                             }
-                            i += 1
-                        }
-                        let value = RESPValue(RESPType.Null)
-                        value.respType = RESPType.Map
-                        return ParseResult.Complete(ParseResultData(offset, value))
+                    }
+                    i += 1
                 }
+                let value = RESPValue(RESPType.Null)
+                value.respType = RESPType.Map
+                return ParseResult.Complete(ParseResultData(offset, value))
 
             // Set: "~5\r\n..."
             case 126 => // '~'
@@ -1912,30 +1914,30 @@ public class ValkeyReader {
                 let end = lineEnd.getOrThrow()
                 let countStr = String.fromUtf8(data[1..end])
                 let setCount = IntParser.parseDecimal(countStr)
-                match (setCount) {
-                    case None => return ParseResult.Error(RedisError.InvalidSet)
-                    case Some(count) =>
-                        var offset: Int64 = end + 2
-                        let items = ArrayList<RESPValue>()
-                        var i: Int64 = 0
-                        while (i < count) {
-                            if (offset >= data.size) {
-                                return ParseResult.Incomplete
-                            }
-                            let elemResult = tryParse(data[offset..])
-                            match (elemResult) {
-                                case ParseResult.Incomplete => return ParseResult.Incomplete
-                                case ParseResult.Error(err) => return ParseResult.Error(err)
-                                case ParseResult.Complete(result) =>
-                                    items.append(result.value)
-                                    offset += result.bytesConsumed
-                            }
-                            i += 1
-                        }
-                        let value = RESPValue(RESPType.Null)
-                        value.respType = RESPType.Set
-                        return ParseResult.Complete(ParseResultData(offset, value))
+                if (setCount.isNone()) {
+                    return ParseResult.Error(RedisError.InvalidSet)
                 }
+                let count = setCount.getOrThrow()
+                var offset: Int64 = end + 2
+                let items = ArrayList<RESPValue>()
+                var i: Int64 = 0
+                while (i < count) {
+                    if (offset >= data.size) {
+                        return ParseResult.Incomplete
+                    }
+                    let elemResult = tryParse(data[offset..])
+                    match (elemResult) {
+                        case ParseResult.Incomplete => return ParseResult.Incomplete
+                        case ParseResult.Error(err) => return ParseResult.Error(err)
+                        case ParseResult.Complete(result) =>
+                            items.append(result.value)
+                            offset += result.bytesConsumed
+                    }
+                    i += 1
+                }
+                let value = RESPValue(RESPType.Null)
+                value.respType = RESPType.Set
+                return ParseResult.Complete(ParseResultData(offset, value))
 
             // Attribute: "|1\r\n..."
             case 124 => // '|'
@@ -1946,50 +1948,50 @@ public class ValkeyReader {
                 let end = lineEnd.getOrThrow()
                 let countStr = String.fromUtf8(data[1..end])
                 let attrCount = IntParser.parseDecimal(countStr)
-                match (attrCount) {
-                    case None => return ParseResult.Error(RedisError.InvalidAttribute)
-                    case Some(count) =>
-                        var offset: Int64 = end + 2
-                        let attrs = ArrayList<MapEntry>()
-                        var i: Int64 = 0
-                        while (i < count) {
+                if (attrCount.isNone()) {
+                    return ParseResult.Error(RedisError.InvalidAttribute)
+                }
+                let count = attrCount.getOrThrow()
+                var offset: Int64 = end + 2
+                let attrs = ArrayList<MapEntry>()
+                var i: Int64 = 0
+                while (i < count) {
+                    if (offset >= data.size) {
+                        return ParseResult.Incomplete
+                    }
+                    let keyResult = tryParse(data[offset..])
+                    match (keyResult) {
+                        case ParseResult.Incomplete => return ParseResult.Incomplete
+                        case ParseResult.Error(err) => return ParseResult.Error(err)
+                        case ParseResult.Complete(kr) =>
+                            offset += kr.bytesConsumed
                             if (offset >= data.size) {
                                 return ParseResult.Incomplete
                             }
-                            let keyResult = tryParse(data[offset..])
-                            match (keyResult) {
+                            let valResult = tryParse(data[offset..])
+                            match (valResult) {
                                 case ParseResult.Incomplete => return ParseResult.Incomplete
-                                case ParseResult.Error(err) => return ParseResult.Error(err)
-                                case ParseResult.Complete(kr) =>
-                                    offset += kr.bytesConsumed
-                                    if (offset >= data.size) {
-                                        return ParseResult.Incomplete
-                                    }
-                                    let valResult = tryParse(data[offset..])
-                                    match (valResult) {
-                                        case ParseResult.Incomplete => return ParseResult.Incomplete
-                                        case ParseResult.Error(err2) => return ParseResult.Error(err2)
-                                        case ParseResult.Complete(vr) =>
-                                            offset += vr.bytesConsumed
-                                            attrs.append(MapEntry(kr.value, vr.value))
-                                    }
+                                case ParseResult.Error(err2) => return ParseResult.Error(err2)
+                                case ParseResult.Complete(vr) =>
+                                    offset += vr.bytesConsumed
+                                    attrs.append(MapEntry(kr.value, vr.value))
                             }
-                            i += 1
-                        }
-                        // 属性后跟一个值
-                        if (offset >= data.size) {
-                            return ParseResult.Incomplete
-                        }
-                        let innerResult = tryParse(data[offset..])
-                        match (innerResult) {
-                            case ParseResult.Incomplete => return ParseResult.Incomplete
-                            case ParseResult.Error(err) => return ParseResult.Error(err)
-                            case ParseResult.Complete(result) =>
-                                let totalOffset = offset + result.bytesConsumed
-                                let value = RESPValue(RESPType.Null)
-                                value.respType = RESPType.Attribute
-                                return ParseResult.Complete(ParseResultData(totalOffset, value))
-                        }
+                    }
+                    i += 1
+                }
+                // 属性后跟一个值
+                if (offset >= data.size) {
+                    return ParseResult.Incomplete
+                }
+                let innerResult = tryParse(data[offset..])
+                match (innerResult) {
+                    case ParseResult.Incomplete => return ParseResult.Incomplete
+                    case ParseResult.Error(err) => return ParseResult.Error(err)
+                    case ParseResult.Complete(result) =>
+                        let totalOffset = offset + result.bytesConsumed
+                        let value = RESPValue(RESPType.Null)
+                        value.respType = RESPType.Attribute
+                        return ParseResult.Complete(ParseResultData(totalOffset, value))
                 }
 
             // Push: ">2\r\n..."
@@ -2001,43 +2003,43 @@ public class ValkeyReader {
                 let end = lineEnd.getOrThrow()
                 let countStr = String.fromUtf8(data[1..end])
                 let pushCount = IntParser.parseDecimal(countStr)
-                match (pushCount) {
-                    case None => return ParseResult.Error(RedisError.InvalidPush)
-                    case Some(count) =>
-                        var offset: Int64 = end + 2
-                        // 第一个元素是 kind (字符串)
-                        if (offset >= data.size) {
-                            return ParseResult.Incomplete
+                if (pushCount.isNone()) {
+                    return ParseResult.Error(RedisError.InvalidPush)
+                }
+                let count = pushCount.getOrThrow()
+                var offset: Int64 = end + 2
+                // 第一个元素是 kind (字符串)
+                if (offset >= data.size) {
+                    return ParseResult.Incomplete
+                }
+                let kindResult = tryParse(data[offset..])
+                match (kindResult) {
+                    case ParseResult.Incomplete => return ParseResult.Incomplete
+                    case ParseResult.Error(err) => return ParseResult.Error(err)
+                    case ParseResult.Complete(kr) =>
+                        offset += kr.bytesConsumed
+                        let items = ArrayList<RESPValue>()
+                        var i: Int64 = 1 // 第一个已读
+                        while (i < count) {
+                            if (offset >= data.size) {
+                                return ParseResult.Incomplete
+                            }
+                            let elemResult = tryParse(data[offset..])
+                            match (elemResult) {
+                                case ParseResult.Incomplete => return ParseResult.Incomplete
+                                case ParseResult.Error(err2) => return ParseResult.Error(err2)
+                                case ParseResult.Complete(result) =>
+                                    items.append(result.value)
+                                    offset += result.bytesConsumed
+                            }
+                            i += 1
                         }
-                        let kindResult = tryParse(data[offset..])
-                        match (kindResult) {
-                            case ParseResult.Incomplete => return ParseResult.Incomplete
-                            case ParseResult.Error(err) => return ParseResult.Error(err)
-                            case ParseResult.Complete(kr) =>
-                                offset += kr.bytesConsumed
-                                let items = ArrayList<RESPValue>()
-                                var i: Int64 = 1 // 第一个已读
-                                while (i < count) {
-                                    if (offset >= data.size) {
-                                        return ParseResult.Incomplete
-                                    }
-                                    let elemResult = tryParse(data[offset..])
-                                    match (elemResult) {
-                                        case ParseResult.Incomplete => return ParseResult.Incomplete
-                                        case ParseResult.Error(err2) => return ParseResult.Error(err2)
-                                        case ParseResult.Complete(result) =>
-                                            items.append(result.value)
-                                            offset += result.bytesConsumed
-                                    }
-                                    i += 1
-                                }
-                                let pushData = PushData()
-                                pushData.kind = kr.value.simpleString
-                                pushData.data = items
-                                let value = RESPValue(RESPType.Null)
-                                value.respType = RESPType.Push
-                                return ParseResult.Complete(ParseResultData(offset, value))
-                        }
+                        let pushData = PushData()
+                        pushData.kind = kr.value.simpleString
+                        pushData.data = items
+                        let value = RESPValue(RESPType.Null)
+                        value.respType = RESPType.Push
+                        return ParseResult.Complete(ParseResultData(offset, value))
                 }
 
             // BigNumber: "(12345\r\n"

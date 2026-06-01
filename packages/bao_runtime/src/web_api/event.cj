@@ -120,14 +120,16 @@ public open class Event {
         obj.set("timeStamp", JsValue(self.timeStamp))
         obj.set("eventPhase", JsValue(Float64(self.eventPhase.value())))
 
-        obj.set("target", match (self.target) {
-            case Some(t) => t.toJsValue()
-            case None => JsValue.NULL
+        obj.set("target", if (self.target.isSome()) {
+            self.target.getOrThrow().toJsValue()
+        } else {
+            JsValue.NULL
         })
 
-        obj.set("currentTarget", match (self.currentTarget) {
-            case Some(t) => t.toJsValue()
-            case None => JsValue.NULL
+        obj.set("currentTarget", if (self.currentTarget.isSome()) {
+            self.currentTarget.getOrThrow().toJsValue()
+        } else {
+            JsValue.NULL
         })
 
         obj.set("preventDefault", JsValue.nativeFunction(JsNativeFunction("preventDefault") { _ =>
@@ -206,11 +208,10 @@ public class CustomEvent <: Event {
     public func toJsValueCustom(): JsValue {
         let base = super.toJsValue()
         // 在 base 上追加 detail
-        match (base.objectData) {
-            case Some(obj) =>
-                let self = this
-                obj.set("detail", self.detail)
-            case None => ()
+        if (base.objectData.isSome()) {
+            let obj = base.objectData.getOrThrow()
+            let self = this
+            obj.set("detail", self.detail)
         }
         return base
     }
@@ -300,33 +301,34 @@ public open class EventTarget {
     /// 添加事件监听器 (带选项)
     /// 对应 Web API: target.addEventListener(type, callback, { once, passive })
     public func addEventListener(`type`: String, callback: EventListener, once: Bool, passive: Bool): Unit {
-        match (listeners.get(`type`)) {
-            case Some(arr) =>
-                let entry = EventListenerEntry(callback, once, passive)
-                arr.append(entry)
-            case None =>
-                let arr = ArrayList<EventListenerEntry>()
-                let entry = EventListenerEntry(callback, once, passive)
-                arr.append(entry)
-                listeners.put(`type`, arr)
+        let existing = listeners.get(`type`)
+        if (existing.isSome()) {
+            let arr = existing.getOrThrow()
+            let entry = EventListenerEntry(callback, once, passive)
+            arr.append(entry)
+        } else {
+            let arr = ArrayList<EventListenerEntry>()
+            let entry = EventListenerEntry(callback, once, passive)
+            arr.append(entry)
+            listeners.put(`type`, arr)
         }
     }
 
     /// 移除事件监听器
     /// 对应 Web API: target.removeEventListener(type, callback)
     public func removeEventListener(`type`: String, callback: EventListener): Unit {
-        match (listeners.get(`type`)) {
-            case Some(arr) =>
-                // 标记已移除 (不能在遍历中删除)
-                for (entry in arr) {
-                    // 简化: 通过引用比较
-                    // Cangjie 没有函数引用比较，标记第一个匹配的
-                    if (!entry.removed) {
-                        entry.removed = true
-                        break  // 只移除一个
-                    }
+        let existing = listeners.get(`type`)
+        if (existing.isSome()) {
+            let arr = existing.getOrThrow()
+            // 标记已移除 (不能在遍历中删除)
+            for (entry in arr) {
+                // 简化: 通过引用比较
+                // Cangjie 没有函数引用比较，标记第一个匹配的
+                if (!entry.removed) {
+                    entry.removed = true
+                    break  // 只移除一个
                 }
-            case None => ()
+            }
         }
     }
 
@@ -338,42 +340,42 @@ public open class EventTarget {
         event.currentTarget = Some(this)
         event.eventPhase = EventPhase.AtTarget
 
-        match (listeners.get(event.`type`)) {
-            case Some(arr) =>
-                // 复制一份避免遍历中修改
-                let toRemove = ArrayList<Int64>()
+        let existing = listeners.get(event.`type`)
+        if (existing.isSome()) {
+            let arr = existing.getOrThrow()
+            // 复制一份避免遍历中修改
+            let toRemove = ArrayList<Int64>()
 
-                for (i in 0..arr.size) {
-                    let entry = arr[Int64(i)]
-                    if (entry.removed) {
-                        continue
-                    }
-                    if (event.immediatePropagationStopped) {
-                        break
-                    }
-
-                    // 调用监听器
-                    entry.callback(event)
-
-                    // once 监听器执行后移除
-                    if (entry.once) {
-                        entry.removed = true
-                    }
+            for (i in 0..arr.size) {
+                let entry = arr[Int64(i)]
+                if (entry.removed) {
+                    continue
+                }
+                if (event.immediatePropagationStopped) {
+                    break
                 }
 
-                // 清理已移除的条目
-                let newArr = ArrayList<EventListenerEntry>()
-                for (entry in arr) {
-                    if (!entry.removed) {
-                        newArr.append(entry)
-                    }
+                // 调用监听器
+                entry.callback(event)
+
+                // once 监听器执行后移除
+                if (entry.once) {
+                    entry.removed = true
                 }
-                if (newArr.size == 0) {
-                    listeners.remove(event.`type`)
-                } else {
-                    listeners.put(event.`type`, newArr)
+            }
+
+            // 清理已移除的条目
+            let newArr = ArrayList<EventListenerEntry>()
+            for (entry in arr) {
+                if (!entry.removed) {
+                    newArr.append(entry)
                 }
-            case None => ()
+            }
+            if (newArr.size == 0) {
+                listeners.remove(event.`type`)
+            } else {
+                listeners.put(event.`type`, newArr)
+            }
         }
 
         event.currentTarget = None
@@ -393,13 +395,10 @@ public open class EventTarget {
                 self.addEventListener(`type`, { event =>
                     // 调用 JS 回调
                     if (fn.nativeFnData.isSome()) {
-                        match (fn.nativeFnData) {
-                            case Some(nf) =>
-                                let eventArgs = ArrayList<JsValue>()
-                                eventArgs.append(event.toJsValue())
-                                nf.fn(eventArgs)
-                            case None => ()
-                        }
+                        let nf = fn.nativeFnData.getOrThrow()
+                        let eventArgs = ArrayList<JsValue>()
+                        eventArgs.append(event.toJsValue())
+                        nf.fn(eventArgs)
                     }
                 })
             }
@@ -467,14 +466,13 @@ public class MessageEvent <: Event {
     /// 转为 JsValue
     public func toJsValueMessage(): JsValue {
         let base = super.toJsValue()
-        match (base.objectData) {
-            case Some(obj) =>
-                let self = this
-                obj.set("data", self.data)
-                obj.set("origin", JsValue(BaoString(self.origin)))
-                obj.set("lastEventId", JsValue(BaoString(self.lastEventId)))
-                obj.set("source", self.source)
-            case None => ()
+        if (base.objectData.isSome()) {
+            let obj = base.objectData.getOrThrow()
+            let self = this
+            obj.set("data", self.data)
+            obj.set("origin", JsValue(BaoString(self.origin)))
+            obj.set("lastEventId", JsValue(BaoString(self.lastEventId)))
+            obj.set("source", self.source)
         }
         return base
     }
@@ -511,15 +509,14 @@ public class ErrorEvent <: Event {
     /// 转为 JsValue
     public func toJsValueError(): JsValue {
         let base = super.toJsValue()
-        match (base.objectData) {
-            case Some(obj) =>
-                let self = this
-                obj.set("message", JsValue(BaoString(self.message)))
-                obj.set("filename", JsValue(BaoString(self.filename)))
-                obj.set("lineno", JsValue(Float64(self.lineno)))
-                obj.set("colno", JsValue(Float64(self.colno)))
-                obj.set("error", self.error)
-            case None => ()
+        if (base.objectData.isSome()) {
+            let obj = base.objectData.getOrThrow()
+            let self = this
+            obj.set("message", JsValue(BaoString(self.message)))
+            obj.set("filename", JsValue(BaoString(self.filename)))
+            obj.set("lineno", JsValue(Float64(self.lineno)))
+            obj.set("colno", JsValue(Float64(self.colno)))
+            obj.set("error", self.error)
         }
         return base
     }
@@ -550,13 +547,12 @@ public class CloseEvent <: Event {
     /// 转为 JsValue
     public func toJsValueClose(): JsValue {
         let base = super.toJsValue()
-        match (base.objectData) {
-            case Some(obj) =>
-                let self = this
-                obj.set("code", JsValue(Float64(self.code)))
-                obj.set("reason", JsValue(BaoString(self.reason)))
-                obj.set("wasClean", JsValue(self.wasClean))
-            case None => ()
+        if (base.objectData.isSome()) {
+            let obj = base.objectData.getOrThrow()
+            let self = this
+            obj.set("code", JsValue(Float64(self.code)))
+            obj.set("reason", JsValue(BaoString(self.reason)))
+            obj.set("wasClean", JsValue(self.wasClean))
         }
         return base
     }
@@ -584,12 +580,11 @@ public class PromiseRejectionEvent <: Event {
     /// 转为 JsValue
     public func toJsValuePromiseRejection(): JsValue {
         let base = super.toJsValue()
-        match (base.objectData) {
-            case Some(obj) =>
-                let self = this
-                obj.set("promise", self.promise)
-                obj.set("reason", self.reason)
-            case None => ()
+        if (base.objectData.isSome()) {
+            let obj = base.objectData.getOrThrow()
+            let self = this
+            obj.set("promise", self.promise)
+            obj.set("reason", self.reason)
         }
         return base
     }

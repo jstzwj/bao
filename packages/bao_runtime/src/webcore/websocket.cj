@@ -7,6 +7,7 @@ package bao_runtime.webcore
 import bao_jsc.*
 import bao_ptr.*
 import bao_sys.*
+import bao_collections.ArrayList
 
 // ============================================================================
 // Opcode - WebSocket frame opcode
@@ -440,7 +441,7 @@ public class WebSocketBehavior {
 
     public init() {
         compression = WsCompressOptions.None
-        maxPayloadLength = UInt32.MaxValue
+        maxPayloadLength = UInt32(0xFFFFFFFF)
         idleTimeout = 120
         maxBackpressure = 1024 * 1024  // 1 MB
         closeOnBackpressureLimit = false
@@ -495,13 +496,13 @@ public type WsCloseHandler = (ws: AnyWebSocket, code: Int32, message: Array<UInt
 /// Corresponds to: Bun: uws.WebSocketHandler trait
 public interface WebSocketHandler {
     /// Whether on_message handler is defined
-    static func hasOnMessage(): Bool
+    func hasOnMessage(): Bool
     /// Whether on_drain handler is defined
-    static func hasOnDrain(): Bool
+    func hasOnDrain(): Bool
     /// Whether on_ping handler is defined
-    static func hasOnPing(): Bool
+    func hasOnPing(): Bool
     /// Whether on_pong handler is defined
-    static func hasOnPong(): Bool
+    func hasOnPong(): Bool
 
     /// Called when WebSocket connection is opened
     func onOpen(ws: AnyWebSocket): Unit

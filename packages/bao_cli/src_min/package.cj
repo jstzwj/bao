@@ -723,12 +723,11 @@ func replCommand(args: Array<String>, start: Int64): Unit {
     }
 
     // 2. Handle -e/--eval mode (strictly from repl_command.zig ReplRunner.start)
-    match (evalScript) {
-        case Some(script) =>
-            let vm = VirtualMachine()
-            let _ = vm.eval(script, "<eval>")
-            return
-        case None => ()
+    if (evalScript.isSome()) {
+        let script = evalScript.getOrThrow()
+        let vm = VirtualMachine()
+        let _ = vm.eval(script, "<eval>")
+        return
     }
 
     // 3. Start interactive REPL (strictly from repl_command.zig)
@@ -787,13 +786,13 @@ func replCommand(args: Array<String>, start: Int64): Unit {
                 if (line.startsWith(".load ")) {
                     let filename = line[".load ".size..]
                     let contentResult = BaoFile.readAllText(filename)
-                    match (contentResult) {
-                        case Ok(text) =>
-                            println("-- Loading ${filename}")
-                            let vm = VirtualMachine()
-                            let _ = vm.eval(text, filename)
-                        case _ =>
-                            println("Error: Could not read file '${filename}'")
+                    if (contentResult.isOk()) {
+                        let text = contentResult.result().getOrThrow()
+                        println("-- Loading ${filename}")
+                        let vm = VirtualMachine()
+                        let _ = vm.eval(text, filename)
+                    } else {
+                        println("Error: Could not read file '${filename}'")
                     }
                 } else if (line.startsWith(".save ")) {
                     let filename = line[".save ".size..]
@@ -872,12 +871,11 @@ func execCommand(command: String, args: Array<String>, start: Int64): Unit {
     }
 
     // Handle --package alias (strictly from bunx_command.zig)
-    match (specifiedPackage) {
-        case Some(pkg) =>
-            if (packageName.size == 0) {
-                packageName = pkg
-            }
-        case None => ()
+    if (specifiedPackage.isSome()) {
+        let pkg = specifiedPackage.getOrThrow()
+        if (packageName.size == 0) {
+            packageName = pkg
+        }
     }
 
     if (packageName.size == 0) {
@@ -891,18 +889,21 @@ func execCommand(command: String, args: Array<String>, start: Int64): Unit {
     }
 
     // 3. Determine binary name
-    let effectiveBinName = match (binaryName) {
-        case Some(bn) => bn
-        case None =>
-            if (packageName == "typescript") {
-                "tsc"
+    var effectiveBinName = ""
+    if (binaryName.isSome()) {
+        effectiveBinName = binaryName.getOrThrow()
+    } else {
+        if (packageName == "typescript") {
+            effectiveBinName = "tsc"
+        } else {
+            let lastSlash = packageName.lastIndexOf("/")
+            if (lastSlash.isSome()) {
+                let idx = lastSlash.getOrThrow()
+                effectiveBinName = packageName[idx + 1..]
             } else {
-                let lastSlash = packageName.lastIndexOf("/")
-                match (lastSlash) {
-                    case Some(idx) => packageName[idx + 1..]
-                    case None => packageName
-                }
+                effectiveBinName = packageName
             }
+        }
     }
 
     // 4. Try local node_modules/.bin first (strictly from bunx_command.zig)
@@ -961,19 +962,17 @@ func autoCommand(command: String, args: Array<String>): Unit {
     // Try to resolve as package.json script
     // Strictly from: run_command.zig scripts.get(target_name)
     let pkgContent = BaoFile.readAllText("package.json")
-    match (pkgContent) {
-        case Ok(text) =>
-            // Simple script lookup: find "scriptName": "command"
-            let scriptContent = extractScriptCommand(text, command)
-            match (scriptContent) {
-                case Some(cmd) =>
-                    println("$ ${cmd}")
-                    let vm = VirtualMachine()
-                    let _ = vm.eval(cmd, "<script>")
-                    return
-                case None => ()
-            }
-        case _ => ()
+    if (pkgContent.isOk()) {
+        let text = pkgContent.result().getOrThrow()
+        // Simple script lookup: find "scriptName": "command"
+        let scriptContent = extractScriptCommand(text, command)
+        if (scriptContent.isSome()) {
+            let cmd = scriptContent.getOrThrow()
+            println("$ ${cmd}")
+            let vm = VirtualMachine()
+            let _ = vm.eval(cmd, "<script>")
+            return
+        }
     }
 
     // Unknown command
@@ -986,25 +985,23 @@ func extractScriptCommand(json: String, scriptName: String): ?String {
     // Simple extraction: find "scriptName": "value"
     let searchKey = "\"${scriptName}\""
     let keyIdx = json.indexOf(searchKey)
-    match (keyIdx) {
-        case Some(idx) =>
-            // Find the value after the colon
-            let afterKey = json[idx + searchKey.size..]
-            let colonIdx = afterKey.indexOf(':')
-            match (colonIdx) {
-                case Some(ci) =>
-                    let afterColon = afterKey[ci + 1..].trimStart()
-                    if (afterColon.size > 0 && afterColon[0] == UInt8(34)) {  // '"'
-                        let afterQuote = afterColon[1..]
-                        let endQuote = afterQuote.indexOf('"')
-                        match (endQuote) {
-                            case Some(ei) => return Some(afterQuote[0..ei])
-                            case None => ()
-                        }
-                    }
-                case None => ()
+    if (keyIdx.isSome()) {
+        let idx = keyIdx.getOrThrow()
+        // Find the value after the colon
+        let afterKey = json[idx + searchKey.size..]
+        let colonIdx = afterKey.indexOf(':')
+        if (colonIdx.isSome()) {
+            let ci = colonIdx.getOrThrow()
+            let afterColon = afterKey[ci + 1..].trimStart()
+            if (afterColon.size > 0 && afterColon[0] == UInt8(34)) {  // '"'
+                let afterQuote = afterColon[1..]
+                let endQuote = afterQuote.indexOf('"')
+                if (endQuote.isSome()) {
+                    let ei = endQuote.getOrThrow()
+                    return Some(afterQuote[0..ei])
+                }
             }
-        case None => ()
+        }
     }
     return None
 }
@@ -1041,12 +1038,12 @@ func collectArgs(args: Array<String>, start: Int64): ArrayList<String> {
 /// Get directory name of a path
 func dirname(path: String): String {
     let lastSlash = path.lastIndexOf('/')
-    match (lastSlash) {
-        case Some(idx) =>
-            if (idx == 0) { return "/" }
-            return path[0..idx]
-        case None => return "."
+    if (lastSlash.isSome()) {
+        let idx = lastSlash.getOrThrow()
+        if (idx == 0) { return "/" }
+        return path[0..idx]
     }
+    return "."
 }
 
 /// ASCII lowercase for file name comparison (non-Unicode-safe, matching Bun behavior)
@@ -1073,15 +1070,16 @@ func readConsoleLine(): String {
         let chunk = Array<UInt8>(1, repeat: UInt8(0))
         while (true) {
             let result = SysFs.read(0, chunk)
-            match (result) {
-                case Ok(n) =>
-                    if (n <= 0) { break }
-                    let byte = chunk[0]
-                    if (byte == UInt8(10)) { break }  // newline
-                    if (byte == UInt8(13)) { break }  // carriage return
-                    buffer.append(byte)
-                    if (buffer.size >= 4096) { break }  // line too long
-                case Err(_) => break
+            if (result.isOk()) {
+                let n = result.result().getOrThrow()
+                if (n <= 0) { break }
+                let byte = chunk[0]
+                if (byte == UInt8(10)) { break }  // newline
+                if (byte == UInt8(13)) { break }  // carriage return
+                buffer.append(byte)
+                if (buffer.size >= 4096) { break }  // line too long
+            } else {
+                break
             }
         }
         if (buffer.size == 0) { return "" }

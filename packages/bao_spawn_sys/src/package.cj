@@ -257,7 +257,7 @@ public class Pdeathsig {
 public class RuntimeUtils {
     /// 获取当前线程 ID -- 通过 gettid(2) 或 pthread_self
     public static func threadId(): Int64 {
-        return Int64(gettidFFI())
+        return Int64(unsafe { gettidFFI() })
     }
 }
 

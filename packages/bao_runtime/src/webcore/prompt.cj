@@ -4,9 +4,9 @@
 package bao_runtime.webcore
 
 import bao_core.*
-import bao_jsc.*
+import bao_jsc.{JsGlobalObject, JsValue, CallFrame}
+import bao_collections.ArrayList
 import std.console.*
-import std.collection.*
 
 // ============================================================================
 // Prompt - Web 提示对话框 API
@@ -21,7 +21,7 @@ func stdinReadByte(): ?UInt8 {
     try {
         let ch = Console.stdIn.read()
         match (ch) {
-            case Some(r) => Some(UInt8(r))
+            case Some(r) => Some(r.toString().toArray()[0])
             case None => None
         }
     } catch (_: Exception) {
@@ -78,7 +78,7 @@ public func webcoreAlert(global: JsGlobalObject, frame: CallFrame): JsValue {
 
     // 6. Invoke WebDriver BiDi user prompt opened with this, "alert", and message.
     // *  Not pertinent to use their complex system in a server context.
-    Output.flush()
+    // Output.flush()
 
     // 7. Optionally, pause while waiting for the user to acknowledge the message.
     // 逐字节读取，直到遇到换行符
@@ -86,7 +86,7 @@ public func webcoreAlert(global: JsGlobalObject, frame: CallFrame): JsValue {
         let byte = stdinReadByte()
         match (byte) {
             case Some(b) =>
-                if (b == UInt8('\n')) {
+                if (b == UInt8(10)) {
                     break
                 }
             case None => break
@@ -135,53 +135,53 @@ public func webcoreConfirm(global: JsGlobalObject, frame: CallFrame): JsValue {
 
     // 5. Invoke WebDriver BiDi user prompt opened with this, "confirm", and message.
     // *  Not relevant in a server context.
-    Output.flush()
+    // Output.flush()
 
     // 6. Pause until the user responds either positively or negatively.
     let firstByte = stdinReadByte()
-    if (firstByte == None) {
+    if (firstByte .isNone()) {
         return JsValue.jsFalse()
     }
-    let first = firstByte.get()
+    let first = firstByte.getOrThrow()
 
     // 7. Invoke WebDriver BiDi user prompt closed with this, and true if
     //    the user responded positively or false otherwise.
     // *  Not relevant in a server context.
 
     // 根据首字节判断用户响应
-    if (first == UInt8('\n')) {
+    if (first == UInt8(10)) {
         // 直接回车 = 否定
         return JsValue.jsFalse()
-    } else if (first == UInt8('\r')) {
+    } else if (first == UInt8(13)) {
         // \r 开头 — 可能是 Windows 换行 \r\n
         let nextByte = stdinReadByte()
-        if (nextByte == None) {
+        if (nextByte .isNone()) {
             // They may have said yes, but the stdin is invalid.
             return JsValue.jsFalse()
         }
-        if (nextByte.get() == UInt8('\n')) {
+        if (nextByte.getOrThrow() == UInt8(10)) {
             return JsValue.jsFalse()
         }
-    } else if (first == UInt8('y') || first == UInt8('Y')) {
+    } else if (first == UInt8(121) || first == UInt8(89)) {
         // 以 y/Y 开头 — 检查下一个字节
         let nextByte = stdinReadByte()
-        if (nextByte == None) {
+        if (nextByte .isNone()) {
             // They may have said yes, but the stdin is invalid.
             return JsValue.jsFalse()
         }
-        let next = nextByte.get()
+        let next = nextByte.getOrThrow()
 
-        if (next == UInt8('\n')) {
+        if (next == UInt8(10)) {
             // 8. If the user responded positively, return true;
             //    otherwise, the user responded negatively: return false.
             return JsValue.jsTrue()
-        } else if (next == UInt8('\r')) {
+        } else if (next == UInt8(13)) {
             // Check Windows style: \r\n
             let secondByte = stdinReadByte()
-            if (secondByte == None) {
+            if (secondByte .isNone()) {
                 return JsValue.jsFalse()
             }
-            if (secondByte.get() == UInt8('\n')) {
+            if (secondByte.getOrThrow() == UInt8(10)) {
                 return JsValue.jsTrue()
             }
         }
@@ -193,7 +193,7 @@ public func webcoreConfirm(global: JsGlobalObject, frame: CallFrame): JsValue {
         let b = stdinReadByte()
         match (b) {
             case Some(byte) =>
-                if (byte == UInt8('\n') || byte == UInt8('\r')) {
+                if (byte == UInt8(10) || byte == UInt8(13)) {
                     break
                 }
             case None => break
@@ -218,7 +218,9 @@ func readUntilDelimiterAppendAssumeCapacity(
     delimiter: UInt8,
     maxSize: Int64
 ): Bool {
-    while (true) {
+    var done = false
+    var result = true
+    while (!done) {
         if (Int64(array.size) == maxSize) {
             // StreamTooLong — 超出容量限制
             return false
@@ -228,12 +230,17 @@ func readUntilDelimiterAppendAssumeCapacity(
         match (byte) {
             case Some(b) =>
                 if (b == delimiter) {
-                    return true
+                    done = true
+                    result = true
+                } else {
+                    array.append(b)
                 }
-                array.append(b)
-            case None => return true
+            case None =>
+                done = true
+                result = true
         }
     }
+    return result
 }
 
 /// 读取直到分隔符 — 无限追加 (无容量限制)
@@ -258,11 +265,7 @@ func readUntilDelimiterInfinity(
 
 /// 将 ArrayList<UInt8> 转为 String
 func bytesToString(bytes: ArrayList<UInt8>): String {
-    var sb = StringBuilder()
-    for (b in bytes) {
-        sb.append(Char(b))
-    }
-    sb.toString()
+    Utf8Codec.decode(bytes.items())
 }
 
 // ============================================================================
@@ -315,39 +318,39 @@ public func webcorePrompt(global: JsGlobalObject, frame: CallFrame): JsValue {
 
     // 6. Invoke WebDriver BiDi user prompt opened with this, "prompt" and message.
     // *  Not relevant in a server context.
-    Output.flush()
+    // Output.flush()
 
     // 7. Pause while waiting for the user's response.
     // 逐字节读取用户输入
     var secondByte: ?UInt8 = None
 
     let firstByte = stdinReadByte()
-    if (firstByte == None) {
+    if (firstByte .isNone()) {
         // 8. Let result be null if the user aborts, or otherwise the string
         //    that the user responded with.
         return JsValue.NULL
     }
-    let first = firstByte.get()
+    let first = firstByte.getOrThrow()
 
     // 处理首字节: 空行 → 返回默认值
-    if (first == UInt8('\n')) {
+    if (first == UInt8(10)) {
         // 8. Let result be null if the user aborts, or otherwise the string
         //    that the user responded with.
         return defaultValue
-    } else if (first == UInt8('\r')) {
+    } else if (first == UInt8(13)) {
         let second = stdinReadByte()
-        if (second == None) {
+        if (second .isNone()) {
             return JsValue.NULL
         }
         secondByte = second
-        if (second.get() == UInt8('\n')) {
+        if (second.getOrThrow() == UInt8(10)) {
             return defaultValue
         }
     }
 
     // 构建输入缓冲区 — 三级容量策略
     var input = ArrayList<UInt8>()
-    input.reserve(2048)
+    // reserve removed (not available)
 
     // 追加首字节（和次字节，如果有的话）
     input.append(first)
@@ -356,20 +359,20 @@ public func webcorePrompt(global: JsGlobalObject, frame: CallFrame): JsValue {
     }
 
     // 第一级: 尝试读入 2048 字节缓冲区
-    let reachedDelimiter = readUntilDelimiterAppendAssumeCapacity(input, UInt8('\n'), 2048)
+    let reachedDelimiter = readUntilDelimiterAppendAssumeCapacity(input, UInt8(10), 2048)
     if (!reachedDelimiter) {
         // 第二级: 扩充到 4096 字节
-        input.reserve(4096)
+    // reserve removed (not available)
 
-        let reachedDelimiter2 = readUntilDelimiterAppendAssumeCapacity(input, UInt8('\n'), 4096)
+        let reachedDelimiter2 = readUntilDelimiterAppendAssumeCapacity(input, UInt8(10), 4096)
         if (!reachedDelimiter2) {
             // 第三级: 无限增长
-            readUntilDelimiterInfinity(input, UInt8('\n'))
+            readUntilDelimiterInfinity(input, UInt8(10))
         }
     }
 
     // 修剪末尾 \r (Windows 换行处理)
-    if (input.size > 0 && input[input.size - 1] == UInt8('\r')) {
+    if (input.size > 0 && input[input.size - 1] == UInt8(13)) {
         input.removeAt(input.size - 1)
     }
 
@@ -411,7 +414,7 @@ public class Prompt {
         } else {
             print("Alert [Enter] ")
         }
-        Output.flush()
+        // Output.flush()
 
         // 7. Optionally, pause while waiting for the user to acknowledge the message.
         // 逐字节读取，直到遇到换行符
@@ -419,7 +422,7 @@ public class Prompt {
             let byte = stdinReadByte()
             match (byte) {
                 case Some(b) =>
-                    if (b == UInt8('\n')) {
+                    if (b == UInt8(10)) {
                         break
                     }
                 case None => break
@@ -445,50 +448,50 @@ public class Prompt {
         } else {
             print("Confirm [y/N] ")
         }
-        Output.flush()
+        // Output.flush()
 
         // 6. Pause until the user responds either positively or negatively.
         let firstByte = stdinReadByte()
-        if (firstByte == None) {
+        if (firstByte .isNone()) {
             return false
         }
-        let first = firstByte.get()
+        let first = firstByte.getOrThrow()
 
         // \n = 否定
-        if (first == UInt8('\n')) {
+        if (first == UInt8(10)) {
             return false
         }
 
         // \r 开头 — 可能是 Windows \r\n
-        if (first == UInt8('\r')) {
+        if (first == UInt8(13)) {
             let nextByte = stdinReadByte()
-            if (nextByte == None) {
+            if (nextByte .isNone()) {
                 // They may have said yes, but the stdin is invalid.
                 return false
             }
-            if (nextByte.get() == UInt8('\n')) {
+            if (nextByte.getOrThrow() == UInt8(10)) {
                 return false
             }
-        } else if (first == UInt8('y') || first == UInt8('Y')) {
+        } else if (first == UInt8(121) || first == UInt8(89)) {
             // 以 y/Y 开头
             let nextByte = stdinReadByte()
-            if (nextByte == None) {
+            if (nextByte .isNone()) {
                 // They may have said yes, but the stdin is invalid.
                 return false
             }
-            let next = nextByte.get()
+            let next = nextByte.getOrThrow()
 
-            if (next == UInt8('\n')) {
+            if (next == UInt8(10)) {
                 // 8. If the user responded positively, return true;
                 //    otherwise, the user responded negatively: return false.
                 return true
-            } else if (next == UInt8('\r')) {
+            } else if (next == UInt8(13)) {
                 // Windows: \r\n
                 let secondByte = stdinReadByte()
-                if (secondByte == None) {
+                if (secondByte .isNone()) {
                     return false
                 }
-                if (secondByte.get() == UInt8('\n')) {
+                if (secondByte.getOrThrow() == UInt8(10)) {
                     return true
                 }
             }
@@ -499,7 +502,7 @@ public class Prompt {
             let b = stdinReadByte()
             match (b) {
                 case Some(byte) =>
-                    if (byte == UInt8('\n') || byte == UInt8('\r')) {
+                    if (byte == UInt8(10) || byte == UInt8(13)) {
                         break
                     }
                 case None => break
@@ -528,55 +531,55 @@ public class Prompt {
         } else {
             print("Prompt ")
         }
-        Output.flush()
+        // Output.flush()
 
         // 7. Pause while waiting for the user's response.
         // 逐字节读取输入
         var secondByte: ?UInt8 = None
 
         let firstByte = stdinReadByte()
-        if (firstByte == None) {
+        if (firstByte .isNone()) {
             // 8. Let result be null if the user aborts
             return None
         }
-        let first = firstByte.get()
+        let first = firstByte.getOrThrow()
 
         // 首字节是换行 → 用户取消 → 返回 None
-        if (first == UInt8('\n')) {
+        if (first == UInt8(10)) {
             return None
         }
 
-        if (first == UInt8('\r')) {
+        if (first == UInt8(13)) {
             let second = stdinReadByte()
-            if (second == None) {
+            if (second .isNone()) {
                 return None
             }
             secondByte = second
-            if (second.get() == UInt8('\n')) {
+            if (second.getOrThrow() == UInt8(10)) {
                 return None
             }
         }
 
         // 构建输入缓冲区
         var input = ArrayList<UInt8>()
-        input.reserve(2048)
+    // reserve removed (not available)
         input.append(first)
         if (let Some(second) <- secondByte) {
             input.append(second)
         }
 
         // 三级缓冲策略读取剩余内容
-        let reachedDelimiter = readUntilDelimiterAppendAssumeCapacity(input, UInt8('\n'), 2048)
+        let reachedDelimiter = readUntilDelimiterAppendAssumeCapacity(input, UInt8(10), 2048)
         if (!reachedDelimiter) {
-            input.reserve(4096)
-            let reachedDelimiter2 = readUntilDelimiterAppendAssumeCapacity(input, UInt8('\n'), 4096)
+    // reserve removed (not available)
+            let reachedDelimiter2 = readUntilDelimiterAppendAssumeCapacity(input, UInt8(10), 4096)
             if (!reachedDelimiter2) {
-                readUntilDelimiterInfinity(input, UInt8('\n'))
+                readUntilDelimiterInfinity(input, UInt8(10))
             }
         }
 
         // 修剪末尾 \r
-        if (input.size > 0 && input[input.size - 1] == UInt8('\r')) {
+        if (input.size > 0 && input[input.size - 1] == UInt8(13)) {
             input.removeAt(input.size - 1)
         }
 
@@ -608,39 +611,39 @@ public class Prompt {
         if (defaultValue.size > 0) {
             print("[${defaultValue}] ")
         }
-        Output.flush()
+        // Output.flush()
 
         // 7. Pause while waiting for the user's response.
         var secondByte: ?UInt8 = None
 
         let firstByte = stdinReadByte()
-        if (firstByte == None) {
+        if (firstByte .isNone()) {
             // 用户取消 — 如果有默认值则返回
             if (defaultValue.size > 0) {
                 return Some(defaultValue)
             }
             return None
         }
-        let first = firstByte.get()
+        let first = firstByte.getOrThrow()
 
         // 首字节是换行 → 返回默认值
-        if (first == UInt8('\n')) {
+        if (first == UInt8(10)) {
             if (defaultValue.size > 0) {
                 return Some(defaultValue)
             }
             return None
         }
 
-        if (first == UInt8('\r')) {
+        if (first == UInt8(13)) {
             let second = stdinReadByte()
-            if (second == None) {
+            if (second .isNone()) {
                 if (defaultValue.size > 0) {
                     return Some(defaultValue)
                 }
                 return None
             }
             secondByte = second
-            if (second.get() == UInt8('\n')) {
+            if (second.getOrThrow() == UInt8(10)) {
                 if (defaultValue.size > 0) {
                     return Some(defaultValue)
                 }
@@ -650,24 +653,24 @@ public class Prompt {
 
         // 构建输入缓冲区
         var input = ArrayList<UInt8>()
-        input.reserve(2048)
+    // reserve removed (not available)
         input.append(first)
         if (let Some(second) <- secondByte) {
             input.append(second)
         }
 
         // 三级缓冲策略读取剩余内容
-        let reachedDelimiter = readUntilDelimiterAppendAssumeCapacity(input, UInt8('\n'), 2048)
+        let reachedDelimiter = readUntilDelimiterAppendAssumeCapacity(input, UInt8(10), 2048)
         if (!reachedDelimiter) {
-            input.reserve(4096)
-            let reachedDelimiter2 = readUntilDelimiterAppendAssumeCapacity(input, UInt8('\n'), 4096)
+    // reserve removed (not available)
+            let reachedDelimiter2 = readUntilDelimiterAppendAssumeCapacity(input, UInt8(10), 4096)
             if (!reachedDelimiter2) {
-                readUntilDelimiterInfinity(input, UInt8('\n'))
+                readUntilDelimiterInfinity(input, UInt8(10))
             }
         }
 
         // 修剪末尾 \r
-        if (input.size > 0 && input[input.size - 1] == UInt8('\r')) {
+        if (input.size > 0 && input[input.size - 1] == UInt8(13)) {
             input.removeAt(input.size - 1)
         }
 

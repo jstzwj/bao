@@ -582,7 +582,7 @@ public class ClapParser {
             }
 
             match (argInfo.kind) {
-                case ArgKind.Long => {
+                case ArgKind.Long =>
                     // 处理长选项
                     // 严格翻译自: StreamingClap.normal() .long 分支
                     let parseResult = parseLongArg(argInfo.arg, iter)
@@ -596,8 +596,7 @@ public class ClapParser {
                             }
                         }
                     }
-                }
-                case ArgKind.Short => {
+                case ArgKind.Short =>
                     // 处理短选项 (可能含链式组合)
                     // 严格翻译自: StreamingClap.normal() .short 分支
                     //   return try parser.chainging(.{ .arg = arg, .index = 0 });
@@ -611,8 +610,7 @@ public class ClapParser {
                             }
                         }
                     }
-                }
-                case ArgKind.Positional => {
+                case ArgKind.Positional =>
                     // 处理位置参数
                     // 严格翻译自: StreamingClap.normal() .positional 分支
                     if (argInfo.arg == "--") {
@@ -643,7 +641,6 @@ public class ClapParser {
                             // 无位置参数定义, 仍收集
                             result.positionals.append(argInfo.arg)
                     }
-                }
             }
         }
 
@@ -951,13 +948,12 @@ public class ClapParser {
             result.options.put(paramId, val)
             // 同时按长名称存储
             match (param.names.longName) {
-                case Some(longName) => {
+                case Some(longName) =>
                         let val2 = match (parsedArg.value) {
                             case Some(v) => v
                             case None => ""
                         }
                         result.options.put(longName, val2)
-                    }
                 case None => ()
             }
         } else if (param.takesValue == ClapValues.Many) {

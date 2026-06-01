@@ -3,6 +3,8 @@
 package bao_runtime.sql.mysql
 
 import bao_core.*
+import bao_sql.*
+import bao_sql.mysql.protocol.*
 
 /// MySQL EOF 包
 /// 对应 Bun: EOFPacket
@@ -24,12 +26,12 @@ public class EOFPacket {
     /// 从 Reader 解码
     /// 对应 Bun: EOFPacket.decodeInternal
     public func decode(reader: MySQLPacketReader): Unit {
-        header = reader.readInt8()
+        header = reader.int8()
         if (header != 0xfe) {
             return  // InvalidEOFPacket
         }
 
-        warnings = reader.readInt16()
-        statusFlags = StatusFlags.fromInt(reader.readInt16())
+        warnings = reader.int16()
+        statusFlags = StatusFlags.fromInt(reader.int16())
     }
 }

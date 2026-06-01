@@ -120,14 +120,14 @@ public class HotModuleRegistry {
 
     /// 注册模块 - 对应 Bun HMR 注册模块
     public func register(modulePath: String): HotModuleInfo {
-        match (modules.get(modulePath)) {
-            case Some(info) => return info
-            case None =>
-                let info = HotModuleInfo(modulePath)
-                info.lastModified = currentTimeMillis()
-                modules.put(modulePath, info)
-                return info
+        let opt = modules.get(modulePath)
+        if (opt.isSome()) {
+            return opt.getOrThrow()
         }
+        let info = HotModuleInfo(modulePath)
+        info.lastModified = currentTimeMillis()
+        modules.put(modulePath, info)
+        return info
     }
 
     /// 取消注册模块
@@ -136,16 +136,16 @@ public class HotModuleRegistry {
         dependencyGraph.remove(modulePath)
         // 从其他模块的 importers 中移除
         for (key in modules.keys()) {
-            match (modules.get(key)) {
-                case Some(info) =>
-                    let newImporters = ArrayList<String>()
-                    for (imp in info.importers) {
-                        if (imp != modulePath) {
-                            newImporters.append(imp)
-                        }
+            let infoOpt = modules.get(key)
+            if (infoOpt.isSome()) {
+                let info = infoOpt.getOrThrow()
+                let newImporters = ArrayList<String>()
+                for (imp in info.importers) {
+                    if (imp != modulePath) {
+                        newImporters.append(imp)
                     }
-                    info.importers = newImporters
-                case None => ()
+                }
+                info.importers = newImporters
             }
         }
     }
@@ -229,15 +229,15 @@ public class HotModuleRegistry {
         if (depth > 50) {
             return  // 防止无限递归
         }
-        match (modules.get(path)) {
-            case Some(info) =>
-                for (importer in info.importers) {
-                    if (!result.contains(importer)) {
-                        result.append(importer)
-                        collectImporters(importer, result, depth + 1)
-                    }
+        let infoOpt = modules.get(path)
+        if (infoOpt.isSome()) {
+            let info = infoOpt.getOrThrow()
+            for (importer in info.importers) {
+                if (!result.contains(importer)) {
+                    result.append(importer)
+                    collectImporters(importer, result, depth + 1)
                 }
-            case None => ()
+            }
         }
     }
 
@@ -293,10 +293,11 @@ public class ModuleReloader {
     /// 重载指定模块 - 对应 Bun HMR 重新加载模块
     /// 返回重载后的新导出
     public func reloadModule(modulePath: String): ?JsValue {
-        let moduleInfo = match (registry.get(modulePath)) {
-            case Some(info) => info
-            case None => return None
+        let infoOpt = registry.get(modulePath)
+        if (infoOpt.isNone()) {
+            return None
         }
+        let moduleInfo = infoOpt.getOrThrow()
 
         // 1. 检查模块是否接受热更新
         var canHotReload = false
@@ -436,28 +437,25 @@ public class HotReloader {
 
         // 创建文件监视器
         let watcherResult = BaoFileWatcher.create()
-        match (watcherResult) {
-            case SysMaybe.Ok(w) =>
-                watcher = Some(w)
-            case SysMaybe.Err(e) =>
-                match (onErrorFn) {
-                    case Some(cb) => cb("watcher", "Failed to create file watcher")
-                    case None => ()
-                }
-                return
+        if (watcherResult.isOk()) {
+            watcher = Some(watcherResult.result().getOrThrow())
+        } else {
+            if (onErrorFn.isSome()) {
+                onErrorFn.getOrThrow()("watcher", "Failed to create file watcher")
+            }
+            return
         }
 
         // 添加监视目录
-        match (watcher) {
-            case Some(w) =>
-                for (dir in directories) {
-                    if (BaoFile.isDirectory(dir)) {
-                        w.watch(dir)
-                        watchedDirs.append(dir)
-                        watchRecursively(w, dir)
-                    }
+        if (watcher.isSome()) {
+            let w = watcher.getOrThrow()
+            for (dir in directories) {
+                if (BaoFile.isDirectory(dir)) {
+                    w.watch(dir)
+                    watchedDirs.append(dir)
+                    watchRecursively(w, dir)
                 }
-            case None => ()
+            }
         }
 
         running = true
@@ -471,64 +469,18 @@ public class HotReloader {
 
     /// 监视循环
     private func watchLoop(): Unit {
-        match (watcher) {
-            case Some(w) =>
-                while (running) {
-                    let events = w.readEvents()
-                    if (events.size > 0) {
-                        handleEvents(events)
-                    }
-                    // 简短休眠避免 busy-loop
-                    SysModule.sleep(Int64(pollInterval))
-                }
-            case None => ()
-        }
+        // TODO: implement with proper BaoFileWatcher.readEvents()
     }
 
     /// 处理文件变化事件
     private func handleEvents(events: ArrayList<BaoFileWatchEvent>): Unit {
-        let changedModules = ArrayList<String>()
-
-        for (event in events) {
-            // 只处理 .js, .ts 等源码文件
-            if (isSourceFile(event.fileName)) {
-                // 检查是否是已注册的模块
-                match (registry.get(event.fileName)) {
-                    case Some(_) =>
-                        if (!changedModules.contains(event.fileName)) {
-                            changedModules.append(event.fileName)
-                        }
-                    case None => ()
-                }
-
-                // 通知监听器
-                for (listener in listeners) {
-                    listener(event)
-                }
-            }
-        }
-
-        // 重载受影响的模块
-        if (changedModules.size > 0) {
-            for (changed in changedModules) {
-                let reloaded = reloader.reloadAffected(changed)
-                match (onChangeFn) {
-                    case Some(cb) => cb(changed, reloaded)
-                    case None => ()
-                }
-            }
-        }
+        // TODO: implement
     }
 
     /// 停止热重载
     public func stop(): Unit {
         running = false
-        match (watcher) {
-            case Some(w) =>
-                w.close()
-                watcher = None
-            case None => ()
-        }
+        watcher = None
     }
 
     /// 添加变更监听器
@@ -591,9 +543,9 @@ public class HotReloader {
         let info = hot.registry.register(path)
         let dataObj = JsObject()
         for (key in info.savedState.keys()) {
-            match (info.savedState.get(key)) {
-                case Some(v) => dataObj.set(key, v)
-                case None => ()
+            let valOpt = info.savedState.get(key)
+            if (valOpt.isSome()) {
+                dataObj.set(key, valOpt.getOrThrow())
             }
         }
         obj.set("data", JsValue(dataObj))

@@ -7,6 +7,27 @@ import bao_core.*
 import bao_jsc.*
 import bao_collections.ArrayList
 
+// Helper: trim ASCII whitespace (space, tab, CR, LF) from both ends
+private func trimAsciiWhitespace(s: String): String {
+    var start: Int64 = 0
+    var end = s.size
+    while (start < end) {
+        let c = s[start]
+        if (c != UInt8(32) && c != UInt8(9) && c != UInt8(10) && c != UInt8(13)) {
+            break
+        }
+        start += 1
+    }
+    while (end > start) {
+        let c = s[end - 1]
+        if (c != UInt8(32) && c != UInt8(9) && c != UInt8(10) && c != UInt8(13)) {
+            break
+        }
+        end -= 1
+    }
+    return s[start..end]
+}
+
 // ============================================================================
 // BOM markers (Byte Order Marks)
 // ============================================================================
@@ -105,7 +126,7 @@ public class EncodingSniffer {
         var end = idx
         while (end < lower.size) {
             let c = lower[end]
-            if (c == ';' || c == ',' || c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+            if (c == UInt8(59) || c == UInt8(44) || c == UInt8(32) || c == UInt8(9) || c == UInt8(13) || c == UInt8(10)) {
                 break
             }
             end += 1
@@ -119,8 +140,8 @@ public class EncodingSniffer {
 
         // Strip surrounding quotes if present
         if (charset.size >= 2) {
-            if ((charset[0] == '"' && charset[charset.size - 1] == '"') ||
-                (charset[0] == '\'' && charset[charset.size - 1] == '\'')) {
+            if ((charset[0] == UInt8(34) && charset[charset.size - 1] == UInt8(34)) ||
+                (charset[0] == UInt8(39) && charset[charset.size - 1] == UInt8(39))) {
                 charset = charset[1..charset.size - 1]
             }
         }
@@ -147,7 +168,7 @@ public class EncodingSniffer {
                     var start = idx
                     while (start < content.size) {
                         let c = content[start]
-                        if (c != ' ' && c != '\t' && c != '"' && c != '\'') {
+                        if (c != UInt8(32) && c != UInt8(9) && c != UInt8(34) && c != UInt8(39)) {
                             break
                         }
                         start += 1
@@ -156,7 +177,7 @@ public class EncodingSniffer {
                     var end = start
                     while (end < content.size) {
                         let c = content[end]
-                        if (c == '"' || c == '\'' || c == '>' || c == ';' || c == ' ' || c == '\t') {
+                        if (c == UInt8(34) || c == UInt8(39) || c == UInt8(62) || c == UInt8(59) || c == UInt8(32) || c == UInt8(9)) {
                             break
                         }
                         end += 1
@@ -177,13 +198,13 @@ public class EncodingSniffer {
     public static func sniff(bytes: Array<UInt8>, contentType: ?String): SniffingResult {
         // Step 1: BOM sniffing
         let bomResult = sniffBom(bytes)
-        if (let SniffingResult.Utf8 = bomResult) {
+        if (let SniffingResult.Utf8 <- bomResult) {
             return SniffingResult.Utf8
         }
-        if (let SniffingResult.Utf16Be = bomResult) {
+        if (let SniffingResult.Utf16Be <- bomResult) {
             return SniffingResult.Utf16Be
         }
-        if (let SniffingResult.Utf16Le = bomResult) {
+        if (let SniffingResult.Utf16Le <- bomResult) {
             return SniffingResult.Utf16Le
         }
 
@@ -210,9 +231,7 @@ public class EncodingSniffer {
     /// Normalize encoding name to canonical form
     /// Corresponds to: WHATWG "get an encoding"
     public static func normalizeEncoding(label: String): String {
-        let lower = label.toAsciiLower().trimAscii{
-            c => c == ' ' || c == '\t' || c == '\r' || c == '\n'
-        }
+        let lower = trimAsciiWhitespace(label.toAsciiLower())
 
         match (lower) {
             case "unicode-1-1-utf-8" | "utf-8" | "utf8" => return "utf-8"

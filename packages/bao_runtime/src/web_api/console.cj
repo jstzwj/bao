@@ -64,31 +64,33 @@ public class ConsoleModule {
     /// console.timeEnd(label?)
     /// 对应 Bun: console.timeEnd
     public static func timeEnd(label: String): Unit {
-        match (timers.get(label)) {
-            case Some(start) =>
-                let elapsed = currentTimeMillis() - start
-                timers.remove(label)
-                outputFn("${label}: ${elapsed}ms")
-            case None => outputFn("Timer '${label}' does not exist")
+        let startOpt = timers.get(label)
+        if (startOpt.isSome()) {
+            let start = startOpt.getOrThrow()
+            let elapsed = currentTimeMillis() - start
+            timers.remove(label)
+            outputFn("${label}: ${elapsed}ms")
+        } else {
+            outputFn("Timer '${label}' does not exist")
         }
     }
 
     /// console.timeLog(label?)
     public static func timeLog(label: String): Unit {
-        match (timers.get(label)) {
-            case Some(start) =>
-                let elapsed = currentTimeMillis() - start
-                outputFn("${label}: ${elapsed}ms")
-            case None => outputFn("Timer '${label}' does not exist")
+        let startOpt = timers.get(label)
+        if (startOpt.isSome()) {
+            let start = startOpt.getOrThrow()
+            let elapsed = currentTimeMillis() - start
+            outputFn("${label}: ${elapsed}ms")
+        } else {
+            outputFn("Timer '${label}' does not exist")
         }
     }
 
     /// console.count(label?)
     public static func count(label: String): Unit {
-        let current = match (counters.get(label)) {
-            case Some(v) => v
-            case None => 0
-        }
+        let currentOpt = counters.get(label)
+        let current = if (currentOpt.isSome()) { currentOpt.getOrThrow() } else { 0 }
         let next = current + 1
         counters.put(label, next)
         outputFn("${label}: ${next}")

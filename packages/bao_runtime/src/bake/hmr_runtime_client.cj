@@ -229,10 +229,10 @@ public class DataViewReader {
 
     /// 读取 Int32 (小端序)
     public func i32(): Int32 {
-        let value = Int32(view[cursor])
+        let value = (Int32(view[cursor])
             | (Int32(view[cursor + 1]) << Int32(8))
             | (Int32(view[cursor + 2]) << Int32(16))
-            | (Int32(view[cursor + 3]) << Int32(24))
+            | (Int32(view[cursor + 3]) << Int32(24)))
         cursor += 4
         return value
     }

@@ -58,7 +58,7 @@ public class HTMLString {
         unsafe {
             var i: Int64 = 0
             while (i < len) {
-                bytes[i] = (raw.ptr + UIntNative(i)).read()
+                bytes[i] = raw.ptr.read(i)
                 i++
             }
         }
@@ -98,7 +98,9 @@ public class HTMLString {
         // 实际上不接受任何参数（Zig 中声明为 pub extern fn lol_html_take_last_error(...) HTMLString）
         // 在仓颉中通过 lol_html_take_last_error 的 FFI 绑定调用
         let errRaw = unsafe { lol_html_take_last_error() }
-        return HTMLString(raw: errRaw)
+        let htmlStr = HTMLString()
+        htmlStr.raw = errRaw
+        return htmlStr
     }
 
     /// isEmpty - 检查是否为空

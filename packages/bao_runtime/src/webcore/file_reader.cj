@@ -2000,7 +2000,7 @@ public class FileReader {
             let openFlags: Int32 = 0x0000  // O_RDONLY
                 | 0x0004  // O_NONBLOCK (on Linux: 0x800, but simplified)
                 | 0x0080  // O_CLOEXEC
-            let fd = sysOpen(pathlike.path, openFlags, 0)
+            let fd = sysOpen(pathlike.path, openFlags, UInt32(0))
             if (fd < 0) {
                 return None
             }

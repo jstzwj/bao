@@ -95,9 +95,10 @@ public class AbortSignal {
     /// 对应 Web API: signal.throwIfAborted()
     public func throwIfAborted(): Unit {
         if (aborted) {
-            let msg = match (reason) {
-                case Some(r) => r
-                case None => "The operation was aborted"
+            let msg = if (reason.isSome()) {
+                reason.getOrThrow()
+            } else {
+                "The operation was aborted"
             }
             throw JsException(msg)
         }
@@ -155,9 +156,10 @@ public class AbortSignal {
 
         obj.set("aborted", JsValue(self.aborted))
 
-        obj.set("reason", match (self.reason) {
-            case Some(r) => JsValue(BaoString(r))
-            case None => JsValue.UNDEFINED
+        obj.set("reason", if (self.reason.isSome()) {
+            JsValue(BaoString(self.reason.getOrThrow()))
+        } else {
+            JsValue.UNDEFINED
         })
 
         obj.set("throwIfAborted", JsValue.nativeFunction(JsNativeFunction("throwIfAborted") { _ =>

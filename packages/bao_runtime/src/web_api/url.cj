@@ -325,10 +325,11 @@ public class URLSearchParams {
 
         obj.set("get", JsValue.nativeFunction(JsNativeFunction("get") { args =>
             if (args.size >= 1) {
-                match (sp.get(Interpreter.jsToString(args[0]))) {
-                    case Some(v) => return JsValue(BaoString(v))
-                    case None => return JsValue.NULL
+                let valOpt = sp.get(Interpreter.jsToString(args[0]))
+                if (valOpt.isSome()) {
+                    return JsValue(BaoString(valOpt.getOrThrow()))
                 }
+                return JsValue.NULL
             }
             return JsValue.NULL
         }))

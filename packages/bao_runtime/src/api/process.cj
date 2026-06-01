@@ -926,9 +926,7 @@ public class SyncProcessOps {
                     var pollFds = ArrayList<PollFd>()
                     for (i in 0..2) {
                         if (outFds[i] >= 0) {
-                            var pfd = PollFd()
-                            pfd.fd = outFds[i]
-                            pfd.events = POLLIN | POLLERR | POLLHUP
+                            var pfd = PollFd(Int64(outFds[i]), Int16(POLLIN | POLLERR | POLLHUP))
                             pollFds.append(pfd)
                         }
                     }
@@ -1138,16 +1136,17 @@ public func wait4Raw(pid!: PidT): Int32 {
 // POLLIN / POLLERR / POLLHUP 常量 (已移至文件顶部)
 // ============================================================================
 
-public struct PollFd {
-    public var fd: Int32
-    public var events: Int16
-    public var revents: Int16
-    public init() {
-        fd = 0
-        events = 0
-        revents = 0
-    }
-}
+// PollFd is defined in bao_sys.poll, removed duplicate
+
+
+
+
+
+
+
+
+
+
 
 // ============================================================================
 // POSIX_SPAWN 常量

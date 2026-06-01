@@ -234,12 +234,12 @@ public class REPL {
             }
 
             let line = readline(currentPrompt)
-            let input = match (line) {
-                case Some(v) => v
-                case None =>
-                    outputFn("")
-                    break
+            let lineOpt = readline(currentPrompt)
+            if (lineOpt.isNone()) {
+                outputFn("")
+                break
             }
+            let input = lineOpt.getOrThrow()
 
             // 空行处理
             if (input.isEmpty()) {
@@ -556,10 +556,7 @@ public class REPL {
     }
 
     private func lookupCompletionRoot(env: Environment, part: String): ?JsValue {
-        match (env.lookup(part)) {
-            case Some(v) => Some(v)
-            case None => Option<JsValue>.None
-        }
+        return env.lookup(part)
     }
 
     private func lookupCompletionProperty(value: JsValue, part: String): ?JsValue {

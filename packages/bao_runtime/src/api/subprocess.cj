@@ -530,16 +530,21 @@ public class Subprocess {
     // 访问器
     // ========================================================================
 
-    public func getProcess(): Process { process.get() }
-    public func processMut(): Process { process.get() }
-    public func getGlobalThis(): JsGlobalObject { globalThis.get() }
-    public func getGlobalThisOptional(): ?JsGlobalObject { Some(globalThis.get()) }
+    public func getProcess(): Process { process.getOrThrow() }
+    public func processMut(): Process { process.getOrThrow() }
+    public func getGlobalThis(): JsGlobalObject { globalThis.getOrThrow() }
+    public func getGlobalThisOptional(): ?JsGlobalObject {
+        let val = globalThis.get()
+        if (val.isSome()) { Some(val.getOrThrow()) } else { None }
+    }
 
     /// 内存占用
     /// 翻译自: subprocess.zig:550-556
     ///   pub fn memoryCost(this: *const Subprocess) -> usize
     public func memoryCost(): Int64 {
-        256 + process.get().memoryCost() + 0 + 0 + 0
+        let proc = process.get()
+        let procCost = if (proc.isSome()) { proc.getOrThrow().memoryCost() } else { Int64(0) }
+        256 + procCost + 0 + 0 + 0
     }
 
     /// 是否已退出
@@ -682,8 +687,12 @@ public class Subprocess {
     ///   pub fn onProcessExit(this, process, status, rusage) -> void
     public func onProcessExit(process!: Process, status!: Status, rusage!: Rusage): Unit {
         pidRusage = Some(rusage)
-        this.process.get().status = status
-        this.process.get().killed = true
+        let procOpt = this.process.get()
+        if (procOpt.isSome()) {
+            let proc = procOpt.getOrThrow()
+            proc.status = status
+            proc.killed = true
+        }
 
         // 清除 abort signal
         clearAbortSignal()

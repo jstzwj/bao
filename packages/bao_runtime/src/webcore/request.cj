@@ -431,7 +431,8 @@ public class HeadersRefHelper {
     /// HTTP header name to string
     public static func headerNameToString(name: HTTPHeaderName): String {
         match (name) {
-            case HTTPHeaderName.ContentType => "content-type"
+            case HTTPHeaderName.contentType => "content-type"
+            case _ => "unknown"
         }
     }
 }
@@ -567,7 +568,7 @@ public class Request {
         this.bodyValue = bodyValue
         jsRef = JsRef.empty()
         this.method = method
-        flags = Flags(redirect: FetchRedirect.Follow, cache: FetchCacheMode.Default, mode: FetchRequestMode.Cors, https: https)
+        flags = Flags(FetchRedirect.Follow, FetchCacheMode.Default, FetchRequestMode.Cors, https)
         this.requestContext = requestContext
         weakPtrData = WeakPtrData.EMPTY
         reportedEstimatedSize = 0
@@ -658,8 +659,8 @@ public class Request {
                         case Some(blob) =>
                             let ct = blob.getContentType()
                             match (ct) {
-                                case Some(contentType) =>
-                                    if (contentType.size > 0) {
+                                case Some(ctVal) =>
+                                    if (ctVal.size > 0) {
                                         // 对应 Bun: headers.put(ContentType, contentType)
                                         ()
                                     }
@@ -696,7 +697,7 @@ public class Request {
     public func getHeaders(global: JsGlobalObject): JsValue {
         let h = ensureFetchHeaders(global)
         match (h) {
-            case Some(headersRef) => return headersRef.toJsValue()
+            case Some(headersRef) => return headersRef.toJsValue(global)
             case None => return JsValue.undefined()
         }
     }
@@ -731,7 +732,7 @@ public class Request {
         match (headers) {
             case Some(h) =>
                 // 对应 Bun: headers.fastGet(ContentType)
-                let fastGet = HeadersRefHelper.fastGet(h, HTTPHeaderName.ContentType)
+                let fastGet = HeadersRefHelper.fastGet(h, HTTPHeaderName.contentType)
                 if (fastGet.isSome()) {
                     return fastGet
                 }
@@ -870,7 +871,7 @@ public class Request {
 
         if (requestContext.hasRequest()) {
             let reqUrl = requestContext.getUrl()
-            if (reqUrl.size > 0 && reqUrl[0] == '/') {
+            if (reqUrl.size > 0 && reqUrl[0] == UInt8(47)) {
                 // 对应 Bun: 检查 host header
                 let host = requestContext.getHeader("host")
                 if (host.size > 0) {
@@ -897,10 +898,10 @@ public class Request {
     /// 对应 Bun: Request::request_target_path (Request.rs:902-926)
     public static func requestTargetPath(target: String): String {
         let targetBytes = target.toArray()
-        let schemeLen = if (targetBytes.size >= 8 && targetBytes[0] == 'h' && targetBytes[1] == 't' && targetBytes[2] == 't' && targetBytes[3] == 'p') {
-            if (targetBytes.size >= 8 && targetBytes[4] == 's' && targetBytes[5] == ':' && targetBytes[6] == '/' && targetBytes[7] == '/') {
+        let schemeLen = if (targetBytes.size >= 8 && targetBytes[0] == UInt8(104) && targetBytes[1] == UInt8(116) && targetBytes[2] == UInt8(116) && targetBytes[3] == UInt8(112)) {
+            if (targetBytes.size >= 8 && targetBytes[4] == UInt8(115) && targetBytes[5] == UInt8(58) && targetBytes[6] == UInt8(47) && targetBytes[7] == UInt8(47)) {
                 8 // "https://"
-            } else if (targetBytes.size >= 7 && targetBytes[4] == ':' && targetBytes[5] == '/' && targetBytes[6] == '/') {
+            } else if (targetBytes.size >= 7 && targetBytes[4] == UInt8(58) && targetBytes[5] == UInt8(47) && targetBytes[6] == UInt8(47)) {
                 7 // "http://"
             } else {
                 return target
@@ -914,21 +915,21 @@ public class Request {
         var queryStart = -1
         var i = schemeLen
         while (i < targetBytes.size) {
-            if (pathStart < 0 && targetBytes[i] == '/') {
+            if (pathStart < 0 && targetBytes[Int64(i)] == UInt8(47)) {
                 pathStart = i
             }
-            if (queryStart < 0 && targetBytes[i] == '?') {
+            if (queryStart < 0 && targetBytes[Int64(i)] == UInt8(63)) {
                 queryStart = i
             }
             i++
         }
 
         if (pathStart >= 0) {
-            return target.substring(pathStart)
+            return target[Int64(pathStart)..]
         }
 
         if (queryStart >= 0) {
-            return "/" + target.substring(queryStart)
+            return "/" + target[Int64(queryStart)..]
         }
 
         return "/"
@@ -945,7 +946,7 @@ public class Request {
             let reqUrl = requestContext.getUrl()
             let targetPath = requestTargetPath(reqUrl)
 
-            if (targetPath.size > 0 && targetPath[0] == '/') {
+            if (targetPath.size > 0 && targetPath[0] == UInt8(47)) {
                 let host = requestContext.getHeader("host")
                 if (host.size > 0) {
                     let protocol = getProtocol()
@@ -987,7 +988,7 @@ public class Request {
     public func mimeType(): String {
         match (headers) {
             case Some(h) =>
-                let ct = HeadersRefHelper.fastGet(h, HTTPHeaderName.ContentType)
+                let ct = HeadersRefHelper.fastGet(h, HTTPHeaderName.contentType)
                 if (ct.isSome()) {
                     return ct.getOrThrow()
                 }
@@ -1027,7 +1028,7 @@ public class Request {
             case Some(ct) =>
                 // 对应 Bun: Encoding.get(content_type_slice)
                 if (ct.contains("multipart/form-data")) {
-                    return Some(FormDataEncoding.Multipart)
+                    return Some(FormDataEncoding.Multipart(Array<UInt8>()))
                 } else if (ct.contains("application/x-www-form-urlencoded")) {
                     return Some(FormDataEncoding.URLEncoded)
                 }
@@ -1080,7 +1081,7 @@ public class Request {
         if (!secondsValue.isNumber()) {
             return
         }
-        let seconds = secondsValue.toUInt32()
+        let seconds = UInt32(Int64(secondsValue.toNumber()))
         setTimeout(seconds)
     }
 
@@ -1362,17 +1363,18 @@ public class Request {
             if (value.isResponse()) {
                 // 对应 Bun: Response 处理路径 (Request.rs:1226-1283)
                 // 从 Response 中提取 method, headers, url, body
-                let respOpt = Response.fromJs(value)
+                // stub: simplified — Response.fromJs not implemented
+                let respOpt: ?Response = None
                 match (respOpt) {
                     case Some(response) =>
                         if (!fields.contains(Fields.Method)) {
-                            req.method = response.method
+                            req.method = response.getMethod()
                             fields.insert(Fields.Method)
                         }
 
                         if (!fields.contains(Fields.Headers)) {
                             // 尝试从 response init 获取 headers
-                            let respHeaders = response.getHeaders()
+                            let respHeaders = response.getHeaders(global)
                             fields.insert(Fields.Headers)
                         }
 
@@ -1442,9 +1444,9 @@ public class Request {
             if (!fields.contains(Fields.Method) || !fields.contains(Fields.Headers)) {
                 let responseInit = ResponseInit.`init`(global, value)
                 match (responseInit) {
-                    case Some(init) =>
+                    case Some(respInit) =>
                         if (!fields.contains(Fields.Headers)) {
-                            match (init.headers) {
+                            match (respInit.headers) {
                                 case Some(h) =>
                                     req.headers = Some(h)
                                     fields.insert(Fields.Headers)
@@ -1453,7 +1455,7 @@ public class Request {
                         }
 
                         if (!fields.contains(Fields.Method)) {
-                            req.method = init.method
+                            req.method = respInit.method
                             fields.insert(Fields.Method)
                         }
                     case None => ()
@@ -1532,7 +1534,7 @@ public class Request {
     /// do_clone — JS 调用的 clone 方法
     /// 对应 Bun: Request::do_clone (Request.rs:1545-1559)
     public func doClone(global: JsGlobalObject, callframe: CallFrame): JsValue {
-        let thisValue = callframe.this()
+        let thisValue = callframe.`this`()
         let cloned = clone(global)
 
         match (cloned) {
@@ -1565,10 +1567,10 @@ public class Request {
         req.jsRef = JsRef.empty()
         req.method = this.method
         req.flags = Flags(
-            redirect: this.flags.redirect,
-            cache: this.flags.cache,
-            mode: this.flags.mode,
-            https: this.flags.https
+            this.flags.redirect,
+            this.flags.cache,
+            this.flags.mode,
+            this.flags.https
         )
         req.requestContext = AnyRequestContext.NULL
         req.weakPtrData = WeakPtrData.EMPTY
@@ -1780,7 +1782,7 @@ public class Request {
             let headersOpt = getFetchHeaders()
             match (headersOpt) {
                 case Some(h) =>
-                    let contentType = HeadersRefHelper.fastGet(h, HTTPHeaderName.ContentType)
+                    let contentType = HeadersRefHelper.fastGet(h, HTTPHeaderName.contentType)
                     match (contentType) {
                         case Some(ctStr) =>
                             newBlob.setContentType(ctStr)
@@ -1807,7 +1809,7 @@ public class Request {
             case Some(enc) =>
                 let anyBlob = bodyValue.useAsAnyBlob()
                 let bytes = anyBlob.slice()
-                let jsValue = FormData.toJs(bytes, enc)
+                let jsValue = FormData.toJS(global, bytes, enc)
                 anyBlob.detach()
                 return JsPromise.resolve(global, jsValue)
             case None =>

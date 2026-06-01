@@ -61,18 +61,20 @@ public class FsModule {
     /// 读取文件为字符串 — fs.readFileSync(path, encoding)
     /// 对应 Bun: src/runtime/node/fs.zig readFileSync
     public static func readFileSync(path: String): String {
-        match (BaoFile.readAllText(path)) {
-            case SysMaybe<String>.Ok(s) => return s
-            case SysMaybe<String>.Err(_) => return ""
+        let result = BaoFile.readAllText(path)
+        if (result.isOk()) {
+            return result.result().getOrThrow()
         }
+        return ""
     }
 
     /// 读取文件为字节数组 — fs.readFileSync(path)
     public static func readFileSyncBytes(path: String): Array<UInt8> {
-        match (BaoFile.readAllBytes(path)) {
-            case SysMaybe<Array<UInt8>>.Ok(bytes) => return bytes
-            case SysMaybe<Array<UInt8>>.Err(_) => return Array<UInt8>()
+        let result = BaoFile.readAllBytes(path)
+        if (result.isOk()) {
+            return result.result().getOrThrow()
         }
+        return Array<UInt8>()
     }
 
     /// 写入文件 — fs.writeFileSync(path, data)

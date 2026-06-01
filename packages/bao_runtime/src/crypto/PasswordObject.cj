@@ -229,10 +229,7 @@ public class HashResultValue {
 
     /// 转为错误实例
     public func toErrorInstance(globalThis: JsObject): JsValue {
-        let errName = match (this.errValue) {
-            case Some(e) => e.toString()
-            case None => "UnknownError"
-        }
+        let errName = if (this.errValue.isSome()) { this.errValue.getOrThrow().toString() } else { "UnknownError" }
         // errorCode unused; errName already provides the label
         let instance = JsValue(BaoString("Password hashing failed with error \"" + errName + "\""))
         return instance
@@ -265,10 +262,7 @@ public class VerifyResultValue {
 
     /// 转为错误实例
     public func toErrorInstance(globalThis: JsObject): JsValue {
-        let errName = match (this.errValue) {
-            case Some(e) => e.toString()
-            case None => "UnknownError"
-        }
+        let errName = if (this.errValue.isSome()) { this.errValue.getOrThrow().toString() } else { "UnknownError" }
         return JsValue(BaoString("Password verification failed with error \"" + errName + "\""))
     }
 }

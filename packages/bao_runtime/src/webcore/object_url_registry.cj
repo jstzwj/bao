@@ -4,6 +4,7 @@
 package bao_runtime.webcore
 
 import bao_core.*
+import bao_jsc.{JsGlobalObject, JsValue, CallFrame}
 import bao_collections.HashMap
 
 // ============================================================================
@@ -166,7 +167,7 @@ public func isBlobUrl(url: String): Bool {
 public func bunCreateObjectURL(global: JsGlobalObject, callFrame: CallFrame): JsValue {
     let args = callFrame.argumentsAsArray(1)
     if (args.size < 1) {
-        return JsValue(global.createErrorInstance("createObjectURL expects a Blob object"))
+        return global.createErrorInstance("createObjectURL expects a Blob object")
     }
     // TODO: extract Blob from args[0].as_class_ref::<Blob>() when JSC bindings complete
     // For now, use the simplified path
@@ -182,11 +183,11 @@ public func bunCreateObjectURL(global: JsGlobalObject, callFrame: CallFrame): Js
 public func bunRevokeObjectURL(global: JsGlobalObject, callFrame: CallFrame): JsValue {
     let args = callFrame.argumentsAsArray(1)
     if (args.size < 1) {
-        return JsValue(global.createErrorInstance("revokeObjectURL expects a string"))
+        return global.createErrorInstance("revokeObjectURL expects a string")
     }
     let urlValue = args[0]
     if (!urlValue.isString()) {
-        return JsValue(global.createErrorInstance("revokeObjectURL expects a string"))
+        return global.createErrorInstance("revokeObjectURL expects a string")
     }
     let str = urlValue.toString()
     if (!str.startsWith("blob:")) {

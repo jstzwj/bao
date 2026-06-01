@@ -33,7 +33,7 @@ public enum ResponseKind {
 }
 
 /// ResponseKind 工具方法
-public extension ResponseKind {
+extend ResponseKind {
     /// 从 SSL 和 HTTP3 标志构造
     /// 对应 Bun: ResponseKind::from(ssl, http3)
     public static func from(ssl: Bool, http3: Bool): ResponseKind {
@@ -174,7 +174,7 @@ public enum MaybeAnySocket {
 }
 
 /// MaybeAnySocket 工具方法
-public extension MaybeAnySocket {
+extend MaybeAnySocket {
     /// 是否已关闭
     public func isClosed(): Bool {
         match(this) {
@@ -246,7 +246,7 @@ public enum Opcode {
 }
 
 /// Opcode 工具方法
-public extension Opcode {
+extend Opcode {
     /// 获取操作码数值
     /// 对应 Bun: Opcode(pub i32) 的原始值
     public func value(): Int64 {
@@ -289,7 +289,7 @@ public enum SendStatus {
 }
 
 /// SendStatus 工具方法
-public extension SendStatus {
+extend SendStatus {
     public func value(): Int64 {
         match(this) {
             case Backpressure => 0

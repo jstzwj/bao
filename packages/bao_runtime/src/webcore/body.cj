@@ -470,7 +470,7 @@ public class BodyValue {
                 }
             case WTFStringImpl =>
                 match (wtfStringImpl) {
-                    case Some(s) => s.memoryCost()
+                    case Some(s) => Int64(s.memoryCost())
                     case None => 0
                 }
             case Locked =>
@@ -493,7 +493,7 @@ public class BodyValue {
                 }
             case WTFStringImpl =>
                 match (wtfStringImpl) {
-                    case Some(s) => s.byteSlice().size
+                    case Some(s) => Int64(s.byteSlice().size)
                     case None => 0
                 }
             case Locked =>
@@ -561,9 +561,9 @@ public class BodyValue {
                 case Some(s) =>
                     let utf8 = s.toUtf8IfNeeded()
                     if (utf8.isSome()) {
-                        let bytes = utf8.getOrThrow()
+                        let str = utf8.getOrThrow()
                         tag = BodyValueTag.InternalBlob
-                        internalBlob = Some(InternalBlob(bytes, true))
+                        internalBlob = Some(InternalBlob(Utf8Codec.encode(str), true))
                         wtfStringImpl = None
                     }
                 case None => ()
@@ -629,9 +629,9 @@ public class BodyValue {
                     case Some(wtf) =>
                         let utf8 = wtf.toUtf8IfNeeded()
                         let resultBlob = if (utf8.isSome()) {
-                            Blob(utf8.getOrThrow(), "text/plain")
+                            Blob(Utf8Codec.encode(utf8.getOrThrow()), "text/plain")
                         } else {
-                            Blob(wtf.latin1Slice(), "text/plain")
+                            Blob(Utf8Codec.encode(wtf.latin1Slice()), "text/plain")
                         }
                         tag = BodyValueTag.Used
                         return resultBlob
@@ -713,7 +713,7 @@ public class BodyValue {
                     case Some(s) =>
                         let utf8 = s.toUtf8IfNeeded()
                         if (utf8.isSome()) {
-                            AnyBlob.fromInternalBlob(InternalBlob(utf8.getOrThrow(), true))
+                            AnyBlob.fromInternalBlob(InternalBlob(Utf8Codec.encode(utf8.getOrThrow()), true))
                         } else {
                             AnyBlob.fromWTFStringImpl(s)
                         }
@@ -793,7 +793,7 @@ public class BodyValue {
                 match (wtfStringImpl) {
                     case Some(s) =>
                         if (s.canUseAsUtf8()) {
-                            s.latin1Slice()
+                            s.latin1Slice().toArray()
                         } else {
                             Array<UInt8>()
                         }
@@ -993,7 +993,7 @@ public class BodyValue {
                         byteStream.highWaterMark = estimatedSize
                         byteStream.sizeHint = estimatedSize
                     case DrainResult.Owned(list, sizeHint) =>
-                        byteStream.buffer = list
+                        byteStream.buffer = list.buffer
                         byteStream.sizeHint = sizeHint
                     case _ => ()
                 }
@@ -1134,7 +1134,7 @@ public class BodyValue {
                                 byteStream.highWaterMark = estimatedSize
                                 byteStream.sizeHint = estimatedSize
                             case DrainResult.Owned(list, sizeHint) =>
-                                byteStream.buffer = list
+                                byteStream.buffer = list.buffer
                                 byteStream.sizeHint = sizeHint
                             case _ => ()
                         }
@@ -1227,7 +1227,7 @@ public class BodyValue {
                                                 let newBlob = Blob(usedBlob.sharedView(), "")
                                                 match (headers) {
                                                     case Some(h) =>
-                                                        let contentType = h.fastGet(HTTPHeaderName.ContentType)
+                                                        let contentType = h.get("content-type")
                                                         match (contentType) {
                                                             case Some(ct) =>
                                                                 newBlob.setContentType(ct)
@@ -1245,7 +1245,7 @@ public class BodyValue {
                                                 let newBlob = Blob(usedBlob.sharedView(), "")
                                                 match (headers) {
                                                     case Some(h) =>
-                                                        let contentType = h.fastGet(HTTPHeaderName.ContentType)
+                                                        let contentType = h.get("content-type")
                                                         match (contentType) {
                                                             case Some(ct) =>
                                                                 newBlob.setContentType(ct)
@@ -1454,13 +1454,13 @@ public class BodyValue {
         }
 
         // 尝试 FormData / URLSearchParams
-        let formData = DOMFormData.fromJs(value)
+        let formData = DOMFormData.fromJS(value)
         match (formData) {
             case Some(fd) => return BodyValue(Blob.fromDOMFormData(JsGlobalObject(), "", ""))
             case None => ()
         }
 
-        let searchParams = URLSearchParams.fromJs(value)
+        let searchParams: ?URLSearchParams = None // TODO: URLSearchParams.fromJs(value)
         match (searchParams) {
             case Some(sp) => return BodyValue(Blob.fromURLSearchParams(JsGlobalObject(), ""))
             case None => ()
@@ -1507,7 +1507,7 @@ public class BodyValue {
         // 检查是否为 Response 对象: 有 "status" 属性且为数字
         let statusVal = value.get(JsObject(), "status")
         if (statusVal.isSome() && statusVal.getOrThrow().isNumber()) {
-            let res = Response.fromJs(value)
+            let res: ?Response = None // TODO: Response.fromJs(value)
             match (res) {
                 case Some(r) => return Some(r.getBodyValue())
                 case None => return None
@@ -1956,7 +1956,7 @@ public interface BodyMixin <: BodyOwnerJs {
             let headersOpt = getFetchHeaders()
             if (headersOpt.isSome()) {
                 let headers = headersOpt.getOrThrow()
-                let contentType = headers.fastGet(HTTPHeaderName.ContentType)
+                let contentType = headers.get("content-type")
                 if (contentType.isSome()) {
                     newBlob.setContentType(contentType.getOrThrow())
                     newBlob.setContentTypeWasSet(true)
@@ -2027,7 +2027,7 @@ public interface BodyMixin <: BodyOwnerJs {
 
                 let anyBlob = v.useAsAnyBlob()
                 let bytes = anyBlob.slice()
-                let jsValue = FormData.toJs(bytes, FormDataEncoding.URLEncoded)
+                let jsValue = JsValue.UNDEFINED // TODO: FormData.toJs(bytes, FormDataEncoding.URLEncoded)
                 anyBlob.detach()
                 return JsPromise.resolve(JsGlobalObject(), jsValue)
             case None =>
@@ -2576,370 +2576,5 @@ public class ReadableStreamStrong {
 }
 
 // ============================================================================
-// 辅助类型 — 引用自其他模块的本地定义
+// 注意: 辅助类型已移至各自的专用文件中 (blob.cj, request.cj, form_data.cj 等)
 // ============================================================================
-
-/// WTFStringImpl — WebKit 字符串实现 (本地包装)
-public class WTFStringImpl {
-    private var str: String
-
-    public init() {
-        str = ""
-    }
-
-    public init(s: String) {
-        str = s
-    }
-
-    public static func empty(): WTFStringImpl {
-        WTFStringImpl("")
-    }
-
-    public static func from(s: String): WTFStringImpl {
-        WTFStringImpl(s)
-    }
-
-    public func length(): Int64 {
-        str.size
-    }
-
-    public func utf8ByteLength(): Int64 {
-        Utf8Codec.encode(str).size
-    }
-
-    public func byteSlice(): Array<UInt8> {
-        Utf8Codec.encode(str)
-    }
-
-    public func latin1Slice(): Array<UInt8> {
-        Utf8Codec.encode(str)
-    }
-
-    public func toUtf8Slice(): Array<UInt8> {
-        Utf8Codec.encode(str)
-    }
-
-    public func toString(): String {
-        str
-    }
-
-    public func canUseAsUtf8(): Bool {
-        true
-    }
-
-    public func toUtf8IfNeeded(): ?Array<UInt8> {
-        // 总是返回 UTF8
-        Some(Utf8Codec.encode(str))
-    }
-
-    public func memoryCost(): Int64 {
-        str.size
-    }
-
-    public func ref(): Unit {
-        // 引用计数 +1 — 对应 Bun: WTFStringImpl.ref()
-    }
-
-    public func deref(): Unit {
-        // 引用计数 -1 — 对应 Bun: WTFStringImpl.deref()
-    }
-}
-
-/// FetchHeaders — HTTP 请求/响应头 (本地类型)
-public class FetchHeaders {
-    public init() {}
-
-    public func fastGet(name: HTTPHeaderName): ?String {
-        None
-    }
-}
-
-/// HTTPHeaderName 枚举
-public enum HTTPHeaderName {
-    | ContentType
-    // ... 其他头部名称
-}
-
-/// ArrayBufferJSSink — ArrayBuffer JS 绑定 (本地类型)
-public class ArrayBufferJSSink {
-    public init() {}
-
-    public func getBytes(): Array<UInt8> {
-        Array<UInt8>()
-    }
-
-    public func detach(): Unit {}
-}
-
-/// JsStrongOptional — 可选 JS 强引用 (本地类型)
-public class JsStrongOptional {
-    private var value: ?JsValue
-
-    public init() {
-        value = None
-    }
-
-    public static func empty(): JsStrongOptional {
-        JsStrongOptional()
-    }
-
-    public static func create(v: JsValue): JsStrongOptional {
-        let r = JsStrongOptional()
-        r.value = Some(v)
-        r
-    }
-
-    public func get(): ?JsValue {
-        value
-    }
-
-    public func deinit(): Unit {
-        value = None
-    }
-}
-
-/// MutableString — 可变字符串构建器 (本地类型)
-public class MutableString {
-    private var buffer: ArrayList<UInt8>
-
-    public init() {
-        buffer = ArrayList<UInt8>()
-    }
-
-    public func write(data: Array<UInt8>): Unit {
-        for (b in data) {
-            buffer.append(b)
-        }
-    }
-
-    public func asSlice(): Array<UInt8> {
-        buffer.items()
-    }
-}
-
-/// FormData — multipart/form-data 表单数据
-/// 对应 Bun: src/runtime/webcore/FormData.zig FormData
-public class FormData {
-    /// 表单字段存储
-    public var entries: ArrayList<FormDataEntry>
-
-    public init() {
-        entries = ArrayList<FormDataEntry>()
-    }
-
-    public static func toJs(bytes: Array<UInt8>, encoding: FormDataEncoding): JsValue {
-        // 将 FormData 字节转为 JS 对象
-        let obj = JsObject()
-        obj.set("type", JsValue("FormData"))
-        JsValue(obj)
-    }
-
-    /// Append a field value (binary with filename and content type)
-    public func append(name: String, value: Array<UInt8>, filename: String, contentType: String): Unit {
-        let entry = FormDataEntry()
-        entry.name = name
-        entry.binaryValue = Some(value)
-        entry.filename = Some(filename)
-        entry.contentType = Some(contentType)
-        entries.append(entry)
-    }
-
-    /// Append a text field value
-    public func append(name: String, value: String): Unit {
-        let entry = FormDataEntry()
-        entry.name = name
-        entry.textValue = Some(value)
-        entries.append(entry)
-    }
-
-    /// 获取条目数量
-    public func count(): Int64 {
-        entries.size
-    }
-}
-
-/// FormDataEntry — 表单字段条目
-public class FormDataEntry {
-    public var name: String
-    public var textValue: ?String
-    public var binaryValue: ?Array<UInt8>
-    public var filename: ?String
-    public var contentType: ?String
-
-    public init() {
-        name = ""
-        textValue = None
-        binaryValue = None
-        filename = None
-        contentType = None
-    }
-}
-
-/// DOMFormData — DOM FormData API
-/// 对应 Bun: src/runtime/webcore/DOMFormData.zig DOMFormData
-public class DOMFormData {
-    /// 底层 FormData
-    public var formData: FormData
-
-    public init() {
-        formData = FormData()
-    }
-
-    public static func fromJs(value: JsValue): ?DOMFormData {
-        // 检查是否为 FormData 对象
-        if (!value.isObject()) {
-            return None
-        }
-        // 检查构造函数名
-        let name = value.getProperty("constructor.name")
-        if (name.isString()) {
-            let str = name.toString()
-            if (str == "FormData") {
-                return Some(DOMFormData())
-            }
-        }
-        None
-    }
-
-    public func append(key: ZigString, value: ZigString): Unit {
-        formData.append(String.fromUtf8(key.slice()), String.fromUtf8(value.slice()))
-    }
-
-    public func appendBlob(global: JSGlobalObject, key: ZigString, blob: Blob, filename: ZigString): Unit {
-        let bytes = blob.sharedView()
-        let ct = match (blob.getContentType()) {
-            case Some(s) => s
-            case None => "application/octet-stream"
-        }
-        formData.append(String.fromUtf8(key.slice()), bytes, String.fromUtf8(filename.slice()), ct)
-    }
-}
-
-/// URLSearchParams — URL 查询参数 (本地类型)
-public class URLSearchParams {
-    public init() {}
-
-    public static func fromJs(value: JsValue): ?URLSearchParams {
-        None
-    }
-
-    public func asPtr(): UIntPtr {
-        0
-    }
-}
-
-/// DrainResult - 排水结果
-/// 对应 Bun: DrainResult
-public enum DrainResult {
-    | Empty                          // 空
-    | Aborted                        // 已中止
-    | EstimatedSize(BlobSizeType)    // 估算大小
-    | Owned(ArrayList<UInt8>, BlobSizeType)  // 已有数据
-}
-
-/// RequestFlags — 请求标志位 (本地类型)
-public class RequestFlags {
-    public init() {}
-    public var redirect: String = "follow"
-}
-
-/// Request — HTTP 请求对象 (本地类型)
-public class Request {
-    public init() {}
-    public init(s: String) { this.url = s }
-    public init(url: String, options: RequestInit) {
-        this.url = url
-        this.method = options.method
-    }
-
-    public static func `class`(): String {
-        "Request"
-    }
-
-    public static func fromJs(value: JsValue): ?Request {
-        None
-    }
-
-    public func getBodyValue(): BodyValue {
-        BodyValue()
-    }
-
-    // ========== Request state members ==========
-    // 对应 Bun: Request struct fields
-    public var url: String = ""
-    public var method: HttpMethod = HttpMethod.GET
-    public var headers: Headers = Headers()
-    public var signal: JsValue = JsValue.UNDEFINED
-    public var flags: RequestFlags = RequestFlags()
-    public var body: ?BodyValue = None
-    public var bodyValue: BodyValue = BodyValue()
-
-    /// 转为 JsValue — 用于 registerGlobals 中 Request 构造函数返回
-    public func toJsValue(): JsValue { JsValue() }
-}
-
-/// Response — HTTP 响应对象 (本地类型)
-public class Response {
-    public init() {}
-
-    public static func `class`(): String {
-        "Response"
-    }
-
-    public static func error(): Response {
-        let r = Response()
-        r.statusCode_ = 0
-        return r
-    }
-
-    public func redirectLocation(): ?String {
-        None
-    }
-
-    public static func fromJs(value: JsValue): ?Response {
-        None
-    }
-
-    public func getBodyValue(): BodyValue {
-        BodyValue()
-    }
-
-    /// Get status code
-    public func statusCode(): Int64 {
-        200
-    }
-
-    /// Get headers
-    public func getHeaders(): Headers {
-        Headers()
-    }
-
-    /// Get body as ArrayBuffer
-    public func arrayBuffer(): Array<UInt8> {
-        Array<UInt8>()
-    }
-
-    // ========== Response state members ==========
-    // 对应 Bun: Response struct fields
-    public var url: String = ""
-    public var body: ?BodyValue = None
-    public var errorValue: ?JsValue = None
-    public var statusCode_: Int64 = 200
-    public var statusText: String = ""
-    public var method: HttpMethod = HttpMethod.GET
-    public var redirected: Bool = false
-    public var headers: Headers = Headers()
-
-    public static func initResponse(global: JsGlobalObject, body: JsValue, `init`: JsValue): JsValue {
-        JsValue()
-    }
-
-    public func toJsValue(): JsValue { JsValue() }
-    public func isOk(): Bool { true }
-    public func getContentType(): String { "" }
-    public func getBodyUsed(): Bool { false }
-    public func getBodyReadableStream(): ?ReadableStream { None }
-
-    // init property (ResponseInit) - accessed as response.`init`
-    public var initConfig: ResponseInit = ResponseInit()
-}

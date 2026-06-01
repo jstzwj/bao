@@ -51,33 +51,30 @@ public class CryptoHasher {
     public static func getByName(name: String): ?CryptoHasher {
         // if (CryptoHasherZig.`init`(name)) |inner|
         let zigInner = CryptoHasherZig.initFunc(name)
-        match (zigInner) {
-            case Some(inner) =>
-                let hasher = CryptoHasher(CryptoHasherTag.ZIG_TAG)
-                hasher.zigValue = inner
-                return hasher
-            case None => ()
+        if (zigInner.isSome()) {
+            let inner = zigInner.getOrThrow()
+            let hasher = CryptoHasher(CryptoHasherTag.ZIG_TAG)
+            hasher.zigValue = inner
+            return hasher
         }
 
         // const algorithm = EvpAlgorithm.map.get(name) orelse return null
         let algorithm = EvpAlgorithm.fromName(name)
-        match (algorithm) {
-            case None => return None
-            case Some(alg) =>
-                if (true) {
-                    // if (algorithm.md()) |md|
-                    let md = alg.md()
-                    match (md) {
-                        case Some(mdVal) =>
-                            let engine = RareData.getBoringEngine()
-                            let hasher = CryptoHasher(CryptoHasherTag.EVP_TAG)
-                            hasher.evpValue = EVP(alg, mdVal, engine)
-                            return hasher
-                        case None => ()
-                    }
-                } else {
-                    return None
+        if (algorithm.isSome()) {
+            let alg = algorithm.getOrThrow()
+            if (true) {
+                // if (algorithm.md()) |md|
+                let md = alg.md()
+                if (md.isSome()) {
+                    let mdVal = md.getOrThrow()
+                    let engine = RareData.getBoringEngine()
+                    let hasher = CryptoHasher(CryptoHasherTag.EVP_TAG)
+                    hasher.evpValue = EVP(alg, mdVal, engine)
+                    return hasher
                 }
+            } else {
+                return None
+            }
         }
         return None
     }
@@ -95,12 +92,13 @@ public class CryptoHasher {
                 let other = otherHandle.evpValue.getOrThrow()
                 let engine = RareData.getBoringEngine()
                 let copied = other.copy(engine)
-                match (copied) {
-                    case Some(evpCopy) =>
-                        let hasher = CryptoHasher(CryptoHasherTag.EVP_TAG)
-                        hasher.evpValue = evpCopy
-                        return hasher
-                    case None => return None
+                if (copied.isSome()) {
+                    let evpCopy = copied.getOrThrow()
+                    let hasher = CryptoHasher(CryptoHasherTag.EVP_TAG)
+                    hasher.evpValue = evpCopy
+                    return hasher
+                } else {
+                    return None
                 }
             case _ => return None
         }
@@ -162,9 +160,11 @@ public class CryptoHasher {
             case CryptoHasherTag.EVP_TAG => JsValue(Float64(this.evpValue.getOrThrow().size()))
             case CryptoHasherTag.HMAC_TAG =>
                 let hmac = this.hmacValue
-                match (hmac) {
-                    case Some(h) => JsValue(Float64(h.size()))
-                    case None => throwHmacConsumed()
+                if (hmac.isSome()) {
+                    let h = hmac.getOrThrow()
+                    JsValue(Float64(h.size()))
+                } else {
+                    throwHmacConsumed()
                 }
             case CryptoHasherTag.ZIG_TAG => JsValue(Float64(this.zigValue.getOrThrow().digestLength))
         }
@@ -178,9 +178,11 @@ public class CryptoHasher {
             case CryptoHasherTag.ZIG_TAG => JsValue(BaoString(this.zigValue.getOrThrow().algorithm.name()))
             case CryptoHasherTag.HMAC_TAG =>
                 let hmac = this.hmacValue
-                match (hmac) {
-                    case Some(h) => JsValue(BaoString(h.algorithm.name()))
-                    case None => throwHmacConsumed()
+                if (hmac.isSome()) {
+                    let h = hmac.getOrThrow()
+                    JsValue(BaoString(h.algorithm.name()))
+                } else {
+                    throwHmacConsumed()
                 }
         }
     }
@@ -208,17 +210,19 @@ public class CryptoHasher {
         // var evp = EVP.byName(algorithm, globalThis) orelse
         //     return try CryptoHasherZig.hashByName(globalThis, algorithm, input, output) orelse { ... }
         let evp = EVP.byName(algorithm, globalThis)
-        match (evp) {
-            case Some(evpInst) =>
-                // hashToBytes 或 hashToEncoding
-                return hashToBytes(globalThis, evpInst, input, Option<JsArrayBuffer>.None)
-            case None =>
-                // 尝试 Zig 实现的哈希
-                let zigResult = CryptoHasherZig.hashByName(globalThis, algorithm, input, Option<String>.None)
-                match (zigResult) {
-                    case Some(v) => return v
-                    case None => return JsValue(BaoString("Unsupported algorithm \"" + algorithm + "\""))
-                }
+        if (evp.isSome()) {
+            let evpInst = evp.getOrThrow()
+            // hashToBytes 或 hashToEncoding
+            return hashToBytes(globalThis, evpInst, input, Option<JsArrayBuffer>.None)
+        } else {
+            // 尝试 Zig 实现的哈希
+            let zigResult = CryptoHasherZig.hashByName(globalThis, algorithm, input, Option<String>.None)
+            if (zigResult.isSome()) {
+                let v = zigResult.getOrThrow()
+                return v
+            } else {
+                return JsValue(BaoString("Unsupported algorithm \"" + algorithm + "\""))
+            }
         }
     }
 
@@ -228,14 +232,14 @@ public class CryptoHasher {
         var outputDigestBuf = Array<Byte>(DIGEST_SIZE, repeat: 0)
         let engine = RareData.getBoringEngine()
         let len = evp.hash(engine, input, outputDigestBuf)
-        match (len) {
-            case None =>
-                let err = BoringSSL.errGetError()
-                BoringSSL.errClearError()
-                return createCryptoError(err)
-            case Some(outLen) =>
-                // encoding.encodeWithMaxSize(...)
-                return JsValue(BaoString(encodingEncode(encoding, outputDigestBuf[0..Int64(outLen)])))
+        if (len.isSome()) {
+            let outLen = len.getOrThrow()
+            // encoding.encodeWithMaxSize(...)
+            return JsValue(BaoString(encodingEncode(encoding, outputDigestBuf[0..Int64(outLen)])))
+        } else {
+            let err = BoringSSL.errGetError()
+            BoringSSL.errClearError()
+            return createCryptoError(err)
         }
     }
 
@@ -245,30 +249,31 @@ public class CryptoHasher {
         var outputDigestBuf = Array<Byte>(DIGEST_SIZE, repeat: 0)
         var outputDigestSlice: Array<Byte> = outputDigestBuf
 
-        match (output) {
-            case Some(outputBuf) =>
-                let size = evp.size()
-                let bytes = outputBuf.byteSlice()
-                let size64 = Int64(size)
-                if (bytes.size < size64) {
-                    return JsValue(BaoString("TypedArray must be at least " + size.toString() + " bytes"))
-                }
-                outputDigestSlice = bytes[0..size64]
-            case None => ()
+        if (output.isSome()) {
+            let outputBuf = output.getOrThrow()
+            let size = evp.size()
+            let bytes = outputBuf.byteSlice()
+            let size64 = Int64(size)
+            if (bytes.size < size64) {
+                return JsValue(BaoString("TypedArray must be at least " + size.toString() + " bytes"))
+            }
+            outputDigestSlice = bytes[0..size64]
         }
 
         let engine = RareData.getBoringEngine()
         let len = evp.hash(engine, input, outputDigestSlice)
-        match (len) {
-            case None =>
-                let err = BoringSSL.errGetError()
-                BoringSSL.errClearError()
-                return createCryptoError(err)
-            case Some(outLen) =>
-                match (output) {
-                    case Some(outputBuf) => return outputBuf.value
-                    case None => return JsArrayBuffer.createBuffer(globalThis, outputDigestSlice[0..Int64(outLen)])
-                }
+        if (len.isSome()) {
+            let outLen = len.getOrThrow()
+            if (output.isSome()) {
+                let outputBuf = output.getOrThrow()
+                return outputBuf.value
+            } else {
+                return JsArrayBuffer.createBuffer(globalThis, outputDigestSlice[0..Int64(outLen)])
+            }
+        } else {
+            let err = BoringSSL.errGetError()
+            BoringSSL.errClearError()
+            return createCryptoError(err)
         }
     }
 
@@ -302,40 +307,43 @@ public class CryptoHasher {
             hmacKey = Some(hmacValue.toString().toArray())
         }
 
-        match (hmacKey) {
-            case Some(key) =>
-                let alg = EvpAlgorithm.fromName(algorithm)
-                match (alg) {
-                    case None => return None
-                    case Some(chosenAlgorithm) =>
-                        let hmac = HMAC.initFunc(chosenAlgorithm, key)
-                        match (hmac) {
-                            case Some(h) =>
-                                let hasher = CryptoHasher(CryptoHasherTag.HMAC_TAG)
-                                hasher.hmacValue = h
-                                return hasher
-                            case None => return None
-                        }
+        if (hmacKey.isSome()) {
+            let key = hmacKey.getOrThrow()
+            let alg = EvpAlgorithm.fromName(algorithm)
+            if (alg.isSome()) {
+                let chosenAlgorithm = alg.getOrThrow()
+                let hmac = HMAC.initFunc(chosenAlgorithm, key)
+                if (hmac.isSome()) {
+                    let h = hmac.getOrThrow()
+                    let hasher = CryptoHasher(CryptoHasherTag.HMAC_TAG)
+                    hasher.hmacValue = h
+                    return hasher
+                } else {
+                    return None
                 }
-            case None =>
-                // 尝试 EVP
-                let evp = EVP.byName(algorithm, globalThis)
-                match (evp) {
-                    case Some(e) =>
-                        let hasher = CryptoHasher(CryptoHasherTag.EVP_TAG)
-                        hasher.evpValue = e
-                        return hasher
-                    case None =>
-                        // 尝试 Zig 实现
-                        let zig = CryptoHasherZig.constructor(algorithm)
-                        match (zig) {
-                            case Some(z) =>
-                                let hasher = CryptoHasher(CryptoHasherTag.ZIG_TAG)
-                                hasher.zigValue = z
-                                return hasher
-                            case None => return None
-                        }
+            } else {
+                return None
+            }
+        } else {
+            // 尝试 EVP
+            let evp = EVP.byName(algorithm, globalThis)
+            if (evp.isSome()) {
+                let e = evp.getOrThrow()
+                let hasher = CryptoHasher(CryptoHasherTag.EVP_TAG)
+                hasher.evpValue = e
+                return hasher
+            } else {
+                // 尝试 Zig 实现
+                let zig = CryptoHasherZig.constructor(algorithm)
+                if (zig.isSome()) {
+                    let z = zig.getOrThrow()
+                    let hasher = CryptoHasher(CryptoHasherTag.ZIG_TAG)
+                    hasher.zigValue = z
+                    return hasher
+                } else {
+                    return None
                 }
+            }
         }
     }
 
@@ -357,16 +365,17 @@ public class CryptoHasher {
                 }
             case CryptoHasherTag.HMAC_TAG =>
                 let hmac = this.hmacValue
-                match (hmac) {
-                    case None => return throwHmacConsumed()
-                    case Some(h) =>
-                        h.update(input)
-                        let err = BoringSSL.errGetError()
-                        if (err != 0) {
-                            let instance = createCryptoError(err)
-                            BoringSSL.errClearError()
-                            return instance
-                        }
+                if (hmac.isSome()) {
+                    let h = hmac.getOrThrow()
+                    h.update(input)
+                    let err = BoringSSL.errGetError()
+                    if (err != 0) {
+                        let instance = createCryptoError(err)
+                        BoringSSL.errClearError()
+                        return instance
+                    }
+                } else {
+                    return throwHmacConsumed()
                 }
             case CryptoHasherTag.ZIG_TAG =>
                 this.zigValue.getOrThrow().update(input)
@@ -385,26 +394,29 @@ public class CryptoHasher {
             case CryptoHasherTag.EVP_TAG =>
                 let engine = RareData.getBoringEngine()
                 let copied = this.evpValue.getOrThrow().copy(engine)
-                match (copied) {
-                    case Some(evpCopy) =>
-                        let hasher = CryptoHasher(CryptoHasherTag.EVP_TAG)
-                        hasher.evpValue = evpCopy
-                        return hasher
-                    case None => return None
+                if (copied.isSome()) {
+                    let evpCopy = copied.getOrThrow()
+                    let hasher = CryptoHasher(CryptoHasherTag.EVP_TAG)
+                    hasher.evpValue = evpCopy
+                    return hasher
+                } else {
+                    return None
                 }
             case CryptoHasherTag.HMAC_TAG =>
                 let hmac = this.hmacValue
-                match (hmac) {
-                    case None => return None
-                    case Some(h) =>
-                        let hmacCopy = h.copy()
-                        match (hmacCopy) {
-                            case Some(c) =>
-                                let hasher = CryptoHasher(CryptoHasherTag.HMAC_TAG)
-                                hasher.hmacValue = c
-                                return hasher
-                            case None => return None
-                        }
+                if (hmac.isSome()) {
+                    let h = hmac.getOrThrow()
+                    let hmacCopy = h.copy()
+                    if (hmacCopy.isSome()) {
+                        let c = hmacCopy.getOrThrow()
+                        let hasher = CryptoHasher(CryptoHasherTag.HMAC_TAG)
+                        hasher.hmacValue = c
+                        return hasher
+                    } else {
+                        return None
+                    }
+                } else {
+                    return None
                 }
             case CryptoHasherTag.ZIG_TAG =>
                 let hasher = CryptoHasher(CryptoHasherTag.ZIG_TAG)
@@ -420,11 +432,11 @@ public class CryptoHasher {
 
     /// 获取摘要
     public func digest(globalThis: JsObject, output: ?String): JsValue {
-        match (output) {
-            case Some(encoding) =>
-                return this.digestToEncoding(globalThis, encoding)
-            case None =>
-                return this.digestToBytes(globalThis, Option<JsArrayBuffer>.None)
+        if (output.isSome()) {
+            let encoding = output.getOrThrow()
+            return this.digestToEncoding(globalThis, encoding)
+        } else {
+            return this.digestToBytes(globalThis, Option<JsArrayBuffer>.None)
         }
     }
 
@@ -434,28 +446,31 @@ public class CryptoHasher {
         var outputDigestBuf = Array<Byte>(DIGEST_SIZE, repeat: 0)
         var outputDigestSlice: Array<Byte> = outputDigestBuf
 
-        match (output) {
-            case Some(outputBuf) =>
-                let bytes = outputBuf.byteSlice()
-                if (bytes.size < DIGEST_SIZE) {
-                    return JsValue(BaoString("TypedArray must be at least " + DIGEST_SIZE.toString() + " bytes"))
-                }
-                outputDigestSlice = bytes
-            case None =>
-                // output_digest_buf = std.mem.zeroes(EVP.Digest)
-                for (i in 0..outputDigestBuf.size) {
-                    outputDigestBuf[i] = 0
-                }
+        if (output.isSome()) {
+            let outputBuf = output.getOrThrow()
+            let bytes = outputBuf.byteSlice()
+            if (bytes.size < DIGEST_SIZE) {
+                return JsValue(BaoString("TypedArray must be at least " + DIGEST_SIZE.toString() + " bytes"))
+            }
+            outputDigestSlice = bytes
+        } else {
+            // output_digest_buf = std.mem.zeroes(EVP.Digest)
+            for (i in 0..outputDigestBuf.size) {
+                outputDigestBuf[i] = 0
+            }
         }
 
         let result = this.finalDigest(globalThis, outputDigestSlice)
-        match (result) {
-            case Some(res) =>
-                match (output) {
-                    case Some(outputBuf) => return outputBuf.value
-                    case None => return JsArrayBuffer.createBuffer(globalThis, res)
-                }
-            case None => return JsValue.UNDEFINED
+        if (result.isSome()) {
+            let res = result.getOrThrow()
+            if (output.isSome()) {
+                let outputBuf = output.getOrThrow()
+                return outputBuf.value
+            } else {
+                return JsArrayBuffer.createBuffer(globalThis, res)
+            }
+        } else {
+            return JsValue.UNDEFINED
         }
     }
 
@@ -467,10 +482,11 @@ public class CryptoHasher {
             outputDigestBuf[i] = 0
         }
         let out = this.finalDigest(globalThis, outputDigestBuf)
-        match (out) {
-            case Some(res) =>
-                return JsValue(BaoString(encodingEncode(encoding, res)))
-            case None => return JsValue.UNDEFINED
+        if (out.isSome()) {
+            let res = out.getOrThrow()
+            return JsValue(BaoString(encodingEncode(encoding, res)))
+        } else {
+            return JsValue.UNDEFINED
         }
     }
 
@@ -480,13 +496,13 @@ public class CryptoHasher {
         match (this.tag) {
             case CryptoHasherTag.HMAC_TAG =>
                 let hmac = this.hmacValue
-                match (hmac) {
-                    case None =>
-                        throwHmacConsumed()
-                        return None
-                    case Some(h) =>
-                        this.hmacValue = Option<HMAC>.None
-                        return h.final(outputDigestSlice)
+                if (hmac.isSome()) {
+                    let h = hmac.getOrThrow()
+                    this.hmacValue = Option<HMAC>.None
+                    return h.final(outputDigestSlice)
+                } else {
+                    throwHmacConsumed()
+                    return None
                 }
             case CryptoHasherTag.EVP_TAG =>
                 let engine = RareData.getBoringEngine()
@@ -505,9 +521,9 @@ public class CryptoHasher {
             case CryptoHasherTag.ZIG_TAG =>
                 this.zigValue.getOrThrow().deinit()
             case CryptoHasherTag.HMAC_TAG =>
-                match (this.hmacValue) {
-                    case Some(h) => h.deinit()
-                    case None => ()
+                if (this.hmacValue.isSome()) {
+                    let h = this.hmacValue.getOrThrow()
+                    h.deinit()
                 }
         }
     }
@@ -680,11 +696,10 @@ public class HashState {
     /// 获取最终哈希
     public func final(arr: Array<Byte>): Unit {
         let evp = EVP.byName(this.algorithm.name(), JsObject())
-        match (evp) {
-            case Some(h) =>
-                let input = this.data[0..this.position]
-                let _ = h.hash(None, input, arr)
-            case None => ()
+        if (evp.isSome()) {
+            let h = evp.getOrThrow()
+            let input = this.data[0..this.position]
+            let _ = h.hash(None, input, arr)
         }
         this.reset()
     }
@@ -760,9 +775,11 @@ public class MD4Hasher {
         }
         let result = this.hashing.final()
         this.digested = true
-        match (output) {
-            case Some(encoding) => return JsValue(BaoString(encodingEncode(encoding, result)))
-            case None => return JsArrayBuffer.createBuffer(globalThis, result)
+        if (output.isSome()) {
+            let encoding = output.getOrThrow()
+            return JsValue(BaoString(encodingEncode(encoding, result)))
+        } else {
+            return JsArrayBuffer.createBuffer(globalThis, result)
         }
     }
 
@@ -770,9 +787,11 @@ public class MD4Hasher {
         var hasher = StaticHasherState("MD4", 16)
         hasher.update(input)
         let result = hasher.final()
-        match (output) {
-            case Some(encoding) => return JsValue(BaoString(encodingEncode(encoding, result)))
-            case None => return JsArrayBuffer.createBuffer(globalThis, result)
+        if (output.isSome()) {
+            let encoding = output.getOrThrow()
+            return JsValue(BaoString(encodingEncode(encoding, result)))
+        } else {
+            return JsArrayBuffer.createBuffer(globalThis, result)
         }
     }
 
@@ -814,9 +833,11 @@ public class MD5Hasher {
         }
         let result = this.hashing.final()
         this.digested = true
-        match (output) {
-            case Some(encoding) => return JsValue(BaoString(encodingEncode(encoding, result)))
-            case None => return JsArrayBuffer.createBuffer(globalThis, result)
+        if (output.isSome()) {
+            let encoding = output.getOrThrow()
+            return JsValue(BaoString(encodingEncode(encoding, result)))
+        } else {
+            return JsArrayBuffer.createBuffer(globalThis, result)
         }
     }
 
@@ -824,9 +845,11 @@ public class MD5Hasher {
         var hasher = StaticHasherState("MD5", 16)
         hasher.update(input)
         let result = hasher.final()
-        match (output) {
-            case Some(encoding) => return JsValue(BaoString(encodingEncode(encoding, result)))
-            case None => return JsArrayBuffer.createBuffer(globalThis, result)
+        if (output.isSome()) {
+            let encoding = output.getOrThrow()
+            return JsValue(BaoString(encodingEncode(encoding, result)))
+        } else {
+            return JsArrayBuffer.createBuffer(globalThis, result)
         }
     }
 
@@ -868,9 +891,11 @@ public class SHA1Hasher {
         }
         let result = this.hashing.final()
         this.digested = true
-        match (output) {
-            case Some(encoding) => return JsValue(BaoString(encodingEncode(encoding, result)))
-            case None => return JsArrayBuffer.createBuffer(globalThis, result)
+        if (output.isSome()) {
+            let encoding = output.getOrThrow()
+            return JsValue(BaoString(encodingEncode(encoding, result)))
+        } else {
+            return JsArrayBuffer.createBuffer(globalThis, result)
         }
     }
 
@@ -878,9 +903,11 @@ public class SHA1Hasher {
         var hasher = StaticHasherState("SHA1", 20)
         hasher.update(input)
         let result = hasher.final()
-        match (output) {
-            case Some(encoding) => return JsValue(BaoString(encodingEncode(encoding, result)))
-            case None => return JsArrayBuffer.createBuffer(globalThis, result)
+        if (output.isSome()) {
+            let encoding = output.getOrThrow()
+            return JsValue(BaoString(encodingEncode(encoding, result)))
+        } else {
+            return JsArrayBuffer.createBuffer(globalThis, result)
         }
     }
 
@@ -922,9 +949,11 @@ public class SHA224Hasher {
         }
         let result = this.hashing.final()
         this.digested = true
-        match (output) {
-            case Some(encoding) => return JsValue(BaoString(encodingEncode(encoding, result)))
-            case None => return JsArrayBuffer.createBuffer(globalThis, result)
+        if (output.isSome()) {
+            let encoding = output.getOrThrow()
+            return JsValue(BaoString(encodingEncode(encoding, result)))
+        } else {
+            return JsArrayBuffer.createBuffer(globalThis, result)
         }
     }
 
@@ -932,9 +961,11 @@ public class SHA224Hasher {
         var hasher = StaticHasherState("SHA224", 28)
         hasher.update(input)
         let result = hasher.final()
-        match (output) {
-            case Some(encoding) => return JsValue(BaoString(encodingEncode(encoding, result)))
-            case None => return JsArrayBuffer.createBuffer(globalThis, result)
+        if (output.isSome()) {
+            let encoding = output.getOrThrow()
+            return JsValue(BaoString(encodingEncode(encoding, result)))
+        } else {
+            return JsArrayBuffer.createBuffer(globalThis, result)
         }
     }
 
@@ -976,9 +1007,11 @@ public class SHA256Hasher {
         }
         let result = this.hashing.final()
         this.digested = true
-        match (output) {
-            case Some(encoding) => return JsValue(BaoString(encodingEncode(encoding, result)))
-            case None => return JsArrayBuffer.createBuffer(globalThis, result)
+        if (output.isSome()) {
+            let encoding = output.getOrThrow()
+            return JsValue(BaoString(encodingEncode(encoding, result)))
+        } else {
+            return JsArrayBuffer.createBuffer(globalThis, result)
         }
     }
 
@@ -986,9 +1019,11 @@ public class SHA256Hasher {
         var hasher = StaticHasherState("SHA256", 32)
         hasher.update(input)
         let result = hasher.final()
-        match (output) {
-            case Some(encoding) => return JsValue(BaoString(encodingEncode(encoding, result)))
-            case None => return JsArrayBuffer.createBuffer(globalThis, result)
+        if (output.isSome()) {
+            let encoding = output.getOrThrow()
+            return JsValue(BaoString(encodingEncode(encoding, result)))
+        } else {
+            return JsArrayBuffer.createBuffer(globalThis, result)
         }
     }
 
@@ -1030,9 +1065,11 @@ public class SHA384Hasher {
         }
         let result = this.hashing.final()
         this.digested = true
-        match (output) {
-            case Some(encoding) => return JsValue(BaoString(encodingEncode(encoding, result)))
-            case None => return JsArrayBuffer.createBuffer(globalThis, result)
+        if (output.isSome()) {
+            let encoding = output.getOrThrow()
+            return JsValue(BaoString(encodingEncode(encoding, result)))
+        } else {
+            return JsArrayBuffer.createBuffer(globalThis, result)
         }
     }
 
@@ -1040,9 +1077,11 @@ public class SHA384Hasher {
         var hasher = StaticHasherState("SHA384", 48)
         hasher.update(input)
         let result = hasher.final()
-        match (output) {
-            case Some(encoding) => return JsValue(BaoString(encodingEncode(encoding, result)))
-            case None => return JsArrayBuffer.createBuffer(globalThis, result)
+        if (output.isSome()) {
+            let encoding = output.getOrThrow()
+            return JsValue(BaoString(encodingEncode(encoding, result)))
+        } else {
+            return JsArrayBuffer.createBuffer(globalThis, result)
         }
     }
 
@@ -1084,9 +1123,11 @@ public class SHA512Hasher {
         }
         let result = this.hashing.final()
         this.digested = true
-        match (output) {
-            case Some(encoding) => return JsValue(BaoString(encodingEncode(encoding, result)))
-            case None => return JsArrayBuffer.createBuffer(globalThis, result)
+        if (output.isSome()) {
+            let encoding = output.getOrThrow()
+            return JsValue(BaoString(encodingEncode(encoding, result)))
+        } else {
+            return JsArrayBuffer.createBuffer(globalThis, result)
         }
     }
 
@@ -1094,9 +1135,11 @@ public class SHA512Hasher {
         var hasher = StaticHasherState("SHA512", 64)
         hasher.update(input)
         let result = hasher.final()
-        match (output) {
-            case Some(encoding) => return JsValue(BaoString(encodingEncode(encoding, result)))
-            case None => return JsArrayBuffer.createBuffer(globalThis, result)
+        if (output.isSome()) {
+            let encoding = output.getOrThrow()
+            return JsValue(BaoString(encodingEncode(encoding, result)))
+        } else {
+            return JsArrayBuffer.createBuffer(globalThis, result)
         }
     }
 
@@ -1138,9 +1181,11 @@ public class SHA512_256Hasher {
         }
         let result = this.hashing.final()
         this.digested = true
-        match (output) {
-            case Some(encoding) => return JsValue(BaoString(encodingEncode(encoding, result)))
-            case None => return JsArrayBuffer.createBuffer(globalThis, result)
+        if (output.isSome()) {
+            let encoding = output.getOrThrow()
+            return JsValue(BaoString(encodingEncode(encoding, result)))
+        } else {
+            return JsArrayBuffer.createBuffer(globalThis, result)
         }
     }
 
@@ -1148,9 +1193,11 @@ public class SHA512_256Hasher {
         var hasher = StaticHasherState("SHA512_256", 32)
         hasher.update(input)
         let result = hasher.final()
-        match (output) {
-            case Some(encoding) => return JsValue(BaoString(encodingEncode(encoding, result)))
-            case None => return JsArrayBuffer.createBuffer(globalThis, result)
+        if (output.isSome()) {
+            let encoding = output.getOrThrow()
+            return JsValue(BaoString(encodingEncode(encoding, result)))
+        } else {
+            return JsArrayBuffer.createBuffer(globalThis, result)
         }
     }
 
@@ -1193,15 +1240,14 @@ public class StaticHasherState {
     public func final(): Array<Byte> {
         var result = Array<Byte>(digest, repeat: 0)
         let evp = EVP.byName(this.name, JsObject())
-        match (evp) {
-            case Some(h) =>
-                // Convert ArrayList<Byte> to Array<Byte>
-                var dataArr = Array<Byte>(data.size, repeat: 0)
-                for (i in 0..data.size) {
-                    dataArr[i] = data[i]
-                }
-                let _ = h.hash(Option<Engine>.None, dataArr, result)
-            case None => ()
+        if (evp.isSome()) {
+            let h = evp.getOrThrow()
+            // Convert ArrayList<Byte> to Array<Byte>
+            var dataArr = Array<Byte>(data.size, repeat: 0)
+            for (i in 0..data.size) {
+                dataArr[i] = data[i]
+            }
+            let _ = h.hash(Option<Engine>.None, dataArr, result)
         }
         return result
     }
@@ -1275,9 +1321,11 @@ public class JsPromise {
     }
 
     public func value(): JsValue {
-        match (resolvedValue) {
-            case Some(v) => v
-            case None => JsValue.UNDEFINED
+        if (resolvedValue.isSome()) {
+            let v = resolvedValue.getOrThrow()
+            return v
+        } else {
+            return JsValue.UNDEFINED
         }
     }
 

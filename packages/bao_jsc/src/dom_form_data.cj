@@ -18,13 +18,13 @@ public class DOMFormData {
     }
 
     // 严格翻译自 DOMFormData.createFromURLQuery
-    public static func createFromURLQuery(global: JsObject, query: ZigString): JsValue {
+    public static func createFromURLQuery(global: JsObject, query: String): JsValue {
         // FFI: WebCore__DOMFormData__createFromURLQuery
         JsValue.undefined()
     }
 
     // 严格翻译自 DOMFormData.toQueryString
-    public func toQueryString(callback: (ZigString) -> Unit) {
+    public func toQueryString(callback: (String) -> Unit) {
         // FFI: WebCore__DOMFormData__toQueryString
     }
 
@@ -36,12 +36,12 @@ public class DOMFormData {
     }
 
     // 严格翻译自 DOMFormData.append
-    public func append(name: ZigString, value: ZigString) {
+    public func append(name: String, value: String) {
         // FFI: WebCore__DOMFormData__append
     }
 
     // 严格翻译自 DOMFormData.appendBlob
-    public func appendBlob(global: JsObject, name: ZigString, blob: UInt64, filename: ZigString) {
+    public func appendBlob(global: JsObject, name: String, blob: UInt64, filename: String) {
         // FFI: WebCore__DOMFormData__appendBlob
     }
 

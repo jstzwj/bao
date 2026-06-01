@@ -30,7 +30,7 @@ public func postProcessHTMLChunkDetailed(
     chunks: ArrayList<Chunk>
 ): Unit {
     let j = StringJoinerCSS()
-    j.watcher = CSSStringWatcher(input: chunk.uniqueKey)
+    j.watcher = CSSStringWatcher(chunk.uniqueKey)
 
     // 拼接所有编译结果
     // HTML chunk 通常只有一个编译结果 (整个 HTML 文件)
@@ -74,13 +74,13 @@ private func breakHTMLOutputIntoPieces(c: LinkerContext, j: StringJoinerCSS,
             match (ch.contentType) {
                 case ChunkContentType.JavaScript =>
                     keyMap.put(ch.uniqueKey, OutputPieceRef(
-                        kind: OutputPieceKind.Chunk,
-                        index: i
+                        OutputPieceKind.Chunk,
+                        i
                     ))
                 case ChunkContentType.CSS =>
                     keyMap.put(ch.uniqueKey, OutputPieceRef(
-                        kind: OutputPieceKind.Chunk,
-                        index: i
+                        OutputPieceKind.Chunk,
+                        i
                     ))
                 case ChunkContentType.HTML => ()
             }
@@ -96,11 +96,15 @@ private func breakHTMLOutputIntoPieces(c: LinkerContext, j: StringJoinerCSS,
 
         // 查找最近的 unique_key 占位符
         for (key in keyMap.keys()) {
-            let idx = output.indexOf(key, pos)
-            if (idx >= 0 && (foundPos < 0 || idx < foundPos)) {
-                foundPos = idx
-                foundKey = key
-                foundRef = keyMap.get(key)
+            let idxOpt = output.indexOf(key, pos)
+            match (idxOpt) {
+                case Some(idx) =>
+                    if (foundPos < 0 || idx < foundPos) {
+                        foundPos = idx
+                        foundKey = key
+                        foundRef = keyMap.get(key)
+                    }
+                case None => ()
             }
         }
 
@@ -146,8 +150,10 @@ private func generateHTMLIsolatedHash(c: LinkerContext, chunk: Chunk): UInt64 {
             hasher.update(piece.data.toArray())
         }
         // 如果是 chunk 引用, 包含目标 chunk 的哈希
-        if (piece.kind == OutputPieceKind.Chunk) {
-            hasher.update(UInt32(piece.index))
+        match (piece.kind) {
+            case OutputPieceKind.Chunk =>
+                hasher.update(UInt32(piece.index))
+            case _ => ()
         }
     }
     return hasher.digest()

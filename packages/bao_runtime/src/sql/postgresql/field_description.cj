@@ -42,9 +42,8 @@ public class FieldDescription {
         let name = reader.readNullTerminatedString()
         match (name) {
             case None => return false
-            case Some(n) => {
+            case Some(n) =>
                 nameOrIndex = ColumnIdentifier.fromString(n)
-            }
         }
 
         // 读取表 OID (4 字节)
@@ -75,7 +74,7 @@ public class FieldDescription {
         let formatCode = reader.readUInt16()
         match (formatCode) {
             case None => return false
-            case Some(v) => {
+            case Some(v) =>
                 if (v == 0) {
                     binary = false
                 } else if (v == 1) {
@@ -83,7 +82,6 @@ public class FieldDescription {
                 } else {
                     return false  // UnknownFormatCode
                 }
-            }
         }
         return true
     }
@@ -114,15 +112,15 @@ public enum ColumnIdentifier {
         var intValue: UInt64 = 0
         var isNumeric = true
         for (c in s) {
-            if (c >= '0' && c <= '9') {
-                intValue = intValue * 10 + UInt64(c - '0')
+            if (c >= 48 && c <= 57) {  // '0' to '9'
+                intValue = intValue * 10 + UInt64(c - 48)
             } else {
                 isNumeric = false
                 break
             }
         }
 
-        if (isNumeric && s.size > 0 && s.size < 11 && intValue < UInt32.MAX) {
+        if (isNumeric && s.size > 0 && s.size < 11 && intValue < 4294967295) {
             return Index(UInt32(intValue))
         }
 

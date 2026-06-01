@@ -36,12 +36,11 @@ public class OsModule {
     public static func arch(): String {
         // 通过环境变量或编译期确定
         let arch = OS.getEnv("PROCESSOR_ARCHITECTURE")
-        match (arch) {
-            case Some(a) =>
-                if (a.contains("ARM") || a.contains("arm")) {
-                    return "arm64"
-                }
-            case None => ()
+        if (arch.isSome()) {
+            let a = arch.getOrThrow()
+            if (a.contains("ARM") || a.contains("arm")) {
+                return "arm64"
+            }
         }
         return "x64"
     }
@@ -57,10 +56,10 @@ public class OsModule {
     public static func release(): String {
         // 通过 uname 或 /proc/version 获取
         let ver = OS.getEnv("KERNEL_VERSION")
-        match (ver) {
-            case Some(v) => return v
-            case None => return "0.0.0"
+        if (ver.isSome()) {
+            return ver.getOrThrow()
         }
+        return "0.0.0"
     }
 
     /// os.version() — 返回内核版本字符串
@@ -73,20 +72,20 @@ public class OsModule {
     /// 对应 Bun: os.homedir -> $HOME
     public static func homedir(): String {
         let home = OS.getEnv("HOME")
-        match (home) {
-            case Some(h) => return h
-            case None => return "/root"
+        if (home.isSome()) {
+            return home.getOrThrow()
         }
+        return "/root"
     }
 
     /// os.tmpdir() — 返回临时目录
     /// 对应 Bun: os.tmpdir -> $TMPDIR or /tmp
     public static func tmpdir(): String {
         let tmp = OS.getEnv("TMPDIR")
-        match (tmp) {
-            case Some(t) => return t
-            case None => return "/tmp"
+        if (tmp.isSome()) {
+            return tmp.getOrThrow()
         }
+        return "/tmp"
     }
 
     /// os.cwd() — 返回当前工作目录
@@ -152,9 +151,17 @@ public class OsModule {
         info.gid = Int64(OS.gid())
         info.homedir = homedir()
         let userOpt = OS.getEnv("USER")
-        info.username = match (userOpt) { case Some(u) => u case None => "root" }
+        if (userOpt.isSome()) {
+            info.username = userOpt.getOrThrow()
+        } else {
+            info.username = "root"
+        }
         let shellOpt = OS.getEnv("SHELL")
-        info.shell = match (shellOpt) { case Some(s) => s case None => "/bin/sh" }
+        if (shellOpt.isSome()) {
+            info.shell = shellOpt.getOrThrow()
+        } else {
+            info.shell = "/bin/sh"
+        }
         return info
     }
 
@@ -227,15 +234,14 @@ public class OsModule {
     /// 对应 Bun: os.availableParallelism
     public static func availableParallelism(): Int64 {
         let n = OS.getEnv("NUMBER_OF_PROCESSORS")
-        match (n) {
-            case Some(v) =>
-                try {
-                    return Int64.parse(v)
-                } catch (_: Exception) {
-                    return Int64(1)
-                }
-            case None => return Int64(1)
+        if (n.isSome()) {
+            try {
+                return Int64.parse(n.getOrThrow())
+            } catch (_: Exception) {
+                return Int64(1)
+            }
         }
+        return Int64(1)
     }
 
     /// 将 os 模块导出为 JsValue 对象
@@ -365,25 +371,25 @@ public class OsModule {
         let constantsObj = JsObject()
         let signalsObj = JsObject()
         for (key in c.signals.keys()) {
-            match (c.signals.get(key)) {
-                case Some(v) => signalsObj.set(key, JsValue(Float64(v)))
-                case None => ()
+            if (c.signals.get(key).isSome()) {
+                let v = c.signals.get(key).getOrThrow()
+                signalsObj.set(key, JsValue(Float64(v)))
             }
         }
         constantsObj.set("signals", JsValue(signalsObj))
         let errnoObj = JsObject()
         for (key in c.errno.keys()) {
-            match (c.errno.get(key)) {
-                case Some(v) => errnoObj.set(key, JsValue(Float64(v)))
-                case None => ()
+            if (c.errno.get(key).isSome()) {
+                let v = c.errno.get(key).getOrThrow()
+                errnoObj.set(key, JsValue(Float64(v)))
             }
         }
         constantsObj.set("errno", JsValue(errnoObj))
         let priorityObj = JsObject()
         for (key in c.priority.keys()) {
-            match (c.priority.get(key)) {
-                case Some(v) => priorityObj.set(key, JsValue(Float64(v)))
-                case None => ()
+            if (c.priority.get(key).isSome()) {
+                let v = c.priority.get(key).getOrThrow()
+                priorityObj.set(key, JsValue(Float64(v)))
             }
         }
         constantsObj.set("priority", JsValue(priorityObj))

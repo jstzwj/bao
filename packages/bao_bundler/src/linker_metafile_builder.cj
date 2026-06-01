@@ -62,11 +62,9 @@ public class MetafileBuilder {
         // Write inputs for this output (bytesInOutput from filesWithParts)
         sb.append(",\n      \"inputs\": {")
         var firstChunkInput = true
-        var chunkIter = chunk.filesWithParts.iterator()
-        while (chunkIter.hasNext()) {
-            let entry = chunkIter.next().getOrThrow()
-            let fileSourceIndex = entry.0
-            let bytesInOutput = entry.1
+        for (entry in chunk.filesWithParts.allEntries()) {
+            let fileSourceIndex = entry[0]
+            let bytesInOutput = entry[1]
 
             // 跳过运行时索引 (index 0)
             if (fileSourceIndex == 0) {
@@ -145,7 +143,7 @@ public class MetafileBuilder {
         }
 
         // Write cssBundle if this JS chunk has associated CSS
-        if (chunk.contentType == ChunkContentType.JavaScript) {
+        if (match (chunk.contentType) { case ChunkContentType.JavaScript => true case _ => false }) {
             let cssChunks = chunk.jsContent.cssChunks
             if (cssChunks.size > 0) {
                 let cssChunkIndex = cssChunks[0]
@@ -179,10 +177,8 @@ public class MetafileBuilder {
 
         // Mark all files that appear in chunks
         for (chunk in chunks) {
-            var iter = chunk.filesWithParts.iterator()
-            while (iter.hasNext()) {
-                let entry = iter.next().getOrThrow()
-                seenSources.put(entry.0)
+            for (entry in chunk.filesWithParts.allEntries()) {
+                seenSources.put(entry[0])
             }
         }
 

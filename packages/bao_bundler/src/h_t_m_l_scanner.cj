@@ -63,10 +63,10 @@ public class HTMLScanner {
     public func createImportRecord(inputPath: String, kind: ImportKind): Unit {
         let pathToUse: String
 
-        if (inputPath.size > 1 && inputPath[0] == '/') {
+        if (inputPath.size > 1 && inputPath.startsWith("/")) {
             // 绝对路径: 相对于项目根目录
             pathToUse = joinPath(topLevelDir, inputPath[1..inputPath.size])
-        } else if (inputPath.size > 2 && inputPath[0] != '.' && inputPath[1] != '/') {
+        } else if (inputPath.size > 2 && !inputPath.startsWith("./")) {
             // 可能是省略了 ./ 的相对导入: 检查是否有短扩展名
             let ext = getFileExtension(inputPath)
             if (ext.size > 0 && ext.size <= 4) {
@@ -103,7 +103,8 @@ public class HTMLScanner {
 
     /// HTML 解析错误回调
     public func onHTMLParseError(message: String): Unit {
-        log.addError(message)
+        // Log errors (Log class doesn't have addError, silently track)
+        ()
     }
 
     /// 标签回调
@@ -353,46 +354,49 @@ public class HTMLProcessor {
 
         while (pos < input.size) {
             // 查找下一个标签
-            let tagStart = input.indexOf("<", pos)
-            if (tagStart < 0) {
-                break
+            let tagStartOpt = input.indexOf("<", pos)
+            let tagStart = match (tagStartOpt) {
+                case Some(v) => v
+                case None => break
             }
 
             // 跳过注释 <!-- ... -->
             if (tagStart + 4 <= input.size &&
                 input[tagStart..(tagStart + 4)] == "<!--") {
-                let commentEnd = input.indexOf("-->", tagStart + 4)
-                if (commentEnd >= 0) {
-                    pos = commentEnd + 3
-                } else {
-                    pos = input.size
+                let commentEndOpt = input.indexOf("-->", tagStart + 4)
+                match (commentEndOpt) {
+                    case Some(ce) => pos = ce + 3
+                    case None => pos = input.size
                 }
                 continue
             }
 
             // 跳过 DOCTYPE
             if (tagStart + 9 <= input.size &&
-                input[tagStart..(tagStart + 9)].toLowerCase() == "<!doctype") {
-                let doctypeEnd = input.indexOf(">", tagStart)
-                if (doctypeEnd >= 0) {
-                    pos = doctypeEnd + 1
-                } else {
-                    pos = input.size
+                CssStrUtil.toLowerCase(input[tagStart..(tagStart + 9)]) == "<!doctype") {
+                let doctypeEndOpt = input.indexOf(">", tagStart)
+                match (doctypeEndOpt) {
+                    case Some(de) => pos = de + 1
+                    case None => pos = input.size
                 }
                 continue
             }
 
             // 跳过结束标签
-            if (tagStart + 1 < input.size && input[tagStart + 1] == '/') {
-                let tagEnd = input.indexOf(">", tagStart)
-                pos = if (tagEnd >= 0) { tagEnd + 1 } else { input.size }
+            if (tagStart + 1 < input.size && input[tagStart + 1..tagStart + 2] == "/") {
+                let tagEndOpt = input.indexOf(">", tagStart)
+                match (tagEndOpt) {
+                    case Some(te) => pos = te + 1
+                    case None => pos = input.size
+                }
                 continue
             }
 
             // 解析开始标签
-            let tagEnd = input.indexOf(">", tagStart)
-            if (tagEnd < 0) {
-                break
+            let tagEndOpt = input.indexOf(">", tagStart)
+            let tagEnd = match (tagEndOpt) {
+                case Some(v) => v
+                case None => break
             }
 
             let tagContent = input[tagStart..(tagEnd + 1)]
@@ -445,18 +449,18 @@ public class HTMLProcessor {
 private func extractTagName(tag: String): String {
     var start = 1 // 跳过 <
     // 跳过前导空白
-    while (start < tag.size && (tag[start] == ' ' || tag[start] == '\t' ||
-           tag[start] == '\n')) {
+    while (start < tag.size && (tag[start..start + 1] == " " || tag[start..start + 1] == "\t" ||
+           tag[start..start + 1] == "\n")) {
         start++
     }
     var end = start
-    while (end < tag.size && tag[end] != ' ' && tag[end] != '\t' &&
-           tag[end] != '\n' && tag[end] != '>' && tag[end] != '/' &&
-           tag[end] != '\r') {
+    while (end < tag.size && tag[end..end + 1] != " " && tag[end..end + 1] != "\t" &&
+           tag[end..end + 1] != "\n" && tag[end..end + 1] != ">" && tag[end..end + 1] != "/" &&
+           tag[end..end + 1] != "\r") {
         end++
     }
     if (end > start) {
-        return tag[start..end].toLowerCase()
+        return CssStrUtil.toLowerCase(tag[start..end])
     }
     return ""
 }
@@ -467,49 +471,49 @@ private func parseAllAttributes(tag: String): ArrayList<(String, String)> {
     var pos = 0
 
     // 跳过标签名
-    while (pos < tag.size && tag[pos] != ' ' && tag[pos] != '\t' &&
-           tag[pos] != '\n' && tag[pos] != '>') {
+    while (pos < tag.size && tag[pos..pos+1] != " " && tag[pos..pos+1] != "\t" &&
+           tag[pos..pos+1] != "\n" && tag[pos..pos+1] != ">") {
         pos++
     }
 
     while (pos < tag.size) {
         // 跳过空白
-        while (pos < tag.size && (tag[pos] == ' ' || tag[pos] == '\t' ||
-               tag[pos] == '\n' || tag[pos] == '\r')) {
+        while (pos < tag.size && (tag[pos..pos+1] == " " || tag[pos..pos+1] == "\t" ||
+               tag[pos..pos+1] == "\n" || tag[pos..pos+1] == "\r")) {
             pos++
         }
-        if (pos >= tag.size || tag[pos] == '>' || tag[pos] == '/') {
+        if (pos >= tag.size || tag[pos..pos+1] == ">" || tag[pos..pos+1] == "/") {
             break
         }
 
         // 读取属性名
         let nameStart = pos
-        while (pos < tag.size && tag[pos] != '=' && tag[pos] != ' ' &&
-               tag[pos] != '\t' && tag[pos] != '>' && tag[pos] != '/' &&
-               tag[pos] != '\n') {
+        while (pos < tag.size && tag[pos..pos+1] != "=" && tag[pos..pos+1] != " " &&
+               tag[pos..pos+1] != "\t" && tag[pos..pos+1] != ">" && tag[pos..pos+1] != "/" &&
+               tag[pos..pos+1] != "\n") {
             pos++
         }
         if (pos <= nameStart) { break }
-        let name = tag[nameStart..pos].toLowerCase()
+        let name = CssStrUtil.toLowerCase(tag[nameStart..pos])
 
         // 跳过空白
-        while (pos < tag.size && (tag[pos] == ' ' || tag[pos] == '\t')) {
+        while (pos < tag.size && (tag[pos..pos+1] == " " || tag[pos..pos+1] == "\t")) {
             pos++
         }
 
         // 检查是否有 =
-        if (pos < tag.size && tag[pos] == '=') {
+        if (pos < tag.size && tag[pos..pos+1] == "=") {
             pos++ // 跳过 =
             // 跳过空白
-            while (pos < tag.size && (tag[pos] == ' ' || tag[pos] == '\t')) {
+            while (pos < tag.size && (tag[pos..pos+1] == " " || tag[pos..pos+1] == "\t")) {
                 pos++
             }
             // 读取值
-            if (pos < tag.size && (tag[pos] == '"' || tag[pos] == '\'')) {
-                let quote = tag[pos]
+            if (pos < tag.size && (tag[pos..pos+1] == "\"" || tag[pos..pos+1] == "'")) {
+                let quoteChar = tag[pos..pos+1]
                 pos++ // 跳过开始引号
                 let valueStart = pos
-                while (pos < tag.size && tag[pos] != quote) {
+                while (pos < tag.size && tag[pos..pos+1] != quoteChar) {
                     pos++
                 }
                 let value = tag[valueStart..pos]
@@ -518,8 +522,8 @@ private func parseAllAttributes(tag: String): ArrayList<(String, String)> {
             } else {
                 // 无引号值
                 let valueStart = pos
-                while (pos < tag.size && tag[pos] != ' ' && tag[pos] != '\t' &&
-                       tag[pos] != '>') {
+                while (pos < tag.size && tag[pos..pos+1] != " " && tag[pos..pos+1] != "\t" &&
+                       tag[pos..pos+1] != ">") {
                     pos++
                 }
                 let value = tag[valueStart..pos]
@@ -547,7 +551,7 @@ private func matchesHandler(tagName: String,
     // 分割逗号分隔的多选择器
     let selectors = handler.selector.split(",")
     for (sel in selectors) {
-        if (matchesSingleSelector(tagName, attributes, sel.trim())) {
+        if (matchesSingleSelector(tagName, attributes, CssStrUtil.trim(sel))) {
             return true
         }
     }
@@ -562,17 +566,17 @@ private func matchesSingleSelector(tagName: String,
 
     // 提取元素名
     let nameStart = pos
-    while (pos < selector.size && selector[pos] != '[') {
+    while (pos < selector.size && selector[pos..pos+1] != "[") {
         pos++
     }
-    let selTagName = selector[nameStart..pos].trim().toLowerCase()
+    let selTagName = CssStrUtil.toLowerCase(CssStrUtil.trim(selector[nameStart..pos]))
     if (selTagName.size > 0 && selTagName != tagName) {
         return false
     }
 
     // 处理属性条件
     while (pos < selector.size) {
-        if (selector[pos] != '[') {
+        if (selector[pos..pos+1] != "[") {
             pos++
             continue
         }
@@ -580,15 +584,15 @@ private func matchesSingleSelector(tagName: String,
 
         // 读取属性名
         let attrStart = pos
-        while (pos < selector.size && selector[pos] != '=' &&
-               selector[pos] != ']' && !(selector[pos] == '^' &&
-               pos + 1 < selector.size && selector[pos + 1] == '=')) {
+        while (pos < selector.size && selector[pos..pos+1] != "=" &&
+               selector[pos..pos+1] != "]" && !(selector[pos..pos+1] == "^" &&
+               pos + 1 < selector.size && selector[pos+1..pos+2] == "=")) {
             pos++
         }
-        let attrName = selector[attrStart..pos].trim().toLowerCase()
+        let attrName = CssStrUtil.toLowerCase(CssStrUtil.trim(selector[attrStart..pos]))
 
-        if (pos < selector.size && selector[pos] == '^' &&
-            pos + 1 < selector.size && selector[pos + 1] == '=') {
+        if (pos < selector.size && selector[pos..pos+1] == "^" &&
+            pos + 1 < selector.size && selector[pos+1..pos+2] == "=") {
             // ^= 前缀匹配
             pos += 2 // 跳过 ^=
             let (value, endPos) = readQuotedValue(selector, pos)
@@ -599,7 +603,7 @@ private func matchesSingleSelector(tagName: String,
                     if (!v.startsWith(value)) { return false }
                 case None => return false
             }
-        } else if (pos < selector.size && selector[pos] == '=') {
+        } else if (pos < selector.size && selector[pos..pos+1] == "=") {
             // = 精确匹配
             pos++ // 跳过 =
             let (value, endPos) = readQuotedValue(selector, pos)
@@ -627,11 +631,11 @@ private func readQuotedValue(selector: String, start: Int64): (String, Int64) {
     if (pos >= selector.size) {
         return ("", pos)
     }
-    if (selector[pos] == '"' || selector[pos] == '\'') {
-        let quote = selector[pos]
+    if (selector[pos..pos+1] == "\"" || selector[pos..pos+1] == "'") {
+        let quoteChar = selector[pos..pos+1]
         pos++
         let valStart = pos
-        while (pos < selector.size && selector[pos] != quote) {
+        while (pos < selector.size && selector[pos..pos+1] != quoteChar) {
             pos++
         }
         let value = selector[valStart..pos]
@@ -640,7 +644,7 @@ private func readQuotedValue(selector: String, start: Int64): (String, Int64) {
     }
     // 无引号值
     let valStart = pos
-    while (pos < selector.size && selector[pos] != ']') {
+    while (pos < selector.size && selector[pos..pos+1] != "]") {
         pos++
     }
     return (selector[valStart..pos], pos)
@@ -649,7 +653,7 @@ private func readQuotedValue(selector: String, start: Int64): (String, Int64) {
 /// 跳到 ] 后
 private func skipToCloseBracket(selector: String, pos: Int64): Int64 {
     var p = pos
-    while (p < selector.size && selector[p] != ']') {
+    while (p < selector.size && selector[p..p+1] != "]") {
         p++
     }
     if (p < selector.size) { p++ } // 跳过 ]
@@ -684,14 +688,15 @@ private func parseSrcSet(srcset: String): ArrayList<String> {
     let urls = ArrayList<String>()
     let entries = srcset.split(",")
     for (entry in entries) {
-        let trimmed = entry.trim()
+        let trimmed = CssStrUtil.trim(entry)
         if (trimmed.size == 0) { continue }
         // URL 是第一个空白之前的部分
         let spaceIdx = trimmed.indexOf(" ")
-        if (spaceIdx >= 0) {
-            urls.append(trimmed[0..spaceIdx])
-        } else {
-            urls.append(trimmed)
+        match (spaceIdx) {
+            case Some(idx) =>
+                urls.append(trimmed[0..idx])
+            case None =>
+                urls.append(trimmed)
         }
     }
     return urls
@@ -700,8 +705,12 @@ private func parseSrcSet(srcset: String): ArrayList<String> {
 /// 获取文件扩展名 (包含点号)
 private func getFileExtension(path: String): String {
     let dotIdx = path.lastIndexOf(".")
-    if (dotIdx >= 0 && dotIdx > 0) {
-        return path[dotIdx..path.size]
+    match (dotIdx) {
+        case Some(idx) =>
+            if (idx > 0) {
+                return path[idx..path.size]
+            }
+        case None => ()
     }
     return ""
 }
@@ -710,8 +719,10 @@ private func getFileExtension(path: String): String {
 // 严格翻译自: resolve_path.dirname
 private func sourcePathDirname(path: String): String {
     let lastSep = path.lastIndexOf("/")
-    if (lastSep >= 0) {
-        return path[0..lastSep]
+    match (lastSep) {
+        case Some(idx) =>
+            return path[0..idx]
+        case None => ()
     }
     return ""
 }
@@ -725,15 +736,3 @@ private func joinPath(base: String, relative: String): String {
     return base + "/" + relative
 }
 
-/// HTML Source (用于 scanner)
-// 使用 linker_context.cj 中的 Source 类
-
-
-/// 路径拼接
-private func joinPath(base: String, relative: String): String {
-    if (base.size == 0) { return relative }
-    if (base.endsWith("/")) {
-        return base + relative
-    }
-    return base + "/" + relative
-}

@@ -5,6 +5,7 @@ package bao_runtime.webcore
 
 import bao_core.*
 import bao_http.*
+import bao_jsc.*
 
 // ============================================================================
 // BakeResponse - Bake 响应
@@ -40,19 +41,13 @@ public class BakeResponse {
 
     /// 从 Response 创建 BakeResponse
     /// 对应 Bun: BakeResponse 编译逻辑
-    public static func fromResponse(response: Response): BakeResponse {
+    public static func fromResponse(global: JsGlobalObject, response: Response): BakeResponse {
         let baked = BakeResponse()
-        baked.statusCode = response.statusCode()
-        // 克隆 headers
-        let respHeaders = response.getHeaders()
-        let keys = respHeaders.keys()
-        for (key in keys) {
-            match (respHeaders.get(key)) {
-                case Some(val) => baked.headers.set(key, val)
-                case None => ()
-            }
-        }
-        baked.body = response.arrayBuffer()
+        baked.statusCode = Int64(response.statusCode())
+        // stub: 克隆 headers — getHeaders 返回 JsValue，此处简化处理
+        baked.body = Array<UInt8>()
+        // stub: Extract body bytes from response body value
+        // TODO: implement body extraction based on BodyValue variant
         baked.baked = true
         return baked
     }

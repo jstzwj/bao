@@ -4,9 +4,20 @@
 //              murmur32v2/v3, murmur64v2, rapidhash
 package bao_runtime.api
 
-import bao_jsc.*
+import bao_jsc.{JsGlobalObject, JsValue, JsObject, ArgumentsSlice, CallFrame, JsFunction}
 import bao_zlib_sys.*
-import bao_hash.*
+import bao_hash.{Wyhash, Wyhash11}
+import bao_hash.XxHash32
+import bao_hash.XxHash64
+import bao_hash.XxHash3
+import bao_hash.CityHash32
+import bao_hash.CityHash64
+import bao_hash.RapidHash
+import bao_hash.MurmurHash3
+import bao_hash.Adler32
+import bao_hash.Crc32
+import bao_hash.Highway
+import bao_hash.Fnv1a
 
 // ============================================================================
 // HashObject — 非加密哈希函数集合
@@ -384,7 +395,7 @@ public class HashObject {
     /// Wyhash — 默认哈希算法 (64-bit)
     /// 对应 Zig: std.hash.Wyhash.hash(seed, bytes)
     private static func wyhashCompute(seed: UInt64, input: Array<UInt8>): UInt64 {
-        return Wyhash.hashWithSeed(input, seed)
+        return Wyhash11.hashWithSeed(input, seed)
     }
 
     /// Adler-32 校验和

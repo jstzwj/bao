@@ -149,18 +149,17 @@ public class MetafileOutput {
         // Write inputs (bytesInOutput map)
         sb.append(",\n      \"inputs\": {")
         var firstInput = true
-        var inputIter = inputs.iterator()
-        while (inputIter.hasNext()) {
-            let entry = inputIter.next().getOrThrow()
+        let inputEntries = inputs.allEntries()
+        for (entry in inputEntries) {
             if (!firstInput) {
                 sb.append(",")
             }
             firstInput = false
 
             sb.append("\n        ")
-            sb.append(MetafileBuilder.jsonEncodeString(entry.0))
+            sb.append(MetafileBuilder.jsonEncodeString(entry[0]))
             sb.append(": {\n          \"bytesInOutput\": ")
-            sb.append(entry.1.toString())
+            sb.append(entry[1].toString())
             sb.append("\n        }")
         }
         if (!firstInput) {
@@ -264,11 +263,10 @@ public class Metafile {
 
         // Write inputs
         var firstInput = true
-        var inputIter = inputs.iterator()
-        while (inputIter.hasNext()) {
-            let entry = inputIter.next().getOrThrow()
-            let inputKey = entry.0
-            let inputValue = entry.1
+        let inputEntries2 = inputs.allEntries()
+        for (entry in inputEntries2) {
+            let inputKey = entry[0]
+            let inputValue = entry[1]
 
             if (!firstInput) {
                 sb.append(",")
@@ -318,11 +316,10 @@ public class Metafile {
 
         // Write outputs
         var firstOutput = true
-        var outputIter = outputs.iterator()
-        while (outputIter.hasNext()) {
-            let entry = outputIter.next().getOrThrow()
-            let outputKey = entry.0
-            let outputValue = entry.1
+        let outputEntries = outputs.allEntries()
+        for (entry in outputEntries) {
+            let outputKey = entry[0]
+            let outputValue = entry[1]
 
             if (!firstOutput) {
                 sb.append(",")

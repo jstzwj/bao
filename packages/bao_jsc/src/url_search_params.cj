@@ -56,7 +56,7 @@ public class URLSearchParamsFFI {
 
     /// 对应 Bun: URLSearchParams__toString(self, ctx, callback)
     /// The callback receives a ZigString synchronously.
-    public static func toString(handle: URLSearchParamsHandle, ctx: UIntPtr, callback: (UIntPtr, ZigString) -> Unit): Unit {
+    public static func toString(handle: URLSearchParamsHandle, ctx: UInt64, callback: (UInt64, ZigString) -> Unit): Unit {
         // TODO: restore URLSearchParams__toString FFI call
     }
 }
@@ -85,7 +85,7 @@ public class URLSearchParams {
     // 严格翻译自 URLSearchParams.create
     public static func create(globalObject: JsObject, initValue: ZigString): JsValue {
         // FFI: URLSearchParams__create
-        let sp = URLSearchParams(String.fromUtf8(initValue.slice()))
+        let sp = URLSearchParams(initValue.slice())
         sp.toJsValue()
     }
 
@@ -110,7 +110,7 @@ public class URLSearchParams {
     public func toString(callback: (ZigString) -> Unit) {
         // FFI: URLSearchParams__toString
         let result = toString()
-        callback(ZigString.from(result))
+        callback(ZigString(result))
     }
 
     /// toString — serialize to query string
@@ -242,60 +242,63 @@ public class URLSearchParams {
         let obj = JsObject()
         let sp = this
 
-        obj.set("append", JsValue.nativeFunction(JsNativeFunction("append") { args =>
+        obj.set("append", JsValue.nativeFunction("append") { args =>
             if (args.size >= 2) {
                 sp.append(args[0].toString(), args[1].toString())
             }
             JsValue.UNDEFINED
-        }))
+        })
 
-        obj.set("delete", JsValue.nativeFunction(JsNativeFunction("delete") { args =>
+        obj.set("delete", JsValue.nativeFunction("delete") { args =>
             if (args.size >= 1) { sp.delete(args[0].toString()) }
             JsValue.UNDEFINED
-        }))
+        })
 
-        obj.set("get", JsValue.nativeFunction(JsNativeFunction("get") { args =>
+        obj.set("get", JsValue.nativeFunction("get") { args =>
             if (args.size >= 1) {
                 match (sp.get(args[0].toString())) {
-                    case Some(v) => return JsValue(v)
-                    case None => return JsValue.NULL
+                    case Some(v) => JsValue(v)
+                    case None => JsValue.NULL
                 }
+            } else {
+                JsValue.NULL
             }
-            JsValue.NULL
-        }))
+        })
 
-        obj.set("getAll", JsValue.nativeFunction(JsNativeFunction("getAll") { args =>
+        obj.set("getAll", JsValue.nativeFunction("getAll") { args =>
             if (args.size >= 1) {
                 let vals = sp.getAll(args[0].toString())
                 let arr = ArrayList<JsValue>()
                 for (v in vals) { arr.append(JsValue(v)) }
-                return JsValue.array(arr)
+                JsValue.array(arr)
+            } else {
+                JsValue.array(ArrayList<JsValue>())
             }
-            JsValue.array(ArrayList<JsValue>())
-        }))
+        })
 
-        obj.set("has", JsValue.nativeFunction(JsNativeFunction("has") { args =>
+        obj.set("has", JsValue.nativeFunction("has") { args =>
             if (args.size >= 1) {
-                return JsValue(sp.has(args[0].toString()))
+                JsValue(sp.has(args[0].toString()))
+            } else {
+                JsValue(false)
             }
-            JsValue(false)
-        }))
+        })
 
-        obj.set("set", JsValue.nativeFunction(JsNativeFunction("set") { args =>
+        obj.set("set", JsValue.nativeFunction("set") { args =>
             if (args.size >= 2) {
                 sp.set(args[0].toString(), args[1].toString())
             }
             JsValue.UNDEFINED
-        }))
+        })
 
-        obj.set("sort", JsValue.nativeFunction(JsNativeFunction("sort") { _ =>
+        obj.set("sort", JsValue.nativeFunction("sort") { args =>
             sp.sort()
             JsValue.UNDEFINED
-        }))
+        })
 
-        obj.set("toString", JsValue.nativeFunction(JsNativeFunction("toString") { _ =>
+        obj.set("toString", JsValue.nativeFunction("toString") { args =>
             JsValue(sp.toString())
-        }))
+        })
 
         obj.className = "URLSearchParams"
         JsValue(obj)

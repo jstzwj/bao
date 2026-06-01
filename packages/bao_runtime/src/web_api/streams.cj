@@ -55,13 +55,12 @@ public class WebReadableStream {
     }
 
     private func startUnderlyingSource(src: ?UnderlyingSource): Unit {
-        match (src) {
-            case Some(s) =>
-                match (s.start) {
-                    case Some(startFn) => startFn(this)
-                    case None => ()
-                }
-            case None => ()
+        if (src.isSome()) {
+            let s = src.getOrThrow()
+            if (s.start.isSome()) {
+                let startFn = s.start.getOrThrow()
+                startFn(this)
+            }
         }
     }
 
@@ -160,11 +159,12 @@ public class WebReadableStream {
                 dest.close()
                 break
             }
-            match (result.value) {
-                case Some(chunk) => dest.write(chunk)
-                case None =>
-                    dest.close()
-                    break
+            if (result.value.isSome()) {
+                let chunk = result.value.getOrThrow()
+                dest.write(chunk)
+            } else {
+                dest.close()
+                break
             }
         }
         reader.releaseLock()
@@ -310,14 +310,15 @@ public class WebReadableStreamDefaultReader {
             try {
                 let result = self.read()
                 let resultObj = JsObject()
-                match (result.value) {
-                    case Some(bytes) =>
-                        let arr = ArrayList<JsValue>()
-                        for (b in bytes) {
-                            arr.append(JsValue(Float64(Int64(b))))
-                        }
-                        resultObj.set("value", JsValue.array(arr))
-                    case None => resultObj.set("value", JsValue.UNDEFINED)
+                if (result.value.isSome()) {
+                    let bytes = result.value.getOrThrow()
+                    let arr = ArrayList<JsValue>()
+                    for (b in bytes) {
+                        arr.append(JsValue(Float64(Int64(b))))
+                    }
+                    resultObj.set("value", JsValue.array(arr))
+                } else {
+                    resultObj.set("value", JsValue.UNDEFINED)
                 }
                 resultObj.set("done", JsValue(result.done))
                 return JsValue(resultObj)
@@ -463,13 +464,12 @@ public class WebWritableStream {
         highWaterMark = 16384
         writer = None
         // 触发 start
-        match (this.underlyingSink) {
-            case Some(sink) =>
-                match (sink.start) {
-                    case Some(startFn) => startFn(this)
-                    case None => ()
-                }
-            case None => ()
+        if (this.underlyingSink.isSome()) {
+            let sink = this.underlyingSink.getOrThrow()
+            if (sink.start.isSome()) {
+                let startFn = sink.start.getOrThrow()
+                startFn(this)
+            }
         }
     }
 
@@ -479,13 +479,12 @@ public class WebWritableStream {
         errored = true
         errorMessage = reason
         closed = true
-        match (underlyingSink) {
-            case Some(sink) =>
-                match (sink.abort) {
-                    case Some(abortFn) => abortFn(reason)
-                    case None => ()
-                }
-            case None => ()
+        if (underlyingSink.isSome()) {
+            let sink = underlyingSink.getOrThrow()
+            if (sink.abort.isSome()) {
+                let abortFn = sink.abort.getOrThrow()
+                abortFn(reason)
+            }
         }
     }
 
@@ -495,13 +494,12 @@ public class WebWritableStream {
             return
         }
         closed = true
-        match (underlyingSink) {
-            case Some(sink) =>
-                match (sink.close) {
-                    case Some(closeFn) => closeFn(this)
-                    case None => ()
-                }
-            case None => ()
+        if (underlyingSink.isSome()) {
+            let sink = underlyingSink.getOrThrow()
+            if (sink.close.isSome()) {
+                let closeFn = sink.close.getOrThrow()
+                closeFn(this)
+            }
         }
     }
 
@@ -513,13 +511,12 @@ public class WebWritableStream {
         for (b in chunk) {
             buffer.append(b)
         }
-        match (underlyingSink) {
-            case Some(sink) =>
-                match (sink.write) {
-                    case Some(writeFn) => writeFn(chunk, this)
-                    case None => ()
-                }
-            case None => ()
+        if (underlyingSink.isSome()) {
+            let sink = underlyingSink.getOrThrow()
+            if (sink.write.isSome()) {
+                let writeFn = sink.write.getOrThrow()
+                writeFn(chunk, this)
+            }
         }
     }
 
@@ -701,13 +698,12 @@ public class WebTransformStream {
         readable = WebReadableStream()
         writable = WebWritableStream()
         // 触发 start
-        match (this.transformer) {
-            case Some(t) =>
-                match (t.start) {
-                    case Some(startFn) => startFn(this)
-                    case None => ()
-                }
-            case None => ()
+        if (this.transformer.isSome()) {
+            let t = this.transformer.getOrThrow()
+            if (t.start.isSome()) {
+                let startFn = t.start.getOrThrow()
+                startFn(this)
+            }
         }
     }
 
@@ -878,11 +874,12 @@ public class StreamsModule {
         // ByteLengthQueuingStrategy 构造函数
         env.define("ByteLengthQueuingStrategy", Interpreter.makeNativeFn("ByteLengthQueuingStrategy") { args =>
             let hwm = if (args.size >= 1) {
-                match (args[0].objectData) {
-                    case Some(obj) =>
-                        let val = obj.get("highWaterMark")
-                        Int64(Interpreter.jsToNumber(val))
-                    case None => Int64(16384)
+                if (args[0].objectData.isSome()) {
+                    let obj = args[0].objectData.getOrThrow()
+                    let val = obj.get("highWaterMark")
+                    Int64(Interpreter.jsToNumber(val))
+                } else {
+                    Int64(16384)
                 }
             } else {
                 Int64(16384)
@@ -896,11 +893,12 @@ public class StreamsModule {
         // CountQueuingStrategy 构造函数
         env.define("CountQueuingStrategy", Interpreter.makeNativeFn("CountQueuingStrategy") { args =>
             let hwm = if (args.size >= 1) {
-                match (args[0].objectData) {
-                    case Some(obj) =>
-                        let val = obj.get("highWaterMark")
-                        Int64(Interpreter.jsToNumber(val))
-                    case None => Int64(16384)
+                if (args[0].objectData.isSome()) {
+                    let obj = args[0].objectData.getOrThrow()
+                    let val = obj.get("highWaterMark")
+                    Int64(Interpreter.jsToNumber(val))
+                } else {
+                    Int64(16384)
                 }
             } else {
                 Int64(16384)

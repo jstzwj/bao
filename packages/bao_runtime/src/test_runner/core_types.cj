@@ -849,6 +849,21 @@ public class GetActiveCfg {
 // ========== GenericHookTag ==========
 public enum GenericHookTag {
     | beforeAll | beforeEach | afterEach | afterAll | onTestFinished
+
+    public operator func ==(other: GenericHookTag): Bool {
+        match (this) {
+            case beforeAll => match (other) { case beforeAll => true; case _ => false }
+            case beforeEach => match (other) { case beforeEach => true; case _ => false }
+            case afterEach => match (other) { case afterEach => true; case _ => false }
+            case afterAll => match (other) { case afterAll => true; case _ => false }
+            case onTestFinished => match (other) { case onTestFinished => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: GenericHookTag): Bool {
+        !(this == other)
+    }
+
     public func asHookTag(): ?DescribeScopeHookTag {
         match (this) {
             case beforeAll => return DescribeScopeHookTag.beforeAll

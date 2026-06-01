@@ -2,6 +2,8 @@ package bao_cli
 
 import bao_collections.*
 import bao_http.*
+import bao_runtime.*
+import bao_io.*
 
 public class ByteArray {
     public var data: Array<UInt8>
@@ -59,20 +61,6 @@ public class Entry {
     public init(key: String, val: String) {
         this.key = key
         this.val = val
-    }
-}
-
-public class VirtualMachine {
-    public init() {}
-
-    // 覆盖率字节范围 (桩)
-    public func getCoverageByteRanges(): ArrayList<Any> {
-        ArrayList<Any>()
-    }
-
-    // 顶级目录 (桩)
-    public func getTopLevelDir(): String {
-        ""
     }
 }
 

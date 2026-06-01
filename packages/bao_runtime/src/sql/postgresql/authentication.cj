@@ -4,6 +4,7 @@
 package bao_runtime.sql.postgresql
 
 import bao_runtime.sql.shared.*
+import std.convert.*
 
 /// PostgreSQL 认证消息
 /// 对应 Bun Authentication
@@ -23,16 +24,13 @@ public enum AuthenticationMessage {
     /// 释放资源
     public func deinit() {
         match (this) {
-            case SASLContinue(data) => {
-                data.data.zeroDeinit()
-            }
-            case SASLFinal(data) => {
-                data.zeroDeinit()
-            }
-            case GSSContinue(data) => {
+            case SASLContinue(data) =>
+                data.data.deinit()
+            case SASLFinal(data) =>
                 data.deinit()
-            }
-            case _ => {}
+            case GSSContinue(data) =>
+                data.deinit()
+            case _ => ()
         }
     }
 }
@@ -55,7 +53,11 @@ public class SASLContinueData {
     /// 获取迭代次数
     /// 对应 Bun SASLContinue.iterationCount()
     public func iterationCount(): ?UInt32 {
-        UInt32.parse(i)
+        try {
+            Some(UInt32(Int64.parse(i, radix: 10)))
+        } catch (_: Exception) {
+            None
+        }
     }
 }
 
@@ -69,16 +71,15 @@ public class AuthenticationDecoder {
         let messageLength = reader.readLength()
         match (messageLength) {
             case None => return None
-            case Some(_)=> {}
+            case Some(_) => ()
         }
 
         // 读取认证类型码
         let authType = reader.readUInt32()
         match (authType) {
             case None => return None
-            case Some(code) => {
-                return decodeByCode(reader, code)
-            }
+            case Some(v) =>
+                return decodeByCode(reader, v)
         }
     }
 
@@ -87,28 +88,30 @@ public class AuthenticationDecoder {
             case 0 => Some(AuthenticationMessage.Ok)  // AuthenticationOk
             case 2 => Some(AuthenticationMessage.KerberosV5)
             case 3 => Some(AuthenticationMessage.ClearTextPassword)
-            case 5 => {
+            case 5 =>
                 // MD5Password: 4 字节盐值
                 match (reader.readBytes(4)) {
                     case Some(salt) => Some(AuthenticationMessage.MD5Password(salt))
                     case None => None
                 }
-            }
             case 7 => Some(AuthenticationMessage.GSS)
-            case 8 => {
+            case 8 =>
                 // GSSContinue: 剩余数据
                 match (reader.readData(reader.remaining())) {
                     case Some(data) => Some(AuthenticationMessage.GSSContinue(data))
                     case None => None
                 }
-            }
             case 9 => Some(AuthenticationMessage.SSPI)
             case 10 => Some(AuthenticationMessage.SASL)  // SASL 认证开始
-            case 11 => {
+            case 11 =>
                 // SASLContinue: 解析 r, s, i 参数
                 match (reader.readNullTerminatedBytes()) {
-                    case Some(bytes) => {
-                        let str = bytes.toArray().map({ b => Char.fromUInt8(b) }).toString()
+                    case Some(bytes) =>
+                        var sb = StringBuilder()
+                        for (b in bytes) {
+                            sb.append(Rune(Int32(b)))
+                        }
+                        let str = sb.toString()
                         let parts = str.split(",")
                         var r = ""
                         var s = ""
@@ -117,30 +120,27 @@ public class AuthenticationDecoder {
                             if (part.size > 2) {
                                 let key = part[0]
                                 let value = part[2..].toString()
-                                if (key == 'r') {
+                                if (key == 114) {  // 'r'
                                     r = value
-                                } else if (key == 's') {
+                                } else if (key == 115) {  // 's'
                                     s = value
-                                } else if (key == 'i') {
+                                } else if (key == 105) {  // 'i'
                                     ii = value
                                 }
                             }
                         }
-                        let data = SQLData(temporary: bytes)
+                        let data = SQLData.fromTemporary(bytes)
                         Some(AuthenticationMessage.SASLContinue(
-                            SASLContinueData(data: data, r: r, s: s, i: ii)
+                            SASLContinueData(data, r, s, ii)
                         ))
-                    }
                     case None => None
                 }
-            }
-            case 12 => {
+            case 12 =>
                 // SASLFinal: 剩余数据
                 match (reader.readData(reader.remaining())) {
                     case Some(data) => Some(AuthenticationMessage.SASLFinal(data))
                     case None => None
                 }
-            }
             case _ => Some(AuthenticationMessage.Unknown)
         }
     }

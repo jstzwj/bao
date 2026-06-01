@@ -134,9 +134,8 @@ public class ProcessModule {
         // env
         let envObj = JsObject()
         for (key in env.keys()) {
-            match (env.get(key)) {
-                case Some(v) => envObj.set(key, JsValue(BaoString(v)))
-                case None => ()
+            if (env.get(key).isSome()) {
+                envObj.set(key, JsValue(BaoString(env.get(key).getOrThrow())))
             }
         }
         obj.set("env", JsValue(envObj))
@@ -210,9 +209,8 @@ public class ProcessModule {
             let mu = memoryUsage()
             let muObj = JsObject()
             for (key in mu.keys()) {
-                match (mu.get(key)) {
-                    case Some(v) => muObj.set(key, JsValue(v))
-                    case None => ()
+                if (mu.get(key).isSome()) {
+                    muObj.set(key, JsValue(mu.get(key).getOrThrow()))
                 }
             }
             return JsValue(muObj)

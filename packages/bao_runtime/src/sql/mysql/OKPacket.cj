@@ -3,6 +3,8 @@
 package bao_runtime.sql.mysql
 
 import bao_core.*
+import bao_sql.*
+import bao_sql.mysql.protocol.*
 import bao_runtime.sql.shared.*
 
 /// MySQL OK 响应包
@@ -49,38 +51,34 @@ public class OKPacket {
     public func decode(reader: MySQLPacketReader): Unit {
         var readSize: Int64 = 5  // header + status flags + warnings
 
-        header = reader.readInt8()
+        header = reader.int8()
         if (header != 0x00 && header != 0xfe) {
             return  // InvalidOKPacket
         }
 
         // Affected rows (长度编码整数)
-        let affectedResult = reader.readEncodedLenIntWithSize(readSize)
-        if (let Some(r) <- affectedResult) {
-            affectedRows = r.value
-            readSize = r.bytesRead
-        }
+        let affectedResult = reader.encodedLenIntWithSize()
+        affectedRows = affectedResult.value
+        readSize = affectedResult.bytesRead
 
         // Last insert ID (长度编码整数)
-        let insertResult = reader.readEncodedLenIntWithSize(readSize)
-        if (let Some(r) <- insertResult) {
-            lastInsertId = r.value
-            readSize = r.bytesRead
-        }
+        let insertResult = reader.encodedLenIntWithSize()
+        lastInsertId = insertResult.value
+        readSize = insertResult.bytesRead
 
         // Status flags (2 字节)
-        let sf = reader.readInt16()
+        let sf = reader.int16()
         statusFlags = StatusFlags.fromInt(sf)
 
         // Warnings (2 字节)
-        warnings = reader.readInt16()
+        warnings = reader.int16()
 
         // Info (剩余字节)
         let peeked = reader.peek()
         if (peeked.size > 0 && packetSize > UInt32(readSize)) {
             let remaining = Int64(packetSize) - readSize
             if (remaining > 0) {
-                info = reader.readBytes(Int64(remaining))
+                info = SQLData.fromTemporary(reader.read(remaining))
             }
         }
     }

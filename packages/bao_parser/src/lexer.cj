@@ -1341,6 +1341,147 @@ public class Lexer {
         }
     }
 
+    /// 期望 '<' 或相关 token - 对应 Bun expectLessThan()
+    /// 严格翻译自: src/js_parser/lexer.zig:1019-1045
+    ///   pub fn expectLessThan(noalias lexer: *LexerType, comptime is_inside_jsx_element: bool) !void
+    /// 支持: '<', '<=', '<<', '<<=' 的分解消费
+    public func expectLessThan(isInsideJsxElement: Bool): Unit {
+        match (token) {
+            case Token.LessThan =>
+                if (isInsideJsxElement) {
+                    nextInsideJsxElement()
+                } else {
+                    nextToken()
+                }
+            case Token.LessThanEquals =>
+                token = Token.Equals
+                start += 1
+                maybeExpandEquals()
+            case Token.LessThanLessThan =>
+                token = Token.LessThan
+                start += 1
+            case Token.LessThanLessThanEquals =>
+                token = Token.LessThanEquals
+                start += 1
+            case _ =>
+                expected(Token.LessThan)
+        }
+    }
+
+    /// 期望 '>' 或相关 token - 对应 Bun expectGreaterThan()
+    /// 严格翻译自: src/js_parser/lexer.zig:1047-1087
+    ///   pub fn expectGreaterThan(noalias lexer: *LexerType, comptime is_inside_jsx_element: bool) !void
+    /// 支持: '>', '>=', '>>', '>>=', '>>>', '>>>=' 的分解消费
+    public func expectGreaterThan(isInsideJsxElement: Bool): Unit {
+        match (token) {
+            case Token.GreaterThan =>
+                if (isInsideJsxElement) {
+                    nextInsideJsxElement()
+                } else {
+                    nextToken()
+                }
+            case Token.GreaterThanEquals =>
+                token = Token.Equals
+                start += 1
+                maybeExpandEquals()
+            case Token.GreaterThanGreaterThanEquals =>
+                token = Token.GreaterThanEquals
+                start += 1
+            case Token.GreaterThanGreaterThanGreaterThanEquals =>
+                token = Token.GreaterThanGreaterThanEquals
+                start += 1
+            case Token.GreaterThanGreaterThan =>
+                token = Token.GreaterThan
+                start += 1
+            case Token.GreaterThanGreaterThanGreaterThan =>
+                token = Token.GreaterThanGreaterThan
+                start += 1
+            case _ =>
+                expected(Token.GreaterThan)
+        }
+    }
+
+    /// 等号后可能的扩展 - 对应 Bun maybeExpandEquals()
+    /// 严格翻译自: src/js_parser/lexer.zig:997-1017
+    ///   pub fn maybeExpandEquals(noalias lexer: *LexerType) !void
+    /// '=' + '>' = '=>'
+    /// '=' + '=' = '=='
+    /// '=' + '==' = '==='
+    public func maybeExpandEquals(): Unit {
+        if (codePoint == 62) { // '>'
+            token = Token.EqualsGreaterThan
+            step()
+        } else if (codePoint == 61) { // '='
+            token = Token.EqualsEquals
+            step()
+            if (codePoint == 61) { // '='
+                token = Token.EqualsEqualsEquals
+                step()
+            }
+        }
+    }
+
+    /// 期望上下文关键字 - 对应 Bun expectContextualKeyword()
+    /// 严格翻译自: src/js_parser/lexer.zig:981-995
+    ///   pub fn expectContextualKeyword(noalias self: *LexerType, comptime keyword: string) !void
+    public func expectContextualKeyword(keyword: String): Unit {
+        if (!isContextualKeyword(keyword)) {
+            addRangeError(range(), "Expected \"${keyword}\" but found \"${raw()}\"")
+        }
+        nextToken()
+    }
+
+    /// 重新扫描 '}' 作为模板 token - 对应 Bun rescanCloseBraceAsTemplateToken()
+    /// 严格翻译自: src/js_parser/lexer.zig:2636-2649
+    ///   pub fn rescanCloseBraceAsTemplateToken(lexer: *LexerType) !void
+    /// 在模板字面量 ${expr} 的 } 之后调用，将 } 重新扫描为模板中间/尾部 token
+    public func doRescanCloseBraceAsTemplateToken(): Unit {
+        rescanCloseBraceAsTemplateToken = true
+        step() // 消费 '}'
+        scanTemplateContinuation()
+        rescanCloseBraceAsTemplateToken = false
+    }
+
+    /// 获取原始模板内容 - 对应 Bun rawTemplateContents()
+    /// 严格翻译自: src/js_parser/lexer.zig:2651-2701
+    ///   pub fn rawTemplateContents(noalias lexer: *LexerType) string
+    /// 返回模板字面量的原始文本内容（不含分隔符）
+    public func rawTemplateContents(): String {
+        // 根据 token 类型确定偏移
+        var beginOffset: Int64 = 0
+        var endOffset: Int64 = 0
+        match (token) {
+            case Token.NoSubstitutionTemplateLiteral =>
+                beginOffset = 1
+                endOffset = 1
+            case Token.TemplateHead =>
+                beginOffset = 1
+                endOffset = 2 // "${"
+            case Token.TemplateMiddle =>
+                beginOffset = 1 // "}"
+                endOffset = 2 // "${"
+            case Token.TemplateTail =>
+                beginOffset = 1 // "}"
+                endOffset = 1
+            case _ =>
+                beginOffset = 0
+                endOffset = 0
+        }
+
+        let b = start + beginOffset
+        let e = if (end > endOffset) { end - endOffset } else { end }
+        if (b >= e || b >= source.contents.size) {
+            return ""
+        }
+        var sb = StringBuilder()
+        for (i in b..e) {
+            if (Int64(i) < source.contents.size) {
+                sb.append(Rune(source.contents[Int64(i)]))
+            }
+        }
+        return sb.toString()
+    }
+
     /// 期望 token 错误 - 对应 Bun expected()
     public func expected(t: Token): Unit {
         if (isLogDisabled) {
@@ -1377,12 +1518,14 @@ public class Lexer {
 
     /// 是否为标识符起始 - 对应 Bun isIdentifierStart()
     public static func isIdentifierStart(c: Int64): Bool {
-        return isIdentifierStart(UInt32(c))
+        // 简化实现: ASCII 范围内检查
+        return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == 95 || c == 36
     }
 
     /// 是否为标识符继续 - 对应 Bun isIdentifierContinue()
     public static func isIdentifierContinue(c: Int64): Bool {
-        return isIdentifierContinue(UInt32(c))
+        // 简化实现: ASCII 范围内检查
+        return isIdentifierStart(c) || (c >= 48 && c <= 57)
     }
 
     /// 是否为上下文关键字 - 对应 Bun isContextualKeyword()
@@ -1507,17 +1650,377 @@ public class Lexer {
     // JSX 支持
     // 严格对应 Bun Lexer 的 JSX 相关方法
     //   nextInsideJSXElement, nextJSXElementChild, decodeJSXEntities
+    //   expectJSXElementChild, expectInsideJSXElement, parseJSXStringLiteral
+    //   fixWhitespaceAndDecodeJSXEntities, maybeDecodeJSXEntity, decodeJSXEntities
     // ========================================================================
 
     /// JSX 元素内部下一个 token - 对应 Bun nextInsideJSXElement()
+    /// 严格翻译自: src/js_parser/lexer.zig:2177-2326
+    ///   pub fn nextInsideJSXElement(noalias lexer: *LexerType) !void
+    /// 在 JSX 元素内部，只识别有限的 token 类型:
+    ///   标识符, 字符串, {, }, <, >, =, ., /, 注释, 空白
     public func nextInsideJsxElement(): Unit {
-        // 简化实现
-        nextToken()
+        hasNewlineBefore = false
+
+        while (true) {
+            start = end
+            token = Token.EndOfFile
+
+            if (codePoint == -1) {
+                // EOF
+                return
+            }
+
+            if (codePoint == 13 || codePoint == 10 || codePoint == 0x2028 || codePoint == 0x2029) {
+                // 换行
+                step()
+                hasNewlineBefore = true
+                continue
+            }
+
+            if (codePoint == 9 || codePoint == 32) {
+                // 空白
+                step()
+                continue
+            }
+
+            if (codePoint == 46) { // '.'
+                step()
+                token = Token.Dot
+                return
+            }
+
+            if (codePoint == 61) { // '='
+                step()
+                token = Token.Equals
+                return
+            }
+
+            if (codePoint == 123) { // '{'
+                step()
+                token = Token.OpenBrace
+                return
+            }
+
+            if (codePoint == 125) { // '}'
+                step()
+                token = Token.CloseBrace
+                return
+            }
+
+            if (codePoint == 60) { // '<'
+                step()
+                token = Token.LessThan
+                return
+            }
+
+            if (codePoint == 62) { // '>'
+                step()
+                token = Token.GreaterThan
+                return
+            }
+
+            if (codePoint == 47) { // '/'
+                step()
+                if (codePoint == 47) { // '//'
+                    // 单行注释
+                    scanSingleLineComment()
+                    scanCommentText(false)
+                    continue
+                } else if (codePoint == 42) { // '/*'
+                    step()
+                    scanMultiLineComment()
+                    scanCommentText(true)
+                    continue
+                } else {
+                    token = Token.Slash
+                }
+                return
+            }
+
+            if (codePoint == 39 || codePoint == 34) { // '\'' or '"'
+                // JSX 字符串字面量
+                parseJsxStringLiteral(codePoint)
+                return
+            }
+
+            if (codePoint == 95 || codePoint == 36 ||
+                (codePoint >= 97 && codePoint <= 122) ||
+                (codePoint >= 65 && codePoint <= 90) ||
+                codePoint >= 0x80) {
+                // 标识符 (包括 Unicode 标识符)
+                scanIdentifier()
+                return
+            }
+
+            // 其他字符
+            step()
+            token = Token.SyntaxError
+            return
+        }
+    }
+
+    /// 解析 JSX 字符串字面量 - 对应 Bun parseJSXStringLiteral()
+    /// 严格翻译自: src/js_parser/lexer.zig:2327-2397
+    ///   pub fn parseJSXStringLiteral(lexer: *LexerType, comptime quote: u8) !void
+    /// JSX 字符串属性值中的转义序列处理
+    private func parseJsxStringLiteral(`quote`: Int64): Unit {
+        token = Token.StringLiteral
+        step()
+
+        var needsDecode = false
+        var backslash: Range = Range.NONE
+
+        while (true) {
+            if (codePoint == -1) {
+                addError(start, "Unterminated string literal")
+                break
+            }
+
+            if (codePoint == `quote`) {
+                step()
+                break
+            }
+
+            if (codePoint == 92) { // '\'
+                // 反斜杠转义
+                needsDecode = true
+                step()
+                if (codePoint == 13) { // '\r'
+                    // CRLF 处理
+                    step()
+                    if (codePoint == 10) { // '\n'
+                        step()
+                    }
+                    continue
+                }
+                // 消费转义字符
+                step()
+                continue
+            }
+
+            if (codePoint == 13 || codePoint == 10 || codePoint == 0x2028 || codePoint == 0x2029) {
+                // JSX 字符串中不允许换行
+                addError(start, "Unterminated string literal")
+                break
+            }
+
+            if (codePoint >= 0x80) {
+                needsDecode = true
+            }
+
+            step()
+        }
+
+        // 设置原始内容
+        if (start + 1 < end - 1) {
+            stringLiteralRawContent = raw()
+            stringLiteralStart = start
+            stringLiteralRawFormat = if (needsDecode) {
+                StringLiteralFormat.NeedsDecode
+            } else {
+                StringLiteralFormat.Ascii
+            }
+        } else {
+            stringLiteralRawContent = ""
+            stringLiteralStart = start
+            stringLiteralRawFormat = StringLiteralFormat.Ascii
+        }
+    }
+
+    /// JSX 元素子元素期望 - 对应 Bun expectJSXElementChild()
+    /// 严格翻译自: src/js_parser/lexer.zig:2399-2407
+    ///   pub fn expectJSXElementChild(noalias lexer: *LexerType, token: T) !void
+    public func expectJsxElementChild(t: Token): Unit {
+        if (token != t) {
+            expected(t)
+        }
+        nextJsxElementChild()
     }
 
     /// JSX 子元素下一个 token - 对应 Bun nextJSXElementChild()
+    /// 严格翻译自: src/js_parser/lexer.zig:2409-2478
+    ///   pub fn nextJSXElementChild(lexer: *LexerType) !void
+    /// 在 JSX 子元素中:
+    ///   '{' -> OpenBrace (开始表达式)
+    ///   '<' -> LessThan (开始新元素)
+    ///   其他 -> StringLiteral (文本内容)
     public func nextJsxElementChild(): Unit {
-        nextToken()
+        hasNewlineBefore = false
+        let originalStart = end
+
+        while (true) {
+            start = end
+            token = Token.EndOfFile
+
+            if (codePoint == -1) {
+                // EOF
+                return
+            }
+
+            if (codePoint == 123) { // '{'
+                step()
+                token = Token.OpenBrace
+                return
+            }
+
+            if (codePoint == 60) { // '<'
+                step()
+                token = Token.LessThan
+                return
+            }
+
+            // 文本内容 - 扫描直到遇到 '{', '<', 或 EOF
+            var needsFixing = false
+
+            while (true) {
+                if (codePoint == -1) {
+                    addError(start, "Unexpected end of file in JSX")
+                    break
+                }
+                if (codePoint == 38) { // '&' - JSX 实体
+                    needsFixing = true
+                    step()
+                    continue
+                }
+                if (codePoint == 13 || codePoint == 10 ||
+                    codePoint == 0x2028 || codePoint == 0x2029) {
+                    needsFixing = true
+                    step()
+                    continue
+                }
+                if (codePoint == 123 || codePoint == 60) { // '{' or '<'
+                    break
+                }
+                if (codePoint >= 0x80) {
+                    needsFixing = true
+                }
+                step()
+            }
+
+            token = Token.StringLiteral
+
+            // 设置原始内容
+            if (originalStart < end) {
+                var sb = StringBuilder()
+                for (i in originalStart..end) {
+                    sb.append(Rune(source.contents[Int64(i)]))
+                }
+                stringLiteralRawContent = sb.toString()
+            } else {
+                stringLiteralRawContent = ""
+            }
+            stringLiteralStart = start
+            stringLiteralRawFormat = if (needsFixing) {
+                StringLiteralFormat.NeedsDecode
+            } else {
+                StringLiteralFormat.Ascii
+            }
+
+            // 跳过空内容
+            if (stringLiteralRawContent.size == 0 && needsFixing) {
+                hasNewlineBefore = true
+                continue
+            }
+
+            return
+        }
+    }
+
+    /// JSX 元素内部期望 token - 对应 Bun expectInsideJSXElement()
+    /// 严格翻译自: src/js_parser/lexer.zig:2593-2603
+    ///   pub fn expectInsideJSXElement(noalias lexer: *LexerType, token: T) !void
+    public func expectInsideJsxElement(t: Token): Unit {
+        if (token != t) {
+            expected(t)
+        }
+        nextInsideJsxElement()
+    }
+
+    /// JSX 元素内部期望 token (带名称) - 对应 Bun expectInsideJSXElementWithName()
+    /// 严格翻译自: src/js_parser/lexer.zig:2604-2614
+    public func expectInsideJsxElementWithName(t: Token, name: String): Unit {
+        if (token != t) {
+            expected(t)
+        }
+        nextInsideJsxElement()
+    }
+
+    /// 解码 JSX 实体 - 对应 Bun decodeJSXEntities()
+    /// 严格翻译自: src/js_parser/lexer.zig:2565-2592
+    ///   pub fn decodeJSXEntities(lexer: *LexerType, text: string, out: *std.array_list.Managed(u16)) !void
+    /// 将 JSX 文本中的 HTML 实体引用 (&amp; etc.) 解码为 Unicode 码点
+    public func decodeJsxEntities(text: String): String {
+        var result = StringBuilder()
+        var i: Int64 = 0
+        while (i < text.size) {
+            let c = Int64(text[Int64(i)])
+            if (c == 38) { // '&'
+                // 尝试解码实体
+                let decoded = tryDecodeJsxEntity(text, i)
+                if (decoded.codePoint >= 0) {
+                    result.append(Rune(decoded.codePoint))
+                    i = decoded.nextIndex
+                    continue
+                }
+            }
+            result.append(Rune(c))
+            i += 1
+        }
+        return result.toString()
+    }
+
+    /// 尝试解码 JSX 实体 - 对应 Bun maybeDecodeJSXEntity()
+    /// 严格翻译自: src/js_parser/lexer.zig:2529-2563
+    private func tryDecodeJsxEntity(text: String, startPos: Int64): JsxEntityResult {
+        // 查找 ';' 终止符
+        var semiPos: Int64 = startPos + 1
+        while (semiPos < text.size) {
+            if (Int64(text[Int64(semiPos)]) == 59) { // ';'
+                break
+            }
+            semiPos += 1
+        }
+        if (semiPos >= text.size || Int64(text[Int64(semiPos)]) != 59) {
+            return JsxEntityResult(-1, startPos + 1)
+        }
+
+        let entity = text[Int64(startPos + 1)..Int64(semiPos)]
+        if (entity.size == 0) {
+            return JsxEntityResult(-1, startPos + 1)
+        }
+
+        // 数字实体: &#123; 或 &#x1F;
+        if (Int64(entity[Int64(0)]) == 35) { // '#'
+            var number = entity[1..]
+            var base: Int64 = 10
+            if (number.size > 1 && Int64(number[Int64(0)]) == 120) { // 'x'
+                number = number[1..]
+                base = 16
+            }
+            var value: Int64 = 0
+            var valid = true
+            for (c in number) {
+                let d = decodeHexDigit(Int64(c))
+                if (base == 16 || (Int64(c) >= 48 && Int64(c) <= 57)) {
+                    value = value * base + d
+                } else {
+                    valid = false
+                    break
+                }
+            }
+            if (valid && value > 0 && value <= 0x10FFFF) {
+                return JsxEntityResult(value, semiPos + 1)
+            }
+            return JsxEntityResult(-1, startPos + 1)
+        }
+
+        // 命名实体: 从查找表获取
+        let cp = JsxEntityMap.getJsxEntity(entity)
+        if (cp >= 0) {
+            return JsxEntityResult(cp, semiPos + 1)
+        }
+        return JsxEntityResult(-1, startPos + 1)
     }
 
     // ========================================================================
@@ -1591,5 +2094,15 @@ public class Lexer {
         // 恢复 buffer
         allComments = myComments
         commentsToPreserveBefore = myPreserve
+    }
+}
+
+/// JSX 实体解码结果 (moved out of Lexer class due to Cangjie restriction)
+class JsxEntityResult {
+    public var codePoint: Int64
+    public var nextIndex: Int64
+    public init(cp: Int64, next: Int64) {
+        codePoint = cp
+        nextIndex = next
     }
 }

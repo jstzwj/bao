@@ -872,8 +872,17 @@ public class BunVirtualMachine {
         // NODE_CHANNEL_FD -> 初始化 IPC
         let channelFd = getEnv("NODE_CHANNEL_FD")
         if (channelFd.isSome()) {
-            let fd = Int64(channelFd.getOrThrow()) ?? Int64(0)
-            let mode = getEnv("NODE_CHANNEL_SERIALIZATION_MODE") ?? "json"
+            let fdStr = channelFd.getOrThrow()
+            // Simple string-to-int parsing
+            var fd: Int64 = 0
+            for (c in fdStr) {
+                if (c >= 48 && c <= 57) { // '0'=48, '9'=57
+                    let digit = Int64(c) - 48
+                    fd = fd * 10 + digit
+                }
+            }
+            let modeOpt = getEnv("NODE_CHANNEL_SERIALIZATION_MODE")
+            let mode = match (modeOpt) { case Some(m) => m case None => "json" }
             initIPCInstance(fd, mode)
         }
 
@@ -896,7 +905,15 @@ public class BunVirtualMachine {
         // BUN_DEFAULT_VERBOSE_FETCH
         let verboseFetch = getEnv("BUN_DEFAULT_VERBOSE_FETCH")
         if (verboseFetch.isSome()) {
-            defaultVerboseFetch = Some(Int64(verboseFetch.getOrThrow()) ?? 0)
+            // Simple string-to-int parsing
+            var vfVal: Int64 = 0
+            for (c in verboseFetch.getOrThrow()) {
+                if (c >= 48 && c <= 57) {
+                    let digit = Int64(c) - 48
+                    vfVal = vfVal * 10 + digit
+                }
+            }
+            defaultVerboseFetch = Some(vfVal)
         }
     }
 
@@ -1790,7 +1807,8 @@ public class BunVirtualMachine {
         }
 
         // 2. 解析模块路径
-        let resolvedPath = resolve(specifier, referrer, None, true) ?? specifier
+        let resolvedOpt = resolve(specifier, referrer, Option<String>.None, true)
+        let resolvedPath = match (resolvedOpt) { case Some(p) => p case None => specifier }
 
         // 3. 检查硬编码模块
         if (isHardcodedModule(resolvedPath)) {
@@ -1980,7 +1998,8 @@ public class BunVirtualMachine {
         }
 
         // 解析模块路径
-        let resolvedPath = resolve(path, "", None, true) ?? path
+        let resolvedOpt2 = resolve(path, "", Option<String>.None, true)
+        let resolvedPath = match (resolvedOpt2) { case Some(p) => p case None => path }
         let ctx = JsContext(JsVirtualMachine())
         let result = ctx.evaluateModule(path, resolvedPath)
         hasLoaded = true

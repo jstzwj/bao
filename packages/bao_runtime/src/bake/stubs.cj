@@ -54,6 +54,11 @@ import bao_path.*
 //   DevAllocator      <- bao_core.DevAllocator
 // ============================================================================
 
+/// DevServer stub [KEPT: deferred - real type was in dev_server/ which is moved to .bak]
+public class DevServer {
+    public init() {}
+}
+
 /// HTTP method enum
 public enum HTTPMethod {
     | GET
@@ -228,11 +233,11 @@ public class StringHashMap<V> {
 /// 跟踪目录监视器和解析失败的依赖
 public class DirectoryWatchStore {
     public static let empty: DirectoryWatchStore = DirectoryWatchStore()
-    public var watches: AutoArrayHashMapUnmanaged<String, Unit>
-    public var dependencies: ArrayListUnmanaged<WatchDependency>
+    public var watches: HashMap<String, Unit>
+    public var dependencies: ArrayList<WatchDependency>
     public init() {
-        watches = AutoArrayHashMapUnmanaged<String, Unit>()
-        dependencies = ArrayListUnmanaged<WatchDependency>()
+        watches = HashMap<String, Unit>()
+        dependencies = ArrayList<WatchDependency>()
     }
     /// 跟踪解析失败
     public func trackResolutionFailure(import_source: String, specifier: String, renderer: Any, loader: Any): Unit {}
@@ -252,13 +257,13 @@ public class WatcherAtomics {
 }
 
 public class WatcherAtomicEvent {
-    public var dirs: AutoArrayHashMapUnmanaged<String, Unit>
-    public var files: AutoArrayHashMapUnmanaged<String, Unit>
-    public var extraFiles: AutoArrayHashMapUnmanaged<String, Unit>
+    public var dirs: HashMap<String, Unit>
+    public var files: HashMap<String, Unit>
+    public var extraFiles: HashMap<String, Unit>
     public init() {
-        dirs = AutoArrayHashMapUnmanaged<String, Unit>()
-        files = AutoArrayHashMapUnmanaged<String, Unit>()
-        extraFiles = AutoArrayHashMapUnmanaged<String, Unit>()
+        dirs = HashMap<String, Unit>()
+        files = HashMap<String, Unit>()
+        extraFiles = HashMap<String, Unit>()
     }
     public func deinit(alloc: Allocator): Unit {}
 }
@@ -292,9 +297,9 @@ public class Asset {
 /// 管理源映射的引用计数存储
 public class SourceMapStore {
     public static let empty: SourceMapStore = SourceMapStore()
-    public var entries: AutoArrayHashMapUnmanaged<UInt64, SourceMapEntry>
+    public var entries: HashMap<UInt64, SourceMapEntry>
     public init() {
-        entries = AutoArrayHashMapUnmanaged<UInt64, SourceMapEntry>()
+        entries = HashMap<UInt64, SourceMapEntry>()
     }
     public func unref(key: UInt64): Unit {}
     public func removeOrUpgradeWeakRef(key: UInt64, mode: WeakRefMode): Bool { false }
@@ -824,15 +829,7 @@ public enum Format {
     | internalBakeDev
 }
 
-/// ImportKind [KEPT: no-pkg]
-public enum ImportKind {
-    | stmt
-    | `import`
-    | require
-    | dynamic
-    | stylesheet
-    | at
-}
+/// ImportKind is imported from bao_bundler
 
 /// CWD helper
 public func getCwd(): String { "/" }

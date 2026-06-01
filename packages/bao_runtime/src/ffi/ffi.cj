@@ -333,11 +333,10 @@ public class Ffi {
         closed = true
 
         // 关闭动态库
-        match (dylib) {
-            case Some(lib) =>
-                lib.close()
-                dylib = None
-            case None => ()
+        if (dylib.isSome()) {
+            let lib = dylib.getOrThrow()
+            lib.close()
+            dylib = None
         }
 
         functions.clear()
@@ -377,24 +376,24 @@ public class Ffi {
 
         var symbols = HashMap<String, LegacyFfiFunction>()
 
-        match (value.objectData) {
-            case Some(obj) =>
-                let keys = obj.keys()
-                for (key in keys) {
-                    let propValue = obj.get(key)
-                    if (propValue.valueType != JsValueType.Object) {
-                        continue
-                    }
+        if (value.objectData.isNone()) {
+            return None
+        }
+        let obj = value.objectData.getOrThrow()
+        let keys = obj.keys()
+        for (key in keys) {
+            let propValue = obj.get(key)
+            if (propValue.valueType != JsValueType.Object) {
+                continue
+            }
 
-                    let ffiFunc = generateSymbolForFunction(globalObject, propValue)
-                    match (ffiFunc) {
-                        case Some(f) =>
-                            f.baseName = Some(key)
-                            symbols.put(key, f)
-                        case None => return None
-                    }
-                }
-            case None => return None
+            let ffiFuncOpt = generateSymbolForFunction(globalObject, propValue)
+            if (ffiFuncOpt.isNone()) {
+                return None
+            }
+            let f = ffiFuncOpt.getOrThrow()
+            f.baseName = Some(key)
+            symbols.put(key, f)
         }
 
         return symbols
@@ -405,42 +404,41 @@ public class Ffi {
     private static func generateSymbolForFunction(globalObject: JsObject, value: JsValue): ?LegacyFfiFunction {
         let ffiFunc = LegacyFfiFunction()
 
-        match (value.objectData) {
-            case Some(obj) =>
-                let args = obj.get("args")
-                if (args.valueType == JsValueType.Array) {
-                    match (args.arrayData) {
-                        case Some(arr) =>
-                            for (arg in arr) {
-                                let abiType = resolveLegacyAbiType(arg)
-                                match (abiType) {
-                                    case Some(t) => ffiFunc.argTypes.append(t)
-                                    case None => return None
-                                }
-                            }
-                        case None => ()
+        if (value.objectData.isNone()) {
+            return None
+        }
+        let obj = value.objectData.getOrThrow()
+        let args = obj.get("args")
+        if (args.valueType == JsValueType.Array) {
+            if (args.arrayData.isSome()) {
+                let arr = args.arrayData.getOrThrow()
+                for (arg in arr) {
+                    let abiType = resolveLegacyAbiType(arg)
+                    if (abiType.isNone()) {
+                        return None
                     }
+                    ffiFunc.argTypes.append(abiType.getOrThrow())
                 }
+            }
+        }
 
-                let returns = obj.get("returns")
-                if (returns.valueType != JsValueType.Undefined) {
-                    let retType = resolveLegacyAbiType(returns)
-                    match (retType) {
-                        case Some(t) => ffiFunc.returnType = t
-                        case None => return None
-                    }
-                }
+        let returns = obj.get("returns")
+        if (returns.valueType != JsValueType.Undefined) {
+            let retType = resolveLegacyAbiType(returns)
+            if (retType.isNone()) {
+                return None
+            }
+            ffiFunc.returnType = retType.getOrThrow()
+        }
 
-                let threadsafe = obj.get("threadsafe")
-                if (threadsafe.valueType == JsValueType.Boolean) {
-                    ffiFunc.threadsafe = threadsafe.toBoolean()
-                }
+        let threadsafe = obj.get("threadsafe")
+        if (threadsafe.valueType == JsValueType.Boolean) {
+            ffiFunc.threadsafe = threadsafe.toBoolean()
+        }
 
-                let ptr = obj.get("ptr")
-                if (ptr.valueType == JsValueType.Number) {
-                    ffiFunc.symbolFromDynlib = Int64(ptr.toNumber())
-                }
-            case None => return None
+        let ptr = obj.get("ptr")
+        if (ptr.valueType == JsValueType.Number) {
+            ffiFunc.symbolFromDynlib = Int64(ptr.toNumber())
         }
 
         return ffiFunc

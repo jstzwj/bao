@@ -485,7 +485,7 @@ public class DevServer {
     public var server_graph: IncrementalGraph = IncrementalGraph()
     public var watcher_atomics: WatcherAtomics = WatcherAtomics()
     public var assets: Assets = Assets()
-    public var active_websocket_connections: HashMap<HmrSocket, Unit> = HashMap<HmrSocket, Unit>()
+    public var active_websocket_connections: ArrayList<HmrSocket> = ArrayList<HmrSocket>()
     public var graph_safety_lock: ThreadLock = ThreadLock()
     public var configuration_hash_key: Array<Byte> = []
     public var bundling_failures: HashMap<SerializedFailure, Unit> = HashMap<SerializedFailure, Unit>()

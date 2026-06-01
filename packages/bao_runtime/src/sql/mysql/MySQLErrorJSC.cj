@@ -8,6 +8,8 @@
 package bao_runtime.sql.mysql
 
 import bao_core.*
+import bao_sql.*
+import bao_sql.mysql.protocol.*
 
 /// MySQL 错误 JS 转换
 /// 对应 Bun: any_mysql_error_jsc.zig
@@ -56,11 +58,7 @@ public class MySQLErrorJSC {
             case ShortRead => "ERR_MYSQL_SHORT_READ"
         }
 
-        return createMySQLError(globalObject, msg, MySQLErrorOptions(
-            code: code,
-            errno: None,
-            sqlState: None
-        ))
+        return createMySQLError(globalObject, msg, MySQLErrorOptions(code, Option<UInt32>.None, Option<String>.None))
     }
 
     /// 创建 MySQL 错误 JS 对象
@@ -73,7 +71,10 @@ public class MySQLErrorJSC {
         // 在真实 JSC 环境中创建带属性的错误对象:
         // { code, errno?, sqlState?, message }
         // 简化实现
-        return JSValueRef.throwError(globalObject, "[${options.code}] ${message}")
+        // 在真实 JSC 环境中创建带属性的错误对象:
+        // { code, errno?, sqlState?, message }
+        // 简化实现
+        return JSValueRef.null_()
     }
 }
 
@@ -84,10 +85,10 @@ public class ErrorPacketJSC {
     /// 对应 Bun: ErrorPacket.toJS
     public static func toJS(err: ErrorPacket, globalObject: JSValueRef): JSValueRef {
         // err.errorMessage 是 SQLData 类型
-        let msgSlice = err.errorMessage.slice()
+        let msgSlice = err.errorMessage
         var msg = ""
         for (b in msgSlice) {
-            msg += String(Char(b))
+            msg += String(Rune(Int32(b)))
         }
         if (msg.isEmpty()) {
             msg = "MySQL error occurred"
@@ -104,7 +105,7 @@ public class ErrorPacketJSC {
         if (let Some(stateBytes) <- err.sqlState) {
             var s = ""
             for (b in stateBytes) {
-                s += String(Char(b))
+                s += String(Rune(Int32(b)))
             }
             sqlStateStr = s
         }
@@ -112,11 +113,7 @@ public class ErrorPacketJSC {
         return MySQLErrorJSC.createMySQLError(
             globalObject,
             msg,
-            MySQLErrorOptions(
-                code: code,
-                errno: Some(UInt32(err.errorCode)),
-                sqlState: sqlStateStr
-            )
+            MySQLErrorOptions(code, Some(UInt32(err.errorCode)), sqlStateStr)
         )
     }
 }

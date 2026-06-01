@@ -904,7 +904,7 @@ public class ChunkBuilder {
         var v = value
         var chars = ArrayList<UInt8>()
         for (_ in 0..8) {
-            chars.add(UInt8(v & UInt32(0xF)))
+            chars.append(UInt8(v & UInt32(0xF)))
             v = v >> 4
         }
         var i = chars.size - 1
