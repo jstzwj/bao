@@ -5,8 +5,10 @@
 package bao_runtime
 
 import bao_core.*
+import bao_sys.SysFs
+import bao_sys.SysMaybe
 import bao_collections.*
-import bao_parser.{Stmt, Expr, StmtTag, ExprTag, OpCode, Binding, BindingTag, GFn, GFnBody, GArg, GClass, GProperty, GPropertyKind, GDecl, SwitchCase, ParserOptions, ParserFeatures, Loc as ParserLoc, DeclKind, OptionalChain}
+import bao_parser.{Stmt, Expr, StmtTag, ExprTag, OpCode, Binding, BindingTag, GFn, GFnBody, GArg, GClass, GProperty, GPropertyKind, GDecl, SwitchCase, ParserOptions, ParserFeatures, Loc as ParserLoc, DeclKind, OptionalChain, ImportRecord}
 import bao_jsc.{RegularExpression, RegularExpressionFlags, RegexExecResult}
 
 // ============================================================================
@@ -164,20 +166,135 @@ public class Interpreter {
     public var printFn: (String) -> Unit
     /// 模块加载器
     private var moduleLoader: ModuleLoader
+    /// 当前执行的文件路径 (用于解析相对导入)
+    private var currentFile: String
+    /// 当前文件的模块导入记录 (来自 Parser)
+    private var importRecords: ArrayList<ImportRecord>
+    /// 当前模块的 exports 对象 (ESM 模式下使用)
+    private var moduleExports: ?JsObject
+    /// 事件循环 (定时器/微任务调度)
+    private var eventLoop: EventLoop
 
     public init() {
         globalEnv = Environment()
         printFn = { s => println(s) }
-        moduleLoader = ModuleLoader()
+        // 创建带文件读取能力的 ModuleLoader
+        moduleLoader = ModuleLoader({ path => readFileAsString(path) })
+        currentFile = ""
+        importRecords = ArrayList<ImportRecord>()
+        moduleExports = None
+        eventLoop = EventLoop()
         registerBuiltins()
     }
 
     public init(env: Environment) {
         globalEnv = env
         printFn = { s => println(s) }
-        moduleLoader = ModuleLoader()
+        moduleLoader = ModuleLoader({ path => readFileAsString(path) })
+        currentFile = ""
+        importRecords = ArrayList<ImportRecord>()
+        moduleExports = None
+        eventLoop = EventLoop()
         registerBuiltins()
     }
+
+    /// 读取文件为字符串 — 供 ModuleLoader 使用
+    private static func readFileAsString(path: String): String {
+        let fdResult = SysFs.openRead(path)
+        if (fdResult.isErr()) { return "" }
+        let fd = fdResult.result().getOrThrow()
+        var allBytes = ArrayList<UInt8>()
+        let bufSize: Int64 = 8192
+        var buf = Array<UInt8>(bufSize, { _ => UInt8(0) })
+        while (true) {
+            let readResult = SysFs.read(fd, buf)
+            match (readResult) {
+                case SysMaybe.Err(_) => let _ = SysFs.close(fd); return ""
+                case SysMaybe.Ok(bytesRead) =>
+                    if (bytesRead == 0) { break }
+                    for (i in 0..bytesRead) { allBytes.append(buf[i]) }
+            }
+        }
+        let _ = SysFs.close(fd)
+        if (allBytes.size == 0) { return "" }
+        // 尝试直接 UTF-8 转换，失败则替换非法字节
+        try {
+            return String.fromUtf8(allBytes.items())
+        } catch (_: Exception) {
+            // 包含非法 UTF-8 字节 — 替换为 U+FFFD (EF BF BD)
+            let clean = ArrayList<UInt8>()
+            let bytes = allBytes.items()
+            let len = bytes.size
+            var i = Int64(0)
+            while (i < len) {
+                let b = bytes[i]
+                if (b < UInt8(0x80)) {
+                    // ASCII: 0xxxxxxx — 直接使用
+                    clean.append(b)
+                    i += 1
+                } else if (b >= UInt8(0xC0) && b < UInt8(0xE0) && i + 1 < len
+                           && bytes[i + 1] >= UInt8(0x80) && bytes[i + 1] < UInt8(0xC0)) {
+                    // 2字节: 110xxxxx 10xxxxxx
+                    clean.append(b)
+                    clean.append(bytes[i + 1])
+                    i += 2
+                } else if (b >= UInt8(0xE0) && b < UInt8(0xF0) && i + 2 < len
+                           && bytes[i + 1] >= UInt8(0x80) && bytes[i + 1] < UInt8(0xC0)
+                           && bytes[i + 2] >= UInt8(0x80) && bytes[i + 2] < UInt8(0xC0)) {
+                    // 3字节: 1110xxxx 10xxxxxx 10xxxxxx
+                    clean.append(b)
+                    clean.append(bytes[i + 1])
+                    clean.append(bytes[i + 2])
+                    i += 3
+                } else if (b >= UInt8(0xF0) && i + 3 < len
+                           && bytes[i + 1] >= UInt8(0x80) && bytes[i + 1] < UInt8(0xC0)
+                           && bytes[i + 2] >= UInt8(0x80) && bytes[i + 2] < UInt8(0xC0)
+                           && bytes[i + 3] >= UInt8(0x80) && bytes[i + 3] < UInt8(0xC0)) {
+                    // 4字节: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+                    clean.append(b)
+                    clean.append(bytes[i + 1])
+                    clean.append(bytes[i + 2])
+                    clean.append(bytes[i + 3])
+                    i += 4
+                } else {
+                    // 非法字节 — 替换为 U+FFFD (EF BF BD)
+                    clean.append(UInt8(0xEF))
+                    clean.append(UInt8(0xBF))
+                    clean.append(UInt8(0xBD))
+                    i += 1
+                }
+            }
+            // 第二次尝试：清理后的字节可能仍含无效 Unicode scalar
+            try {
+                return String.fromUtf8(clean.items())
+            } catch (_: Exception) {
+                // 最终回退：只保留 ASCII，其余替换为 '?'
+                let safe = ArrayList<UInt8>()
+                for (j in 0..allBytes.size) {
+                    let byte = allBytes[j]
+                    if (byte < UInt8(0x80)) {
+                        safe.append(byte)
+                    } else {
+                        safe.append(UInt8(0x3F))  // '?'
+                    }
+                }
+                return String.fromUtf8(safe.items())
+            }
+        }
+    }
+
+    /// 设置当前文件路径
+    public func setCurrentFile(f: String): Unit { currentFile = f }
+    /// 设置模块导入记录
+    public func setImportRecords(r: ArrayList<ImportRecord>): Unit { importRecords = r }
+    /// 设置当前模块的 exports 对象 (ESM 模式)
+    public func setModuleExports(e: JsObject): Unit { moduleExports = Some(e) }
+    /// 设置模块加载器
+    public func setModuleLoader(l: ModuleLoader): Unit { moduleLoader = l }
+    /// 设置事件循环
+    public func setEventLoop(el: EventLoop): Unit { eventLoop = el }
+    /// 获取事件循环
+    public func getEventLoop(): EventLoop { eventLoop }
 
     /// 获取全局环境
     public func getGlobalEnv(): Environment {
@@ -266,9 +383,165 @@ public class Interpreter {
             return loader.require(specifier, "<eval>")
         }, false)
 
-        // process 对象
-        globalEnv.define("process", JsValue(JsObject()), false)
+        // setTimeout / setInterval / clearTimeout / clearInterval
+        // 注意: 不捕获 eventLoop 到 let 变量中, 通过 getEventLoop() 动态获取
+        // 因为 setEventLoop() 可能在 registerBuiltins() 之后被调用
+        globalEnv.define("setTimeout", makeNativeFn("setTimeout") { args =>
+            if (args.size < 1) { return JsValue.UNDEFINED }
+            let cb = args[0]
+            let delayRaw = if (args.size > 1) { Int64(jsToNumber(args[1])) } else { Int64(0) }
+            let delay = if (delayRaw < 0) { Int64(0) } else { delayRaw }
+            let extraArgs = sliceArgs(args, 2)
+            let interp = this
+            let id = getEventLoop().setTimeout(delay, { =>
+                interp.callFunction(cb, extraArgs, JsValue.UNDEFINED, interp.getGlobalEnv())
+            })
+            JsValue(Float64(id))
+        }, false)
+        globalEnv.define("setInterval", makeNativeFn("setInterval") { args =>
+            if (args.size < 1) { return JsValue.UNDEFINED }
+            let cb = args[0]
+            let intervalRaw = if (args.size > 1) { Int64(jsToNumber(args[1])) } else { Int64(0) }
+            let interval = if (intervalRaw < 0) { Int64(0) } else { intervalRaw }
+            let extraArgs = sliceArgs(args, 2)
+            let interp = this
+            let id = getEventLoop().setInterval(interval, { =>
+                interp.callFunction(cb, extraArgs, JsValue.UNDEFINED, interp.getGlobalEnv())
+            })
+            JsValue(Float64(id))
+        }, false)
+        globalEnv.define("clearTimeout", makeNativeFn("clearTimeout") { args =>
+            if (args.size > 0) { getEventLoop().clearTimer(Int64(jsToNumber(args[0]))) }
+            JsValue.UNDEFINED
+        }, false)
+        globalEnv.define("clearInterval", makeNativeFn("clearInterval") { args =>
+            if (args.size > 0) { getEventLoop().clearTimer(Int64(jsToNumber(args[0]))) }
+            JsValue.UNDEFINED
+        }, false)
+        globalEnv.define("setImmediate", makeNativeFn("setImmediate") { args =>
+            if (args.size < 1) { return JsValue.UNDEFINED }
+            let cb = args[0]
+            let extraArgs = sliceArgs(args, 1)
+            let interp = this
+            let id = getEventLoop().setTimeout(0, { =>
+                interp.callFunction(cb, extraArgs, JsValue.UNDEFINED, interp.getGlobalEnv())
+            })
+            JsValue(Float64(id))
+        }, false)
+        globalEnv.define("clearImmediate", makeNativeFn("clearImmediate") { args =>
+            if (args.size > 0) { getEventLoop().clearTimer(Int64(jsToNumber(args[0]))) }
+            JsValue.UNDEFINED
+        }, false)
+        globalEnv.define("queueMicrotask", makeNativeFn("queueMicrotask") { args =>
+            if (args.size < 1) { return JsValue.UNDEFINED }
+            let cb = args[0]
+            let interp = this
+            getEventLoop().enqueueMicrotask({ =>
+                interp.callFunction(cb, ArrayList<JsValue>(), JsValue.UNDEFINED, interp.getGlobalEnv())
+            })
+            JsValue.UNDEFINED
+        }, false)
 
+        // process 对象
+        let processObj = JsObject()
+        processObj.set("exit", makeNativeFn("exit") { args =>
+            let code = if (args.size > 0) { Int64(jsToNumber(args[0])) } else { Int64(0) }
+            throw ProcessExitSignal(code)
+        })
+        let argvArr = newJsArray()
+        argvArr.append(JsValue(BaoString("bao")))
+        processObj.set("argv", JsValue.array(argvArr))
+        processObj.set("env", JsValue(JsObject()))
+        processObj.set("version", JsValue(BaoString("v0.1.0")))
+        processObj.set("versions", JsValue(JsObject()))
+        processObj.set("platform", JsValue(BaoString("linux")))
+        processObj.set("cwd", makeNativeFn("cwd") { _ =>
+            JsValue(BaoString("/"))
+        })
+        globalEnv.define("process", JsValue(processObj), false)
+
+        // Promise 构造函数 — new Promise((resolve, reject) => { ... })
+        let interp = this
+        globalEnv.define("Promise", makeNativeFn("Promise") { args =>
+            let promise = JsPromise()
+            // 创建 resolve/reject 函数
+            let resolveFn = makeNativeFn("resolve") { resolveArgs =>
+                let val = if (resolveArgs.size > 0) { resolveArgs[0] } else { JsValue.UNDEFINED }
+                promise.fulfill(val)
+                return JsValue.UNDEFINED
+            }
+            let rejectFn = makeNativeFn("reject") { rejectArgs =>
+                let reason = if (rejectArgs.size > 0) { rejectArgs[0] } else { JsValue.UNDEFINED }
+                promise.rejectInternal(reason)
+                return JsValue.UNDEFINED
+            }
+
+            // 调用 executor(resolve, reject)
+            if (args.size > 0) {
+                let executor = args[0]
+                let resolverArgs = ArrayList<JsValue>()
+                resolverArgs.append(resolveFn)
+                resolverArgs.append(rejectFn)
+                try {
+                    interp.callFunction(executor, resolverArgs, JsValue.UNDEFINED, interp.getGlobalEnv())
+                } catch (_: Exception) {
+                    // executor 抛出异常 → 自动 reject
+                }
+            }
+
+            // 返回 Promise JsValue — 同时携带 JsPromise 内部引用和 JsObject 包装
+            wrapPromiseValue(promise)
+        }, false)
+
+        // 注册当前 Interpreter 为 TestRunner 的回调 VM
+        // 这样 bun:test 在 bao run 模式下也能执行 JS 测试回调
+        registerTestRunnerVM()
+    }
+
+    /// 将 JsPromise 包装为可链式调用的 JS 对象 — 返回 JsValue 携带 promiseData
+    private func wrapPromiseValue(promise: JsPromise): JsValue {
+        let obj = JsObject()
+        obj.className = "Promise"
+        let interp = this
+        obj.set("then", makeNativeFn("then") { thenArgs =>
+            let onFulfilledJs = if (thenArgs.size > 0) { thenArgs[0] } else { JsValue.UNDEFINED }
+            let onRejectedJs = if (thenArgs.size > 1) { thenArgs[1] } else { JsValue.UNDEFINED }
+            let nextPromise = promise.then(
+                { value =>
+                    if (onFulfilledJs.isUndefined()) { value }
+                    else {
+                        let callArgs = ArrayList<JsValue>()
+                        callArgs.append(value)
+                        interp.callFunction(onFulfilledJs, callArgs, JsValue.UNDEFINED, interp.getGlobalEnv())
+                    }
+                },
+                { reason =>
+                    if (onRejectedJs.isUndefined()) { reason }
+                    else {
+                        let callArgs = ArrayList<JsValue>()
+                        callArgs.append(reason)
+                        interp.callFunction(onRejectedJs, callArgs, JsValue.UNDEFINED, interp.getGlobalEnv())
+                    }
+                }
+            )
+            wrapPromiseValue(nextPromise)
+        })
+        obj.set("catch", makeNativeFn("catch") { catchArgs =>
+            let onRejectedJs = if (catchArgs.size > 0) { catchArgs[0] } else { JsValue.UNDEFINED }
+            let nextPromise = promise.catch_({ reason =>
+                let callArgs = ArrayList<JsValue>()
+                callArgs.append(reason)
+                interp.callFunction(onRejectedJs, callArgs, JsValue.UNDEFINED, interp.getGlobalEnv())
+            })
+            wrapPromiseValue(nextPromise)
+        })
+        JsValue.promise(promise, obj)
+    }
+
+    /// 将当前 Interpreter 注册为 TestRunner 的回调 VM
+    /// 这样 bun:test 的 test()/it() 在无 TestRunner 时也能执行 JS 回调
+    private func registerTestRunnerVM(): Unit {
+        TestRunner.activeRunnerVM = this
     }
 
     // ========================================================================
@@ -280,6 +553,15 @@ public class Interpreter {
         var result = JsValue.UNDEFINED
         for (stmt in stmts) {
             result = execStmt(stmt, globalEnv)
+        }
+        return result
+    }
+
+    /// 从 args 数组中切片出 start 之后的元素 (不可变版本, 供 lambda 捕获)
+    private static func sliceArgs(args: ArrayList<JsValue>, start: Int64): ArrayList<JsValue> {
+        let result = ArrayList<JsValue>()
+        for (i in start..args.size) {
+            result.append(args[i])
         }
         return result
     }
@@ -353,9 +635,49 @@ public class Interpreter {
     //   import * as mod from './module'
     //   import defaultExport from './module'
     private func execImport(s: Stmt, env: Environment): JsValue {
-        // import 语句通过 ModuleLoader 在模块加载阶段处理
-        // 运行时环境下，import 声明的变量已在作用域中定义
-        // 此处处理动态 import() 表达式已在 evalExpr 中覆盖
+        // 1. 从 importRecords 获取模块路径
+        let idx = s.importRecordIndex
+        if (idx < 0 || idx >= importRecords.size) { return JsValue.UNDEFINED }
+        let specifier = importRecords[idx].path
+        if (specifier.isEmpty()) { return JsValue.UNDEFINED }
+
+        // 2. 通过 ModuleLoader 加载模块
+        let moduleValue = moduleLoader.importModule(specifier, currentFile)
+
+        // 3. 绑定导入名到当前环境
+        // a) 默认导入: import X from '...'
+        if (!s.defaultName.isEmpty()) {
+            let defaultVal = extractExport(moduleValue, "default")
+            env.define(s.defaultName, defaultVal, true)
+        }
+
+        // b) 命名空间导入: import * as ns from '...'
+        if (s.hasImportStar && !s.defaultName.isEmpty()) {
+            // 对于 import * as ns，ns 就是 defaultName
+            // moduleValue 已经是模块的 exports 对象
+            env.define(s.defaultName, moduleValue, true)
+        }
+
+        // c) 具名导入: import { foo, bar as baz } from '...'
+        for (i in 0..s.importItems.size) {
+            let item = s.importItems[Int64(i)]
+            let importName = item.originalName   // 源模块中的名称
+            let localName = item.alias          // 本地绑定名
+            let val = extractExport(moduleValue, importName)
+            env.define(localName, val, true)
+        }
+
+        return JsValue.UNDEFINED
+    }
+
+    /// 从模块值中提取指定名称的导出
+    private func extractExport(moduleValue: JsValue, name: String): JsValue {
+        if (moduleValue.objectData.isSome()) {
+            let obj = moduleValue.objectData.getOrThrow()
+            let val = obj.get(name)
+            if (!val.isUndefined()) { return val }
+        }
+        if (name == "default") { return moduleValue }
         return JsValue.UNDEFINED
     }
 
@@ -366,6 +688,63 @@ public class Interpreter {
     //   export default expr
     //   export * from './module'
     private func execExport(s: Stmt, env: Environment): JsValue {
+        if (moduleExports.isNone()) { return JsValue.UNDEFINED }
+        let exports = moduleExports.getOrThrow()
+
+        // Case 1: export default <expression>
+        if (s.expr.isSome()) {
+            let val = evalExpr(s.expr.getOrThrow(), env)
+            exports.set("default", val)
+            return JsValue.UNDEFINED
+        }
+
+        // Case 2: export default <statement> (function/class declaration)
+        if (s.`init`.isSome()) {
+            let result = execStmt(s.`init`.getOrThrow(), env)
+            exports.set("default", result)
+            return JsValue.UNDEFINED
+        }
+
+        // Case 3: export * from '...' (re-export all)
+        if (s.hasImportStar && s.importRecordIndex > 0) {
+            let idx = s.importRecordIndex
+            if (idx < importRecords.size) {
+                let specifier = importRecords[idx].path
+                let sourceModule = moduleLoader.importModule(specifier, currentFile)
+                if (sourceModule.objectData.isSome()) {
+                    let srcObj = sourceModule.objectData.getOrThrow()
+                    for (key in srcObj.keys()) {
+                        if (key != "default") {
+                            exports.set(key, srcObj.get(key))
+                        }
+                    }
+                }
+            }
+            return JsValue.UNDEFINED
+        }
+
+        // Case 4: export { foo, bar as baz } 或 export { foo } from '...'
+        if (s.importItems.size > 0) {
+            if (s.importRecordIndex > 0 && s.importRecordIndex < importRecords.size) {
+                // export { foo } from '...' — 从其他模块导入后导出
+                let specifier = importRecords[s.importRecordIndex].path
+                let sourceModule = moduleLoader.importModule(specifier, currentFile)
+                for (i in 0..s.importItems.size) {
+                    let item = s.importItems[Int64(i)]
+                    let val = extractExport(sourceModule, item.originalName)
+                    exports.set(item.alias, val)
+                }
+            } else {
+                // export { foo, bar as baz } — 从当前环境导出
+                for (i in 0..s.importItems.size) {
+                    let item = s.importItems[Int64(i)]
+                    let valOpt = env.lookup(item.originalName)
+                    let val = if (valOpt.isSome()) { valOpt.getOrThrow() } else { JsValue.UNDEFINED }
+                    exports.set(item.alias, val)
+                }
+            }
+        }
+
         return JsValue.UNDEFINED
     }
 
@@ -564,6 +943,7 @@ public class Interpreter {
             }
             let jsFn = JsFunction(fn.name, paramNames, bodyStmts, env, false)
             jsFn.isGenerator = fn.isGenerator
+            jsFn.isAsync = fn.isAsync
             env.define(fn.name, JsValue.function(jsFn), true)
         }
         return JsValue.UNDEFINED
@@ -779,10 +1159,11 @@ public class Interpreter {
             case ExprTag.Ternary => return evalTernary(e, env)
             case ExprTag.Assign => return evalAssign(e, env)
             case ExprTag.Postfix => return evalPostfix(e, env)
-            // async/await — 简化处理: await 直接求值
+            // async/await — 内联事件循环驱动
+            // await expr: 求值 expr，如果是 pending Promise 则就地驱动事件循环直到 resolve
             case ExprTag.Await =>
                 if (let Some(val) <- e.value) {
-                    return evalExpr(val, env)
+                    return evalAwait(evalExpr(val, env))
                 }
                 return JsValue.UNDEFINED
             case ExprTag.Yield =>
@@ -803,12 +1184,70 @@ public class Interpreter {
         }
     }
 
+    /// evalAwait — JS await 语义实现
+    /// 对应 ES2024 spec: Await(expression)
+    ///   1. 求值表达式得到 value
+    ///   2. 如果 value 是 pending Promise → 就地驱动事件循环直到 resolve
+    ///   3. 如果 value 是 resolved Promise → 返回 resolved value
+    ///   4. 如果 value 不是 Promise → 直接返回 (await non-promise 是 no-op)
+    private func evalAwait(value: JsValue): JsValue {
+        // 提取内部 JsPromise
+        let promiseOpt = extractJsPromise(value)
+
+        // 不是 Promise → 直接返回 (JS: await 42 → 42)
+        if (promiseOpt.isNone()) {
+            return value
+        }
+
+        let promise = promiseOpt.getOrThrow()
+
+        // 已完成 → 返回 resolved value
+        if (promise.state == PromiseState.Fulfilled) {
+            return promise.result
+        }
+
+        // 已拒绝 → 抛出异常
+        if (promise.state == PromiseState.Rejected) {
+            throw JsRuntimeThrow(promise.result)
+        }
+
+        // Pending → 就地驱动事件循环直到 Promise resolve
+        let el = getEventLoop()
+        var maxIter = 100000  // 防止无限循环
+        while (promise.state == PromiseState.Pending && maxIter > 0) {
+            // 先排空微任务 (Promise.then 回调在微任务中执行)
+            el.drainMicrotasks()
+            // 如果微任务已使其 resolve，立即返回
+            if (promise.state != PromiseState.Pending) { break }
+            // 执行到期的定时器 (setTimeout/setInterval)
+            el.tick()
+            maxIter -= 1
+        }
+
+        // 最终状态检查
+        match (promise.state) {
+            case PromiseState.Fulfilled => return promise.result
+            case PromiseState.Rejected => throw JsRuntimeThrow(promise.result)
+            case PromiseState.Pending =>
+                // 超时仍未 resolve — 返回 undefined (不崩溃)
+                return JsValue.UNDEFINED
+        }
+    }
+
+    /// 从 JsValue 中提取内部 JsPromise
+    /// 通过 JsValue.promiseData 字段直接获取
+    private func extractJsPromise(value: JsValue): ?JsPromise {
+        if (value.promiseData.isSome()) {
+            return value.promiseData
+        }
+        return None
+    }
+
     /// 标识符求值 - 对应 JS 标识符解析
     private func evalIdentifier(e: Expr, env: Environment): JsValue {
         let vOpt = env.lookup(e.identifierName)
         return if (vOpt.isSome()) { vOpt.getOrThrow() } else { JsValue.UNDEFINED }
-
-        }
+    }
 
 
 
@@ -1519,7 +1958,13 @@ public class Interpreter {
         // JS 函数
         if (fn.functionData.isSome()) {
             let jsFn = fn.functionData.getOrThrow()
-            return callJsFunction(jsFn, args, thisVal)
+            let result = callJsFunction(jsFn, args, thisVal)
+            // async 函数: 返回值包装为 resolved Promise
+            // JS spec: async function 总是返回 Promise
+            if (jsFn.isAsync) {
+                return wrapPromiseValue(JsPromise.resolve(result))
+            }
+            return result
         }
         return JsValue.UNDEFINED
     }
@@ -1649,6 +2094,14 @@ public class Interpreter {
                 let objData = obj.objectData.getOrThrow()
                 return objData.get(e.propertyName)
             }
+            // 函数对象属性访问 — 支持构造函数上的静态方法
+            // 如 Promise.resolve(), Promise.reject() 等
+            if (obj.nativeFnData.isSome()) {
+                let staticProp = getNativeFunctionProperty(obj.nativeFnData.getOrThrow().name, e.propertyName)
+                if (staticProp.isSome()) {
+                    return staticProp.getOrThrow()
+                }
+            }
             // 字符串属性
             if (obj.valueType == JsValueType.String) {
                 if (e.propertyName == "length") {
@@ -1718,6 +2171,56 @@ public class Interpreter {
             }
         }
         return JsValue.UNDEFINED
+    }
+
+    /// 原生函数的静态属性查找 — 支持 Promise.resolve() 等模式
+    /// 当 JS 代码访问 Promise.resolve / Promise.reject 时，
+    /// evalDot 在 nativeFnData 上找不到 objectData，通过此方法提供静态方法
+    private func getNativeFunctionProperty(fnName: String, propName: String): ?JsValue {
+        let interp = this
+        if (fnName == "Promise") {
+            if (propName == "resolve") {
+                return Some(makeNativeFn("resolve") { args =>
+                    let val = if (args.size > 0) { args[0] } else { JsValue.UNDEFINED }
+                    // 如果值本身就是 Promise (带 promiseData)，直接返回
+                    if (val.promiseData.isSome()) { return val }
+                    return wrapPromiseValue(JsPromise.resolve(val))
+                })
+            }
+            if (propName == "reject") {
+                return Some(makeNativeFn("reject") { args =>
+                    let reason = if (args.size > 0) { args[0] } else { JsValue.UNDEFINED }
+                    return wrapPromiseValue(JsPromise.reject(reason))
+                })
+            }
+            if (propName == "all") {
+                return Some(makeNativeFn("all") { args =>
+                    // 简化: 同步收集所有已 resolve 的值
+                    let results = ArrayList<JsValue>()
+                    if (args.size > 0 && args[0].arrayData.isSome()) {
+                        let arr = args[0].arrayData.getOrThrow()
+                        for (item in arr) {
+                            results.append(item)
+                        }
+                    }
+                    return wrapPromiseValue(JsPromise.resolve(JsValue.array(results)))
+                })
+            }
+            if (propName == "race") {
+                return Some(makeNativeFn("race") { args =>
+                    if (args.size > 0 && args[0].arrayData.isSome()) {
+                        let arr = args[0].arrayData.getOrThrow()
+                        if (arr.size > 0) {
+                            let first = arr[0]
+                            if (first.promiseData.isSome()) { return first }
+                            return wrapPromiseValue(JsPromise.resolve(first))
+                        }
+                    }
+                    return wrapPromiseValue(JsPromise())
+                })
+            }
+        }
+        return None
     }
 
     /// 索引访问 — 完整实现，支持可选链 obj?.[key]
@@ -1837,6 +2340,7 @@ public class Interpreter {
             }
             let jsFn = JsFunction(fn.name, paramNames, bodyStmts, env, false)
             jsFn.isGenerator = fn.isGenerator
+            jsFn.isAsync = fn.isAsync
             return JsValue.function(jsFn)
         }
         return JsValue.UNDEFINED
@@ -1996,21 +2500,21 @@ public class Interpreter {
                 return JsValue(jsStrictEqual(l, r))
             case OpCode.BinNeStrict =>
                 return JsValue(!jsStrictEqual(l, r))
-            // 位运算
+            // 位运算 — JS 规范: 先 ToInt32(), NaN/Infinity → 0
             case OpCode.BinAnd =>
-                return JsValue(Float64(Int64(jsToNumber(l)) & Int64(jsToNumber(r))))
+                return JsValue(Float64(Float64(toInt32(jsToNumber(l)) & toInt32(jsToNumber(r)))))
             case OpCode.BinOr =>
-                return JsValue(Float64(Int64(jsToNumber(l)) | Int64(jsToNumber(r))))
+                return JsValue(Float64(toInt32(jsToNumber(l)) | toInt32(jsToNumber(r))))
             case OpCode.BinXor =>
-                return JsValue(Float64(Int64(jsToNumber(l)) ^ Int64(jsToNumber(r))))
+                return JsValue(Float64(toInt32(jsToNumber(l)) ^ toInt32(jsToNumber(r))))
             case OpCode.BinShl =>
-                return JsValue(Float64(Int64(jsToNumber(l)) << Int64(jsToNumber(r))))
+                return JsValue(Float64(toInt32(jsToNumber(l)) << toInt32(jsToNumber(r))))
             case OpCode.BinShr =>
-                return JsValue(Float64(Int64(jsToNumber(l)) >> Int64(jsToNumber(r))))
+                return JsValue(Float64(toInt32(jsToNumber(l)) >> toInt32(jsToNumber(r))))
             case OpCode.BinUShr =>
                 // 无符号右移: 转为 UInt64 后右移，再转回 Int64
-                let lv = UInt64(Int64(jsToNumber(l)))
-                let rv = UInt64(Int64(jsToNumber(r)) & 0x1F)  // JS: 取低5位
+                let lv = UInt64(toInt32(jsToNumber(l)))
+                let rv = UInt64(toInt32(jsToNumber(r)) & 0x1F)
                 return JsValue(Float64(Int64(lv >> rv)))
             // in, instanceof — 简化实现
             case OpCode.BinIn =>
@@ -2311,6 +2815,27 @@ public class Interpreter {
         return v.toNumber()
     }
 
+    /// JS ToInt32() — 对应 ES2024 spec 7.1.6
+    /// NaN, Infinity, -Infinity → 0
+    /// 普通数字: 截断为 32 位有符号整数
+    public static func toInt32(v: Float64): Int64 {
+        if (v.isNaN() || v == Float64.Inf || v == -Float64.Inf) {
+            return Int64(0)
+        }
+        // 截断小数部分 — Int64() 会截断
+        if (v > Float64(9223372036854775807.0)) { return Int64(0) }
+        if (v < Float64(-9223372036854775808.0)) { return Int64(0) }
+        let truncated = Int64(v)
+        // 取模 2^32，转为 signed 32-bit
+        var bits = truncated % Int64(4294967296)
+        if (bits >= Int64(2147483648)) {
+            bits = bits - Int64(4294967296)
+        } else if (bits < Int64(-2147483648)) {
+            bits = bits + Int64(4294967296)
+        }
+        return bits
+    }
+
     /// JS ToString - 对应 ES spec ToString()
     public static func jsToString(v: JsValue): String {
         return v.toString()
@@ -2574,6 +3099,15 @@ public class ReturnSignal <: Exception {
     public init(value: JsValue) {
         super("return")
         this.value = value
+    }
+}
+
+/// process.exit() 信号 — 用于退出执行
+public class ProcessExitSignal <: Exception {
+    public let exitCode: Int64
+    public init(code: Int64) {
+        super("process.exit")
+        exitCode = code
     }
 }
 

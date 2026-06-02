@@ -260,7 +260,7 @@ public class JsPromise {
     // ---- 内部方法 ----
 
     /// 完成 Promise - 对应 JSPromiseResolve
-    private func fulfill(value: JsValue): Unit {
+    public func fulfill(value: JsValue): Unit {
         if (state != PromiseState.Pending) {
             return
         }
@@ -270,7 +270,7 @@ public class JsPromise {
     }
 
     /// 拒绝 Promise - 对应 JSPromiseReject
-    private func rejectInternal(reason: JsValue): Unit {
+    public func rejectInternal(reason: JsValue): Unit {
         if (state != PromiseState.Pending) {
             return
         }

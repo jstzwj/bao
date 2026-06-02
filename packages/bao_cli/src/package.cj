@@ -376,6 +376,10 @@ private func executeRun(opts: RunOptions): Unit {
     } catch (e: Exception) {
         println("error: ${e.message}")
     }
+    // 传播 process.exit() 的退出码
+    if (vm.exitCode >= 0) {
+        Process.exit(vm.exitCode)
+    }
 }
 
 /// 执行 build 命令

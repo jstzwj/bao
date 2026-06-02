@@ -482,7 +482,7 @@ public class Path {
                     current = StringBuilder()
                 }
             } else {
-                current.append(c)
+                current.append(Rune(c))
             }
         }
         if (current.toString().size > 0) {

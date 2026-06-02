@@ -950,6 +950,7 @@ public class Stmt {
 
     public static func import_(loc: Loc, recordIndex: Int64): Stmt {
         let s = Stmt(loc, StmtTag.Import)
+        s.importRecordIndex = recordIndex
         return s
     }
 
@@ -957,6 +958,17 @@ public class Stmt {
                                      items: ArrayList<ClauseItem>, recordIndex: Int64): Stmt {
         let s = Stmt(loc, StmtTag.Import)
         s.importItems = items
+        s.importRecordIndex = recordIndex
+        // 保存默认导入名: import X from '...'
+        if (defaultImport.isSome()) {
+            s.defaultName = defaultImport.getOrThrow().alias
+        }
+        // 保存命名空间导入: import * as ns from '...'
+        if (starImport.isSome()) {
+            s.hasImportStar = true
+            s.defaultName = starImport.getOrThrow().alias  // namespace 本地名存在 alias
+            s.namespaceRef = starImport.getOrThrow().ref
+        }
         return s
     }
 
@@ -977,6 +989,8 @@ public class Stmt {
     public static func exportStar(loc: Loc, recordIndex: Int64): Stmt {
         let s = Stmt(loc, StmtTag.Export)
         s.isExport = true
+        s.importRecordIndex = recordIndex
+        s.hasImportStar = true
         return s
     }
 
@@ -984,6 +998,7 @@ public class Stmt {
         let s = Stmt(loc, StmtTag.Export)
         s.isExport = true
         s.importItems = items
+        s.importRecordIndex = recordIndex
         return s
     }
 

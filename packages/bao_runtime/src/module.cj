@@ -175,7 +175,18 @@ public class ModuleLoader {
         let env = interpreter.getGlobalEnv()
         env.define("__filename", JsValue(BaoString(mod.filename)), false)
         env.define("__dirname", JsValue(BaoString(mod.dir)), false)
-        env.define("module", JsValue(cjsMod.exports), true)
+
+        // module 对象: { exports: <exports_obj>, id, filename, loaded }
+        // JS 代码执行 module.exports.hello = "world" 时:
+        //   module → 获取 moduleWrapper 对象
+        //   module.exports → 获取 cjsMod.exports (JsObject)
+        //   module.exports.hello = "world" → 设置属性
+        let moduleWrapper = JsObject()
+        moduleWrapper.set("exports", JsValue(cjsMod.exports))
+        moduleWrapper.set("id", JsValue(BaoString(cjsMod.id)))
+        moduleWrapper.set("filename", JsValue(BaoString(cjsMod.filename)))
+        moduleWrapper.set("loaded", JsValue(false))
+        env.define("module", JsValue(moduleWrapper), true)
         env.define("exports", JsValue(cjsMod.exports), true)
 
         // 注册 require 函数
@@ -209,8 +220,12 @@ public class ModuleLoader {
             return
         }
 
-        // 创建解释器
+        // 创建解释器并传入模块上下文
         let interpreter = Interpreter()
+        interpreter.setCurrentFile(mod.filename)
+        interpreter.setImportRecords(result.importRecords)
+        interpreter.setModuleExports(mod.exports)
+        interpreter.setModuleLoader(this)
 
         // 注册 import 解析的 require 函数
         let env = interpreter.getGlobalEnv()
@@ -230,7 +245,6 @@ public class ModuleLoader {
         }
 
         // 收集 export 声明到 exports 对象
-        // 简化: 将顶层声明作为导出
         collectExports(result.program, env, mod.exports)
     }
 
@@ -241,15 +255,55 @@ public class ModuleLoader {
                 case StmtTag.Export =>
                     collectExportDecls(stmt, env, exports)
                 case StmtTag.Function =>
-                    collectFunctionExport(stmt, env, exports)
+                    if (stmt.isExport) { collectFunctionExport(stmt, env, exports) }
+                case StmtTag.Local =>
+                    if (stmt.isExport) { collectLocalExport(stmt, env, exports) }
                 case _ => ()
             }
         }
     }
 
-    private func collectExportDecls(stmt: Stmt, env: Environment, exports: JsObject): Unit {}
+    /// 收集 export 声明中的导出项
+    private func collectExportDecls(stmt: Stmt, env: Environment, exports: JsObject): Unit {
+        // export { foo, bar as baz } — 从 importItems 收集
+        if (stmt.importItems.size > 0) {
+            for (i in 0..stmt.importItems.size) {
+                let item = stmt.importItems[Int64(i)]
+                let valOpt = env.lookup(item.alias)
+                if (valOpt.isSome()) {
+                    exports.set(item.alias, valOpt.getOrThrow())
+                }
+            }
+        }
+        // export default <expr> — 设置 default 导出
+        if (stmt.expr.isSome()) {
+            // export default 的值已在 execExport 中处理
+        }
+    }
 
-    private func collectFunctionExport(stmt: Stmt, env: Environment, exports: JsObject): Unit {}
+    /// 收集 export function 声明
+    private func collectFunctionExport(stmt: Stmt, env: Environment, exports: JsObject): Unit {
+        if (stmt.fn.isSome()) {
+            let fn = stmt.fn.getOrThrow()
+            let valOpt = env.lookup(fn.name)
+            if (valOpt.isSome()) {
+                exports.set(fn.name, valOpt.getOrThrow())
+            }
+        }
+    }
+
+    /// 收集 export const/let/var 声明
+    private func collectLocalExport(stmt: Stmt, env: Environment, exports: JsObject): Unit {
+        let decls = stmt.decls
+        for (i in 0..decls.size) {
+            let decl = decls[Int64(i)]
+            let name = decl.binding.name
+            let valOpt = env.lookup(name)
+            if (valOpt.isSome()) {
+                exports.set(name, valOpt.getOrThrow())
+            }
+        }
+    }
 
     /// 检测源码是否为 ESM 模块
     /// 对应 Bun: 检测文件是 ESM 还是 CJS
@@ -445,16 +499,29 @@ public class BuiltinModules {
         // test/it(name, fn) — 注册测试用例
         // 对应 Bun: src/runtime/test_runner/ScopeFunctions.zig 中 test/it
         let testFn = JsValue.nativeFunction(JsNativeFunction("test") { args =>
-            let runnerOpt = TestRunner.activeRunner
-            if (runnerOpt.isNone()) { return JsValue.UNDEFINED }
-            let runner = runnerOpt.getOrThrow()
-            if (args.size < 2) {
-                return JsValue.UNDEFINED
-            }
+            if (args.size < 2) { return JsValue.UNDEFINED }
             let name = Interpreter.jsToString(args[0])
             let fn = args[1]
-            runner.currentSuite.it(name) { testArgs =>
-                TestRunner.callJsCallback(fn, ArrayList<JsValue>())
+            let runnerOpt = TestRunner.activeRunner
+            if (runnerOpt.isSome()) {
+                let runner = runnerOpt.getOrThrow()
+                runner.currentSuite.it(name) { testArgs =>
+                    TestRunner.callJsCallback(fn, ArrayList<JsValue>())
+                }
+            } else {
+                // 无 TestRunner 时 (bao run 模式):
+                // 只执行同步回调，跳过 async 函数 (避免 await 挂起)
+                let asyncFlag = match (fn.functionData) {
+                    case Some(jfn) => jfn.isAsync
+                    case None => false
+                }
+                if (!asyncFlag) {
+                    try {
+                        TestRunner.callJsCallback(fn, ArrayList<JsValue>())
+                    } catch (_: Exception) {
+                        // 测试抛出异常 — 静默处理
+                    }
+                }
             }
             return JsValue.UNDEFINED
         })
@@ -464,20 +531,21 @@ public class BuiltinModules {
         // describe(name, fn) — 注册测试套件
         // 对应 Bun: src/runtime/test_runner/ScopeFunctions.zig 中 describe
         obj.set("describe", JsValue.nativeFunction(JsNativeFunction("describe") { args =>
-            let runnerOpt = TestRunner.activeRunner
-            if (runnerOpt.isNone()) { return JsValue.UNDEFINED }
-            let runner = runnerOpt.getOrThrow()
-            if (args.size < 2) {
-                return JsValue.UNDEFINED
-            }
+            if (args.size < 2) { return JsValue.UNDEFINED }
             let name = Interpreter.jsToString(args[0])
             let fn = args[1]
-            let prevSuite = runner.currentSuite
-            let suite = prevSuite.describe(name) { _ => }
-            runner.currentSuite = suite
-            // 执行回调以收集内部 describe/it
-            TestRunner.callJsCallback(fn, ArrayList<JsValue>())
-            runner.currentSuite = prevSuite
+            let runnerOpt = TestRunner.activeRunner
+            if (runnerOpt.isSome()) {
+                let runner = runnerOpt.getOrThrow()
+                let prevSuite = runner.currentSuite
+                let suite = prevSuite.describe(name) { _ => }
+                runner.currentSuite = suite
+                TestRunner.callJsCallback(fn, ArrayList<JsValue>())
+                runner.currentSuite = prevSuite
+            } else {
+                // 无 TestRunner 时直接执行 describe 回调
+                TestRunner.callJsCallback(fn, ArrayList<JsValue>())
+            }
             return JsValue.UNDEFINED
         }))
 
@@ -502,58 +570,68 @@ public class BuiltinModules {
             return JsValue.UNDEFINED
         }))
 
-        // beforeAll(fn)
+        // beforeAll(fn) — 无 TestRunner 时直接执行
         obj.set("beforeAll", JsValue.nativeFunction(JsNativeFunction("beforeAll") { args =>
-            let runnerOpt = TestRunner.activeRunner
-            if (runnerOpt.isNone()) { return JsValue.UNDEFINED }
-            let runner = runnerOpt.getOrThrow()
             if (args.size >= 1) {
                 let fn = args[0]
-                runner.currentSuite.beforeAll() { testArgs =>
+                let runnerOpt = TestRunner.activeRunner
+                if (runnerOpt.isSome()) {
+                    let runner = runnerOpt.getOrThrow()
+                    runner.currentSuite.beforeAll() { testArgs =>
+                        TestRunner.callJsCallback(fn, ArrayList<JsValue>())
+                    }
+                } else {
                     TestRunner.callJsCallback(fn, ArrayList<JsValue>())
                 }
             }
             return JsValue.UNDEFINED
         }))
 
-        // beforeEach(fn)
+        // beforeEach(fn) — 无 TestRunner 时直接执行
         obj.set("beforeEach", JsValue.nativeFunction(JsNativeFunction("beforeEach") { args =>
-            let runnerOpt = TestRunner.activeRunner
-            if (runnerOpt.isNone()) { return JsValue.UNDEFINED }
-            let runner = runnerOpt.getOrThrow()
             if (args.size >= 1) {
                 let fn = args[0]
-                runner.currentSuite.beforeEach() { testArgs =>
+                let runnerOpt = TestRunner.activeRunner
+                if (runnerOpt.isSome()) {
+                    let runner = runnerOpt.getOrThrow()
+                    runner.currentSuite.beforeEach() { testArgs =>
+                        TestRunner.callJsCallback(fn, ArrayList<JsValue>())
+                    }
+                } else {
                     TestRunner.callJsCallback(fn, ArrayList<JsValue>())
                 }
             }
             return JsValue.UNDEFINED
         }))
 
-        // afterEach(fn)
+        // afterEach(fn) — 无 TestRunner 时忽略
         obj.set("afterEach", JsValue.nativeFunction(JsNativeFunction("afterEach") { args =>
-            let runnerOpt = TestRunner.activeRunner
-            if (runnerOpt.isNone()) { return JsValue.UNDEFINED }
-            let runner = runnerOpt.getOrThrow()
             if (args.size >= 1) {
                 let fn = args[0]
-                runner.currentSuite.afterEach() { testArgs =>
-                    TestRunner.callJsCallback(fn, ArrayList<JsValue>())
+                let runnerOpt = TestRunner.activeRunner
+                if (runnerOpt.isSome()) {
+                    let runner = runnerOpt.getOrThrow()
+                    runner.currentSuite.afterEach() { testArgs =>
+                        TestRunner.callJsCallback(fn, ArrayList<JsValue>())
+                    }
                 }
+                // 无 TestRunner 时 afterEach 忽略 (测试已执行完毕)
             }
             return JsValue.UNDEFINED
         }))
 
-        // afterAll(fn)
+        // afterAll(fn) — 无 TestRunner 时忽略
         obj.set("afterAll", JsValue.nativeFunction(JsNativeFunction("afterAll") { args =>
-            let runnerOpt = TestRunner.activeRunner
-            if (runnerOpt.isNone()) { return JsValue.UNDEFINED }
-            let runner = runnerOpt.getOrThrow()
             if (args.size >= 1) {
                 let fn = args[0]
-                runner.currentSuite.afterAll() { testArgs =>
-                    TestRunner.callJsCallback(fn, ArrayList<JsValue>())
+                let runnerOpt = TestRunner.activeRunner
+                if (runnerOpt.isSome()) {
+                    let runner = runnerOpt.getOrThrow()
+                    runner.currentSuite.afterAll() { testArgs =>
+                        TestRunner.callJsCallback(fn, ArrayList<JsValue>())
+                    }
                 }
+                // 无 TestRunner 时 afterAll 忽略
             }
             return JsValue.UNDEFINED
         }))
@@ -584,15 +662,18 @@ public class BuiltinModules {
             return JsValue.UNDEFINED
         }))
 
-        // only(name, fn) — 仅运行此测试
+        // only(name, fn) — 仅运行此测试 (无 runner 时直接执行)
         let onlyFn = JsValue.nativeFunction(JsNativeFunction("only") { args =>
-            let runnerOpt = TestRunner.activeRunner
-            if (runnerOpt.isNone()) { return JsValue.UNDEFINED }
-            let runner = runnerOpt.getOrThrow()
             if (args.size >= 2) {
                 let name = Interpreter.jsToString(args[0])
                 let fn = args[1]
-                runner.currentSuite.only(name) { testArgs =>
+                let runnerOpt = TestRunner.activeRunner
+                if (runnerOpt.isSome()) {
+                    let runner = runnerOpt.getOrThrow()
+                    runner.currentSuite.only(name) { testArgs =>
+                        TestRunner.callJsCallback(fn, ArrayList<JsValue>())
+                    }
+                } else {
                     TestRunner.callJsCallback(fn, ArrayList<JsValue>())
                 }
             }

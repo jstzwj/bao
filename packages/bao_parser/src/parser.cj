@@ -1012,6 +1012,24 @@ public class Parser {
 
             // TypeScript 标识符上下文关键字 (interface, type, enum, namespace, declare, abstract)
             case Identifier =>
+                // async function 声明 — async 是 contextual keyword
+                if (lexer.isContextualKeyword("async")) {
+                    lexer.nextToken() // 消耗 async，前进到下一个 token
+                    if (lexer.token == Token.Function) {
+                        // async function — parseFnStmt 中 isAsync=true 且 token==Function
+                        // 会跳过重复消耗 async
+                        return parseFnStmt(loc, true, false)
+                    }
+                    // async 后面不是 function — 表达式语句 (如 async x => ...)
+                    // 回退: 重新把 async 当作标识符处理
+                    // 已经消耗了 async，当前 token 是下一个东西
+                    // 无法回退 lexer，但 async 单独出现时是合法标识符
+                    // 把 async 作为标识符表达式解析
+                    let asyncRef = newSymbol(SymbolKind.Ref, "async")
+                    let asyncExpr = Expr.identifier(loc, "async", asyncRef)
+                    // 继续解析后缀/赋值等
+                    return Stmt.expr_(loc, asyncExpr)
+                }
                 if (this.options.features.typescript) {
                     if (let Some(tsStmt) <- tryParseTypeScriptStmt(loc)) {
                         return tsStmt
@@ -1063,8 +1081,8 @@ public class Parser {
 
     /// 解析函数声明语句 - 对应 Bun parseFnStmt
     public func parseFnStmt(loc: Loc, isAsync: Bool, isGenerator: Bool): Stmt {
-        if (isAsync) {
-            lexer.nextToken() // 消耗 async
+        if (isAsync && lexer.token != Token.Function) {
+            lexer.nextToken() // 消耗 async（仅当 async 尚未被消耗时）
         }
         lexer.expect(Token.Function)
         if (isGenerator && lexer.token == Token.Asterisk) {
@@ -1086,6 +1104,8 @@ public class Parser {
             GFnBody.StmtsBody(body),
             loc
         )
+        fn.isAsync = isAsync
+        fn.isGenerator = isGenerator
         return Stmt.fn_(loc, fn)
     }
 

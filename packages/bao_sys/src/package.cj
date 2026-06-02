@@ -674,6 +674,8 @@ foreign func fork(): Int32
 @C
 foreign func exit(status: Int32): Unit
 @C
+foreign func _exit(status: Int32): Unit
+@C
 foreign func execvp(file: CPointer<Int8>, argv: CPointer<CPointer<Int8>>): Int32
 @C
 foreign func waitpid(pid: Int32, status: CPointer<Int32>, options: Int32): Int32
@@ -933,7 +935,7 @@ public class OS {
     /// 对应 Bun: std.posix.exit / sys.exit
     public static func exit(status: Int32): Unit {
         unsafe {
-            exit(status)
+            _exit(status)
         }
     }
 

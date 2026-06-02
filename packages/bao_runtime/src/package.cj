@@ -4,11 +4,12 @@ package bao_runtime
 
 import bao_core.*
 import bao_collections.*
-import bao_parser.{Stmt, Expr, StmtTag, ExprTag, OpCode, Binding, BindingTag, GFn, GFnBody, GArg, GClass, GProperty, GPropertyKind, GDecl, SwitchCase, ParserOptions, ParserFeatures, Source as ParserSource, Log as ParserLog, LogLevel as ParserLogLevel, Loc as ParserLoc, SourceLoc as ParserSourceLoc, Scope, ScopeKind, Symbol, SymbolKind, Ref, RefTag, DeclKind, OptionalChain, Parser}
+import bao_parser.{Stmt, Expr, StmtTag, ExprTag, OpCode, Binding, BindingTag, GFn, GFnBody, GArg, GClass, GProperty, GPropertyKind, GDecl, SwitchCase, ParserOptions, ParserFeatures, Source as ParserSource, Log as ParserLog, LogLevel as ParserLogLevel, Loc as ParserLoc, SourceLoc as ParserSourceLoc, Scope, ScopeKind, Symbol, SymbolKind, Ref, RefTag, DeclKind, OptionalChain, Parser, ImportRecord}
 import bao_sys.*
 import bao_event_loop.*
 import bao_path.*
 import bao_threading.*
+import std.time.DateTime
 
 // ============================================================================
 // JavaScript 错误码
@@ -101,6 +102,7 @@ public class JsValue {
     public var arrayData: ?ArrayList<JsValue>
     public var functionData: ?JsFunction
     public var nativeFnData: ?JsNativeFunction
+    public var promiseData: ?JsPromise
 
     public static let UNDEFINED = JsValue(JsValueType.Undefined)
 
@@ -121,6 +123,7 @@ public class JsValue {
         arrayData = None
         functionData = None
         nativeFnData = None
+        promiseData = None
     }
 
     public init(value: Bool) {
@@ -132,6 +135,7 @@ public class JsValue {
         arrayData = None
         functionData = None
         nativeFnData = None
+        promiseData = None
     }
 
     public init(value: Float64) {
@@ -143,6 +147,7 @@ public class JsValue {
         arrayData = None
         functionData = None
         nativeFnData = None
+        promiseData = None
     }
 
     public init(value: BaoString) {
@@ -154,6 +159,7 @@ public class JsValue {
         arrayData = None
         functionData = None
         nativeFnData = None
+        promiseData = None
     }
 
     public init(s: String) {
@@ -165,6 +171,7 @@ public class JsValue {
         arrayData = None
         functionData = None
         nativeFnData = None
+        promiseData = None
     }
 
     public init(value: JsObject) {
@@ -176,6 +183,7 @@ public class JsValue {
         arrayData = None
         functionData = None
         nativeFnData = None
+        promiseData = None
     }
 
     /// 创建数组 JsValue
@@ -196,6 +204,14 @@ public class JsValue {
     public static func nativeFunction(fn: JsNativeFunction): JsValue {
         let v = JsValue(JsValueType.Function)
         v.nativeFnData = Some(fn)
+        return v
+    }
+
+    /// 创建 Promise JsValue — 同时存储 JsPromise 和 JsObject 包装
+    public static func promise(p: JsPromise, obj: JsObject): JsValue {
+        let v = JsValue(JsValueType.Object)
+        v.objectData = Some(obj)
+        v.promiseData = Some(p)
         return v
     }
 
@@ -498,11 +514,53 @@ public class JsObject {
 }
 
 // ============================================================================
-// 解析与事件循环占位
+// 工具函数
+// ============================================================================
+
+/// 获取当前时间的毫秒数 (Unix epoch)
+private func currentTimeMillis(): Int64 {
+    DateTime.now().toUnixTimeStamp().toMilliseconds()
+}
+
+// ============================================================================
+// 定时器条目
+// ============================================================================
+
+/// 定时器条目 — 内部使用
+class TimerEntry {
+    public var id: Int64
+    public var deadlineMs: Int64
+    public var intervalMs: Int64
+    public var isInterval: Bool
+    public var callback: () -> Unit
+    public var cancelled: Bool
+
+    public init(id: Int64, deadlineMs: Int64, intervalMs: Int64, isInterval: Bool, callback: () -> Unit) {
+        this.id = id
+        this.deadlineMs = deadlineMs
+        this.intervalMs = intervalMs
+        this.isInterval = isInterval
+        this.callback = callback
+        this.cancelled = false
+    }
+}
+
+// ============================================================================
+// 事件循环 — 带定时器调度
 // ============================================================================
 
 public class EventLoop {
-    public init() {}
+    private var nextTimerId: Int64
+    private var timers: ArrayList<TimerEntry>
+    private var cancelledIds: HashSet<Int64>
+    private var microtasks: ArrayList<() -> Unit>
+
+    public init() {
+        nextTimerId = 1
+        timers = ArrayList<TimerEntry>()
+        cancelledIds = HashSet<Int64>()
+        microtasks = ArrayList<() -> Unit>()
+    }
 
     public func enter(): Unit {
         ()
@@ -521,9 +579,102 @@ public class EventLoop {
         ()
     }
 
+    /// 设置定时器 (setTimeout)
+    public func setTimeout(delayMs: Int64, callback: () -> Unit): Int64 {
+        let id = nextTimerId
+        nextTimerId += 1
+        let now = currentTimeMillis()
+        let entry = TimerEntry(id, now + delayMs, 0, false, callback)
+        timers.append(entry)
+        return id
+    }
+
+    /// 设置间隔定时器 (setInterval)
+    public func setInterval(intervalMs: Int64, callback: () -> Unit): Int64 {
+        let id = nextTimerId
+        nextTimerId += 1
+        let now = currentTimeMillis()
+        let entry = TimerEntry(id, now + intervalMs, intervalMs, true, callback)
+        timers.append(entry)
+        return id
+    }
+
+    /// 取消定时器
+    public func clearTimer(id: Int64): Unit {
+        cancelledIds.put(id)
+        for (timer in timers) {
+            if (timer.id == id) {
+                timer.cancelled = true
+                return
+            }
+        }
+    }
+
+    /// 检查定时器是否已被取消
+    public func isTimerCancelled(id: Int64): Bool {
+        cancelledIds.contains(id)
+    }
+
+    /// 入队微任务
+    public func enqueueMicrotask(task: () -> Unit): Unit {
+        microtasks.append(task)
+    }
+
+    /// 执行所有到期的定时器
+    public func tick(): Unit {
+        let now = currentTimeMillis()
+        var expired = ArrayList<TimerEntry>()
+        var remaining = ArrayList<TimerEntry>()
+
+        for (timer in timers) {
+            if (timer.cancelled || cancelledIds.contains(timer.id)) {
+                continue
+            }
+            if (timer.deadlineMs <= now) {
+                expired.append(timer)
+            } else {
+                remaining.append(timer)
+            }
+        }
+
+        timers = remaining
+
+        for (timer in expired) {
+            if (cancelledIds.contains(timer.id)) {
+                continue
+            }
+            timer.callback()
+            if (timer.isInterval && !cancelledIds.contains(timer.id)) {
+                timer.deadlineMs = now + timer.intervalMs
+                timers.append(timer)
+            }
+        }
+    }
+
+    /// 排空微任务队列
+    public func drainMicrotasks(): Unit {
+        while (microtasks.size > 0) {
+            let tasks = microtasks
+            microtasks = ArrayList<() -> Unit>()
+            for (task in tasks) {
+                task()
+            }
+        }
+    }
+
+    /// 是否有待执行的定时器
+    public func hasPendingTimers(): Bool {
+        for (timer in timers) {
+            if (!timer.cancelled && !cancelledIds.contains(timer.id)) {
+                return true
+            }
+        }
+        return false
+    }
+
     /// 执行一次 tick
     public func tickOnce(): Unit {
-        ()
+        tick()
     }
 
     /// 入队任务
@@ -536,9 +687,19 @@ public class EventLoop {
         task.run()
     }
 
-    /// 运行事件循环
+    /// 运行事件循环直到所有定时器和微任务完成
     public func run(): Unit {
-        ()
+        runUntilEmpty()
+    }
+
+    /// 运行事件循环直到没有待处理的定时器
+    public func runUntilEmpty(): Unit {
+        var maxIter = 10000
+        while ((hasPendingTimers() || microtasks.size > 0) && maxIter > 0) {
+            drainMicrotasks()
+            tick()
+            maxIter -= 1
+        }
     }
 }
 
@@ -555,10 +716,12 @@ public class ParseResultError {
 public class ParseResult {
     public var program: ArrayList<Stmt>
     public var errors: ArrayList<ParseResultError>
+    public var importRecords: ArrayList<ImportRecord>   // 模块导入记录
 
     public init() {
         program = ArrayList<Stmt>()
         errors = ArrayList<ParseResultError>()
+        importRecords = ArrayList<ImportRecord>()
     }
 
     public func hasErrors(): Bool {
@@ -586,6 +749,9 @@ public class JsParser {
         if (blockStmt.tag == StmtTag.Block) {
             result.program = blockStmt.stmts
         }
+
+        // 复制模块导入记录 (import/export 路径信息)
+        result.importRecords = parser.importRecords
 
         // 转换错误日志为 ParseResultError
         for (msg in log.msgs) {
@@ -619,14 +785,19 @@ public class VirtualMachine {
     private var globalObject: JsObject
     private var interpreter: Interpreter
     private var parser: JsParser
+    private var moduleLoader: ModuleLoader
     private var running: Bool
+    /// process.exit() 设置的退出码 (-1 表示未设置)
+    public var exitCode: Int64
 
     public init() {
         eventLoop = EventLoop()
         globalObject = JsObject()
         interpreter = Interpreter()
         parser = JsParser()
+        moduleLoader = ModuleLoader({ path => VirtualMachine.readFileContents(path) })
         running = false
+        exitCode = -1
     }
 
     public static func get(): VirtualMachine {
@@ -648,7 +819,9 @@ public class VirtualMachine {
             return JsValue.UNDEFINED
         }
 
-        // 使用 Interpreter 执行 AST
+        // 设置模块上下文并执行 AST
+        interpreter.setCurrentFile(filename)
+        interpreter.setImportRecords(result.importRecords)
         return interpreter.eval(result.program)
     }
 
@@ -660,7 +833,39 @@ public class VirtualMachine {
             println("Error: Cannot read file '${path}'")
             return JsValue.UNDEFINED
         }
-        return eval(source, path)
+
+        // 共享事件循环: VM 的 eventLoop 与 Interpreter 的 eventLoop 是同一个
+        interpreter.setEventLoop(eventLoop)
+
+        // 设置 CJS 模块上下文 (module, exports, require)
+        let exports = JsObject()
+        let moduleWrapper = JsObject()
+        moduleWrapper.set("exports", JsValue(exports))
+        moduleWrapper.set("id", JsValue(BaoString(path)))
+        moduleWrapper.set("filename", JsValue(BaoString(path)))
+        moduleWrapper.set("loaded", JsValue(false))
+
+        let env = interpreter.getGlobalEnv()
+        env.define("module", JsValue(moduleWrapper), true)
+        env.define("exports", JsValue(exports), true)
+        env.define("require", Interpreter.makeNativeFn("require") { args =>
+            if (args.size < 1) { return JsValue.UNDEFINED }
+            let spec = Interpreter.jsToString(args[0])
+            return moduleLoader.require(spec, path)
+        }, false)
+        env.define("__filename", JsValue(BaoString(path)), false)
+
+        var result = JsValue.UNDEFINED
+        try {
+            result = eval(source, path)
+            // 执行事件循环直到所有定时器/微任务完成
+            eventLoop.runUntilEmpty()
+        } catch (e: ProcessExitSignal) {
+            // process.exit() 被调用 — 保存退出码
+            exitCode = e.exitCode
+        }
+
+        return result
     }
 
     /// 读取文件内容 — 使用 SysFs 系统调用

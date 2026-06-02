@@ -5,7 +5,7 @@ import std.convert.*
 import bao_runtime.*
 import bao_io.*
 import bao_path.*
-import bao_sys.*
+import bao_sys.{SysFs, SysMaybe, OpenFlags, FileMode, OS, ChildProcess, SpawnOptions, ProcessSpawner}
 import bao_collections.ArrayList
 
 let BAO_VERSION = "0.1.0"
@@ -1013,6 +1013,10 @@ func extractScriptCommand(json: String, scriptName: String): ?String {
 func runJavaScriptFile(target: String, args: Array<String>, start: Int64): Unit {
     let vm = VirtualMachine()
     let _ = vm.executeFile(target)
+    // 传播 process.exit() 的退出码
+    if (vm.exitCode >= 0) {
+        OS.exit(Int32(vm.exitCode))
+    }
 }
 
 func isJavaScriptLikeFile(path: String): Bool {
