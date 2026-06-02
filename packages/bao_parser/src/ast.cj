@@ -399,6 +399,13 @@ public class Expr {
         return e
     }
 
+    /// 创建类表达式 - 对应 Bun E.Class
+    public static func class_(loc: Loc, classData: GClass): Expr {
+        let e = Expr(loc, ExprTag.Class)
+        e.classData = Some(classData)
+        return e
+    }
+
     /// 创建对象表达式 - 对应 Bun E.Object
     public static func object(loc: Loc, properties: ArrayList<GProperty>): Expr {
         let e = Expr(loc, ExprTag.Object)

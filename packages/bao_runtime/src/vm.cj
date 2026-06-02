@@ -174,6 +174,9 @@ public class Interpreter {
     private var moduleExports: ?JsObject
     /// 事件循环 (定时器/微任务调度)
     private var eventLoop: EventLoop
+    /// 原生构造函数注册表 — 绕过 Cangjie JsValue 字段丢失问题
+    /// key: 构造函数名称, value: 原生函数
+    private var nativeConstructors: HashMap<String, NativeFn>
 
     public init() {
         globalEnv = Environment()
@@ -184,6 +187,7 @@ public class Interpreter {
         importRecords = ArrayList<ImportRecord>()
         moduleExports = None
         eventLoop = EventLoop()
+        nativeConstructors = HashMap<String, NativeFn>()
         registerBuiltins()
     }
 
@@ -195,6 +199,7 @@ public class Interpreter {
         importRecords = ArrayList<ImportRecord>()
         moduleExports = None
         eventLoop = EventLoop()
+        nativeConstructors = HashMap<String, NativeFn>()
         registerBuiltins()
     }
 
@@ -461,8 +466,9 @@ public class Interpreter {
         globalEnv.define("process", JsValue(processObj), false)
 
         // Promise 构造函数 — new Promise((resolve, reject) => { ... })
+        // 同时注册到 nativeConstructors 以绕过 Cangjie JsValue 字段丢失问题
         let interp = this
-        globalEnv.define("Promise", makeNativeFn("Promise") { args =>
+        let promiseCtorFn = makeNativeFn("Promise") { args =>
             let promise = JsPromise()
             // 创建 resolve/reject 函数
             let resolveFn = makeNativeFn("resolve") { resolveArgs =>
@@ -490,8 +496,11 @@ public class Interpreter {
             }
 
             // 返回 Promise JsValue — 同时携带 JsPromise 内部引用和 JsObject 包装
-            wrapPromiseValue(promise)
-        }, false)
+            interp.wrapPromiseValue(promise)
+        }
+        globalEnv.define("Promise", promiseCtorFn, false)
+        // 注册到原生构造函数注册表 — evalNew 通过此表查找
+        nativeConstructors.put("Promise", promiseCtorFn.nativeFnData.getOrThrow().fn)
 
         // 注册当前 Interpreter 为 TestRunner 的回调 VM
         // 这样 bun:test 在 bao run 模式下也能执行 JS 测试回调
@@ -1246,7 +1255,10 @@ public class Interpreter {
     /// 标识符求值 - 对应 JS 标识符解析
     private func evalIdentifier(e: Expr, env: Environment): JsValue {
         let vOpt = env.lookup(e.identifierName)
-        return if (vOpt.isSome()) { vOpt.getOrThrow() } else { JsValue.UNDEFINED }
+        if (vOpt.isSome()) {
+            return vOpt.getOrThrow()
+        }
+        return JsValue.UNDEFINED
     }
 
 
@@ -1265,13 +1277,11 @@ public class Interpreter {
             let obj = newObject()
 
             // 设置原型链 — 对应 obj.__proto__ = Constructor.prototype
-            match (ctor.objectData) {
-                case Some(ctorObj) =>
-                    match (ctorObj.get("prototype").objectData) {
-                        case Some(proto) => obj.set("__proto__", JsValue(proto))
-                        case None => ()
-                    }
-                case None => ()
+            if (ctor.objectData.isSome()) {
+                let protoVal = ctor.objectData.getOrThrow().get("prototype")
+                if (protoVal.objectData.isSome()) {
+                    obj.set("__proto__", JsValue(protoVal.objectData.getOrThrow()))
+                }
             }
 
             // 求值参数
@@ -1280,43 +1290,35 @@ public class Interpreter {
                 args.append(evalExpr(arg, env))
             }
 
-            // 调用构造函数 — 检查 __ctor__ (class 声明的构造函数)
+            // 调用构造函数
+            // JS spec: 如果构造函数返回对象，使用该对象；否则使用新创建的对象
             var result: JsValue = JsValue(obj)
-            match (ctor.objectData) {
-                case Some(ctorObj) =>
-                    let ctorVal = ctorObj.get("__ctor__")
-                    match (ctorVal.functionData) {
-                        case Some(fn) =>
-                            let ret = callJsFunction(fn, args, JsValue(obj))
-                            // 如果构造函数返回对象，使用该对象
-                            if (ret.valueType == JsValueType.Object) {
-                                result = ret
-                            }
-                        case None =>
-                            // 尝试作为原生函数调用
-                            match (ctor.nativeFnData) {
-                                case Some(nf) =>
-                                    let ret = nf.fn(args)
-                                    if (ret.valueType == JsValueType.Object) {
-                                        result = ret
-                                    }
-                                case None => ()
-                            }
+            try {
+                var ctorCalled = false
+                // 优先: 从 nativeConstructors 注册表查找 (绕过 JsValue 字段丢失)
+                if (target.tag == ExprTag.Identifier) {
+                    let name = target.identifierName
+                    let regOpt = nativeConstructors.get(name)
+                    if (regOpt.isSome()) {
+                        let ret = regOpt.getOrThrow()(args)
+                        if (ret.valueType == JsValueType.Object) { result = ret }
+                        ctorCalled = true
                     }
-                case None =>
-                    // 原生构造函数
-                    match (ctor.nativeFnData) {
-                        case Some(nf) =>
-                            let ret = nf.fn(args)
-                            if (ret.valueType == JsValueType.Object) {
-                                result = ret
-                            }
-                        case None => ()
+                }
+                // 回退: 使用 callFunction (处理 JS 函数构造器)
+                if (!ctorCalled) {
+                    let ret = callFunction(ctor, args, JsValue(obj), env)
+                    if (ret.valueType == JsValueType.Object) {
+                        result = ret
                     }
+                }
+            } catch (_: Exception) {
+                // 构造函数抛出异常 — 保留默认对象
             }
             return result
         }
         // 无 target — 返回空对象
+        return JsValue(newObject())
         return JsValue(newObject())
     }
 
@@ -1379,6 +1381,15 @@ public class Interpreter {
                 thisVal = objVal
                 if (objVal.objectData.isSome()) {
                     let objData = objVal.objectData.getOrThrow(); callable = objData.get(target.propertyName)
+                }
+                // 原生函数静态方法调用 — 对应 Promise.resolve() 等模式
+                // evalDot 已有此检查 (line 2099)，evalCall 需保持一致
+                if (callable.isNone() && objVal.nativeFnData.isSome()) {
+                    let staticProp = getNativeFunctionProperty(
+                        objVal.nativeFnData.getOrThrow().name, target.propertyName)
+                    if (staticProp.isSome()) {
+                        callable = staticProp.getOrThrow()
+                    }
                 }
                 // 字符串方法调用 — 对应 String.prototype.method()
                 if (callable.isNone() && objVal.valueType == JsValueType.String) {
@@ -1948,7 +1959,9 @@ public class Interpreter {
     }
 
     /// 调用函数 - JS 函数或原生函数
-    private func callFunction(fn: JsValue, args: ArrayList<JsValue>,
+    /// 调用函数 (公开接口，供测试框架等外部调用)
+    /// 对应 Bun: JSC::JSObjectCallAsFunction
+    public func callFunction(fn: JsValue, args: ArrayList<JsValue>,
                               thisVal: JsValue, env: Environment): JsValue {
         // 原生函数
         if (fn.nativeFnData.isSome()) {
@@ -2195,28 +2208,34 @@ public class Interpreter {
             }
             if (propName == "all") {
                 return Some(makeNativeFn("all") { args =>
-                    // 简化: 同步收集所有已 resolve 的值
-                    let results = ArrayList<JsValue>()
+                    let promises = ArrayList<JsPromise>()
                     if (args.size > 0 && args[0].arrayData.isSome()) {
                         let arr = args[0].arrayData.getOrThrow()
                         for (item in arr) {
-                            results.append(item)
+                            if (item.promiseData.isSome()) {
+                                promises.append(item.promiseData.getOrThrow())
+                            } else {
+                                promises.append(JsPromise.resolve(item))
+                            }
                         }
                     }
-                    return wrapPromiseValue(JsPromise.resolve(JsValue.array(results)))
+                    return wrapPromiseValue(JsPromise.all(promises))
                 })
             }
             if (propName == "race") {
                 return Some(makeNativeFn("race") { args =>
+                    let promises = ArrayList<JsPromise>()
                     if (args.size > 0 && args[0].arrayData.isSome()) {
                         let arr = args[0].arrayData.getOrThrow()
-                        if (arr.size > 0) {
-                            let first = arr[0]
-                            if (first.promiseData.isSome()) { return first }
-                            return wrapPromiseValue(JsPromise.resolve(first))
+                        for (item in arr) {
+                            if (item.promiseData.isSome()) {
+                                promises.append(item.promiseData.getOrThrow())
+                            } else {
+                                promises.append(JsPromise.resolve(item))
+                            }
                         }
                     }
-                    return wrapPromiseValue(JsPromise())
+                    return wrapPromiseValue(JsPromise.race(promises))
                 })
             }
         }

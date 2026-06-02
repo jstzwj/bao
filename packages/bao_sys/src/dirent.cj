@@ -139,16 +139,53 @@ public class DirIterator {
             // 解析 struct dirent:
             // d_ino (8 bytes) + d_off (8 bytes) + d_reclen (2) + d_type (1) + d_name (256)
             let nameOffset = 19  // 在 Linux x86_64 上
-            var name = StringBuilder()
-            var i = 0
-            while (i < 256) {
-                let bytePtr = CPointer<Int8>(entry) + Int64(nameOffset + i)
-                let b = Int32(bytePtr.read())
+            // 使用 UInt8 指针读取 d_name 原始字节
+            let nameStartPtr = CPointer<UInt8>(entry) + Int64(nameOffset)
+            // 计算名称长度
+            var nameLen = 0
+            while (nameLen < 256) {
+                let b = Int32((nameStartPtr + Int64(nameLen)).read())
                 if (b == 0) { break }
-                name.append(Rune(b))
-                i += 1
+                nameLen += 1
             }
-            let entryName = name.toString()
+            if (nameLen == 0) {
+                return next()  // 跳过空名称
+            }
+            // 使用 UInt8 逐字节构建字符串
+            var sb = StringBuilder()
+            var i = 0
+            while (i < nameLen) {
+                let byteVal = Int64((nameStartPtr + Int64(i)).read()) & Int64(0xFF)
+                if (byteVal < Int64(0x80)) {
+                    // ASCII 字符
+                    sb.append(Rune(Int32(byteVal)))
+                    i += 1
+                } else {
+                    // UTF-8 多字节序列: 计算字节数
+                    var byteCount = 2
+                    if ((byteVal & Int64(0xE0)) == Int64(0xC0)) { byteCount = 2 }
+                    else if ((byteVal & Int64(0xF0)) == Int64(0xE0)) { byteCount = 3 }
+                    else if ((byteVal & Int64(0xF8)) == Int64(0xF0)) { byteCount = 4 }
+                    // 解码 UTF-8 码点
+                    var codePoint: Int64 = 0
+                    if (byteCount == 2) {
+                        codePoint = (byteVal & Int64(0x1F)) << 6
+                        codePoint |= Int64((nameStartPtr + Int64(i + 1)).read()) & Int64(0x3F)
+                    } else if (byteCount == 3) {
+                        codePoint = (byteVal & Int64(0x0F)) << 12
+                        codePoint |= (Int64((nameStartPtr + Int64(i + 1)).read()) & Int64(0x3F)) << 6
+                        codePoint |= Int64((nameStartPtr + Int64(i + 2)).read()) & Int64(0x3F)
+                    } else {
+                        codePoint = (byteVal & Int64(0x07)) << 18
+                        codePoint |= (Int64((nameStartPtr + Int64(i + 1)).read()) & Int64(0x3F)) << 12
+                        codePoint |= (Int64((nameStartPtr + Int64(i + 2)).read()) & Int64(0x3F)) << 6
+                        codePoint |= Int64((nameStartPtr + Int64(i + 3)).read()) & Int64(0x3F)
+                    }
+                    sb.append(Rune(Int32(codePoint)))
+                    i += byteCount
+                }
+            }
+            let entryName = sb.toString()
             // 跳过 . 和 ..
             if (entryName == "." || entryName == "..") {
                 return next()

@@ -1197,6 +1197,7 @@ public class SysFs {
         unsafe {
             let pathPtr = unsafeNewCString(path)
             let rc = access(pathPtr, Int32(mode))
+            free(CPointer<Unit>(pathPtr))
             if (rc != 0) {
                 return SysMaybe<Unit>.Err(
                     SysError(UInt16(Int64(OS.errno())), SysTag.Access, path)
@@ -1216,6 +1217,7 @@ public class SysFs {
             let rc = stat(pathPtr, statBuf)
             if (rc != 0) {
                 free(statBuf)
+                free(CPointer<Unit>(pathPtr))
                 return SysMaybe<UInt64>.Err(
                     SysError(UInt16(Int64(OS.errno())), SysTag.Stat, path)
                 )
@@ -1224,7 +1226,41 @@ public class SysFs {
             let sizePtr = CPointer<Int64>(statBuf) + Int64(6)  // offset 48 = 6 * 8
             let size = UInt64(sizePtr.read())
             free(statBuf)
+            free(CPointer<Unit>(pathPtr))
             return SysMaybe<UInt64>.Ok(size)
+        }
+    }
+
+    /// 获取文件元数据
+    /// 对应 Bun: sys.stat(path) -> Maybe(PosixStat)
+    /// 严格翻译自: src/sys/PosixStat.zig 中 stat 系统调用
+    public static func stat(path: String): SysMaybe<PosixStat> {
+        unsafe {
+            let pathPtr = unsafeNewCString(path)
+            let statBuf = malloc(UIntNative(144))  // struct stat 大小 144 字节 (Linux x86_64)
+            let rc = stat(pathPtr, statBuf)
+            if (rc != 0) {
+                free(statBuf)
+                free(CPointer<Unit>(pathPtr))
+                return SysMaybe<PosixStat>.Err(
+                    SysError(UInt16(Int64(OS.errno())), SysTag.Stat, path)
+                )
+            }
+            let result = PosixStat()
+            let basePtr = CPointer<Int8>(statBuf)
+            result.dev = UInt64(CPointer<Int64>(statBuf).read())
+            result.ino = UInt64((CPointer<Int64>(statBuf) + Int64(1)).read())
+            result.nlink = UInt64((CPointer<Int64>(statBuf) + Int64(2)).read())
+            result.mode = UInt32(CPointer<Int32>(basePtr + Int64(24)).read())
+            result.uid = UInt32(CPointer<Int32>(basePtr + Int64(28)).read())
+            result.gid = UInt32(CPointer<Int32>(basePtr + Int64(32)).read())
+            result.rdev = UInt64((CPointer<Int64>(statBuf) + Int64(5)).read())
+            result.size = UInt64((CPointer<Int64>(statBuf) + Int64(6)).read())
+            result.blksize = UInt64((CPointer<Int64>(statBuf) + Int64(7)).read())
+            result.blocks = UInt64((CPointer<Int64>(statBuf) + Int64(8)).read())
+            free(statBuf)
+            free(CPointer<Unit>(pathPtr))
+            return SysMaybe<PosixStat>.Ok(result)
         }
     }
 
@@ -1504,12 +1540,14 @@ internal func unsafeNewCString(s: String): CPointer<Int8> {
     unsafe {
         let len = s.size
         let ptr = malloc(UIntNative(len + 1))
-        let bytesPtr = CPointer<Int8>(ptr)
+        let bytesPtr = CPointer<UInt8>(ptr)
         for (i in 0..len) {
-            (bytesPtr + Int64(i)).write(Int8(Int64(s[Int64(i)]) & 0xFF))
+            let byteVal = Int64(s[Int64(i)]) & 0xFF
+            // 使用 UInt8 指针写入, 避免超出 Int8 范围的溢出
+            (bytesPtr + Int64(i)).write(UInt8(byteVal))
         }
-        (bytesPtr + Int64(len)).write(Int8(0))  // null 终止符
-        return bytesPtr
+        (bytesPtr + Int64(len)).write(UInt8(0))  // null 终止符
+        return CPointer<Int8>(ptr)
     }
 }
 

@@ -693,11 +693,26 @@ public class EventLoop {
     }
 
     /// 运行事件循环直到没有待处理的定时器
+    /// 当有定时器待处理但未到期时，等待到最近的到期时间再 tick
     public func runUntilEmpty(): Unit {
         var maxIter = 10000
         while ((hasPendingTimers() || microtasks.size > 0) && maxIter > 0) {
             drainMicrotasks()
             tick()
+            // 如果还有定时器但都未到期，等待最近的到期时间
+            if (hasPendingTimers() && microtasks.size == 0) {
+                let now = currentTimeMillis()
+                var nearestDeadline = Int64(9223372036854775807)
+                for (timer in timers) {
+                    if (!timer.cancelled && timer.deadlineMs < nearestDeadline) {
+                        nearestDeadline = timer.deadlineMs
+                    }
+                }
+                let waitMs = nearestDeadline - now
+                if (waitMs > 0 && waitMs < 30000) {
+                    SysModule.sleep(waitMs)
+                }
+            }
             maxIter -= 1
         }
     }

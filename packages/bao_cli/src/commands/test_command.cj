@@ -182,7 +182,9 @@ public class TestCommand {
     /// 发现测试文件
     /// 对应 Bun: test_command.zig 中 Scanner.scan
     private func discoverTestFiles(): ArrayList<String> {
-        let scanner = TestScanner()
+        // 严格对应 Bun: scanner 初始化时 top_level_dir 为当前工作目录
+        // Bun: scanner.fs.top_level_dir 来自 transpiler.fs
+        let scanner = TestScanner(Sys.getcwd())
         scanner.pathIgnorePatterns = options.pathIgnorePatterns
 
         // 检测是否有相对路径参数

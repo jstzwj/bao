@@ -6,6 +6,21 @@ package bao_runtime
 import bao_core.*
 import bao_collections.*
 
+/// 可变计数器 — 用于 Promise.all/race/any 的回调中的共享可变状态
+/// Cangjie 不允许 lambda 捕获 var 变量，使用 class 包装
+public class MutableCounter {
+    public var count: Int64
+    public init() { count = 0 }
+    public init(n: Int64) { count = n }
+}
+
+/// 可变布尔标志 — 用于 Promise.race/any 中的 settled 标记
+public class MutableBool {
+    public var value: Bool
+    public init() { value = false }
+    public init(v: Bool) { value = v }
+}
+
 // ============================================================================
 // PromiseState - Promise 状态
 // 对应 ECMAScript PromiseState: "pending" | "fulfilled" | "rejected"
@@ -194,35 +209,115 @@ public class JsPromise {
 
     /// 等待所有 Promise 完成 - 对应 Promise.all(promises)
     /// 全部完成 → 返回结果数组; 任一拒绝 → 立即拒绝
+    /// 等待所有 Promise 完成 - 对应 Promise.all(promises)
+    /// 全部完成 → 返回结果数组; 任一拒绝 → 立即拒绝
+    /// 支持已解决和待处理的 Promise
     public static func all(promises: ArrayList<JsPromise>): JsPromise {
+        if (promises.size == 0) {
+            return JsPromise.resolve(JsValue.array(ArrayList<JsValue>()))
+        }
+        let aggregatePromise = JsPromise()
         let results = ArrayList<JsValue>()
-        for (promise in promises) {
+        for (_ in 0..promises.size) { results.append(JsValue.UNDEFINED) }
+        let remaining = MutableCounter(promises.size)
+        let rejected = MutableBool()
+        for (i in 0..promises.size) {
+            let promise = promises[i]
+            let idx = i
             match (promise.state) {
-                case PromiseState.Rejected => return JsPromise.reject(promise.result)
-                case PromiseState.Fulfilled => results.append(promise.result)
-                case _ => results.append(JsValue.UNDEFINED)
+                case PromiseState.Fulfilled =>
+                    results[idx] = promise.result
+                    remaining.count -= 1
+                case PromiseState.Rejected =>
+                    if (!rejected.value) {
+                        rejected.value = true
+                        aggregatePromise.rejectInternal(promise.result)
+                    }
+                case PromiseState.Pending =>
+                    promise.then(
+                        { value =>
+                            if (!rejected.value) {
+                                results[idx] = value
+                                remaining.count -= 1
+                                if (remaining.count == 0) {
+                                    aggregatePromise.fulfill(JsValue.array(results))
+                                }
+                            }
+                            value
+                        },
+                        { reason =>
+                            if (!rejected.value) {
+                                rejected.value = true
+                                aggregatePromise.rejectInternal(reason)
+                            }
+                            reason
+                        }
+                    )
             }
         }
-        return JsPromise.resolve(JsValue.array(results))
+        if (!rejected.value && remaining.count == 0) {
+            aggregatePromise.fulfill(JsValue.array(results))
+        }
+        return aggregatePromise
     }
 
     /// 等待所有 Promise 结束 - 对应 Promise.allSettled(promises)
     /// 无论完成或拒绝，收集所有结果
     public static func allSettled(promises: ArrayList<JsPromise>): JsPromise {
+        if (promises.size == 0) {
+            return JsPromise.resolve(JsValue.array(ArrayList<JsValue>()))
+        }
+        let aggregatePromise = JsPromise()
         let results = ArrayList<JsValue>()
-        for (promise in promises) {
-            let entry = JsObject()
+        for (_ in 0..promises.size) { results.append(JsValue.UNDEFINED) }
+        let remaining = MutableCounter(promises.size)
+        for (i in 0..promises.size) {
+            let promise = promises[i]
+            let idx = i
             match (promise.state) {
-                case PromiseState.Rejected =>
-                    entry.set("status", JsValue(BaoString("rejected")))
-                    entry.set("reason", promise.result)
-                case _ =>
+                case PromiseState.Fulfilled =>
+                    let entry = JsObject()
                     entry.set("status", JsValue(BaoString("fulfilled")))
                     entry.set("value", promise.result)
+                    results[idx] = JsValue(entry)
+                    remaining.count -= 1
+                case PromiseState.Rejected =>
+                    let entry = JsObject()
+                    entry.set("status", JsValue(BaoString("rejected")))
+                    entry.set("reason", promise.result)
+                    results[idx] = JsValue(entry)
+                    remaining.count -= 1
+                case PromiseState.Pending =>
+                    promise.then(
+                        { value =>
+                            let entry = JsObject()
+                            entry.set("status", JsValue(BaoString("fulfilled")))
+                            entry.set("value", value)
+                            results[idx] = JsValue(entry)
+                            remaining.count -= 1
+                            if (remaining.count == 0) {
+                                aggregatePromise.fulfill(JsValue.array(results))
+                            }
+                            value
+                        },
+                        { reason =>
+                            let entry = JsObject()
+                            entry.set("status", JsValue(BaoString("rejected")))
+                            entry.set("reason", reason)
+                            results[idx] = JsValue(entry)
+                            remaining.count -= 1
+                            if (remaining.count == 0) {
+                                aggregatePromise.fulfill(JsValue.array(results))
+                            }
+                            reason
+                        }
+                    )
             }
-            results.append(JsValue(entry))
         }
-        return JsPromise.resolve(JsValue.array(results))
+        if (remaining.count == 0) {
+            aggregatePromise.fulfill(JsValue.array(results))
+        }
+        return aggregatePromise
     }
 
     /// 竞争 - 对应 Promise.race(promises)
@@ -231,30 +326,101 @@ public class JsPromise {
         if (promises.size == 0) {
             return JsPromise()
         }
-        let first = promises[0]
-        match (first.state) {
-            case PromiseState.Rejected => return JsPromise.reject(first.result)
-            case PromiseState.Fulfilled => return JsPromise.resolve(first.result)
-            case _ => return JsPromise()
+        let aggregatePromise = JsPromise()
+        let settled = MutableBool()
+        for (promise in promises) {
+            match (promise.state) {
+                case PromiseState.Fulfilled =>
+                    if (!settled.value) {
+                        settled.value = true
+                        aggregatePromise.fulfill(promise.result)
+                    }
+                case PromiseState.Rejected =>
+                    if (!settled.value) {
+                        settled.value = true
+                        aggregatePromise.rejectInternal(promise.result)
+                    }
+                case PromiseState.Pending =>
+                    promise.then(
+                        { value =>
+                            if (!settled.value) {
+                                settled.value = true
+                                aggregatePromise.fulfill(value)
+                            }
+                            value
+                        },
+                        { reason =>
+                            if (!settled.value) {
+                                settled.value = true
+                                aggregatePromise.rejectInternal(reason)
+                            }
+                            reason
+                        }
+                    )
+            }
         }
+        return aggregatePromise
     }
 
     /// 任意完成 - 对应 Promise.any(promises)
     /// 第一个完成的 Promise 的值作为最终结果; 全部拒绝则抛出 AggregateError
     public static func any(promises: ArrayList<JsPromise>): JsPromise {
+        if (promises.size == 0) {
+            let err = JsObject()
+            err.set("name", JsValue(BaoString("AggregateError")))
+            err.set("message", JsValue(BaoString("All promises were rejected")))
+            err.set("errors", JsValue.array(ArrayList<JsValue>()))
+            return JsPromise.reject(JsValue(err))
+        }
+        let aggregatePromise = JsPromise()
         let errors = ArrayList<JsValue>()
+        let fulfilled = MutableBool()
+        let rejectCount = MutableCounter()
         for (promise in promises) {
             match (promise.state) {
-                case PromiseState.Fulfilled => return JsPromise.resolve(promise.result)
-                case PromiseState.Rejected => errors.append(promise.result)
-                case _ => ()
+                case PromiseState.Fulfilled =>
+                    if (!fulfilled.value) {
+                        fulfilled.value = true
+                        aggregatePromise.fulfill(promise.result)
+                    }
+                case PromiseState.Rejected =>
+                    errors.append(promise.result)
+                    rejectCount.count += 1
+                case PromiseState.Pending =>
+                    promise.then(
+                        { value =>
+                            if (!fulfilled.value) {
+                                fulfilled.value = true
+                                aggregatePromise.fulfill(value)
+                            }
+                            value
+                        },
+                        { reason =>
+                            if (!fulfilled.value) {
+                                errors.append(reason)
+                                rejectCount.count += 1
+                                if (rejectCount.count == promises.size) {
+                                    let err = JsObject()
+                                    err.set("name", JsValue(BaoString("AggregateError")))
+                                    err.set("message", JsValue(BaoString("All promises were rejected")))
+                                    err.set("errors", JsValue.array(errors))
+                                    aggregatePromise.rejectInternal(JsValue(err))
+                                }
+                            }
+                            reason
+                        }
+                    )
             }
         }
-        let err = JsObject()
-        err.set("name", JsValue(BaoString("AggregateError")))
-        err.set("message", JsValue(BaoString("All promises were rejected")))
-        err.set("errors", JsValue.array(errors))
-        return JsPromise.reject(JsValue(err))
+        // 全部已拒绝
+        if (!fulfilled.value && rejectCount.count == promises.size) {
+            let err = JsObject()
+            err.set("name", JsValue(BaoString("AggregateError")))
+            err.set("message", JsValue(BaoString("All promises were rejected")))
+            err.set("errors", JsValue.array(errors))
+            aggregatePromise.rejectInternal(JsValue(err))
+        }
+        return aggregatePromise
     }
 
     // ---- 内部方法 ----

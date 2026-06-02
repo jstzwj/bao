@@ -1012,6 +1012,44 @@ public class Parser {
 
             // TypeScript 标识符上下文关键字 (interface, type, enum, namespace, declare, abstract)
             case Identifier =>
+                // using 声明 — ES2025 显式资源管理 (contextual keyword)
+                // 严格翻译自 Bun: src/js_parser/parse/parse.zig "using" 分支
+                if (lexer.isContextualKeyword("using")) {
+                    lexer.nextToken() // 消耗 using
+                    // using 语法与 const 完全相同，但用 DeclKind.Using 标记
+                    // Bun: parseAndDeclareDecls(.constant, opts)
+                    let binding = parseBinding()
+                    var `init`: ?Expr = None
+                    if (lexer.token == Token.Equals) {
+                        lexer.nextToken()
+                        `init` = Some(parseExpr(ParseExprOpts()))
+                    }
+                    lexer.expectOrInsertSemicolon()
+                    return Stmt.local(loc, DeclKind.Using, binding, `init`)
+                }
+                // await using 声明 — 异步显式资源管理
+                // 严格翻译自 Bun: src/js_parser/parse/parse.zig "await" + "using" 分支
+                if (lexer.isContextualKeyword("await")) {
+                    // 保存当前位置，检查后面是否是 "using"
+                    let savedIdent = lexer.identifier
+                    lexer.nextToken() // 消耗 await
+                    if (lexer.isContextualKeyword("using")) {
+                        lexer.nextToken() // 消耗 using
+                        let binding = parseBinding()
+                        var `init`: ?Expr = None
+                        if (lexer.token == Token.Equals) {
+                            lexer.nextToken()
+                            `init` = Some(parseExpr(ParseExprOpts()))
+                        }
+                        lexer.expectOrInsertSemicolon()
+                        return Stmt.local(loc, DeclKind.AwaitUsing, binding, `init`)
+                    }
+                    // 不是 "await using" — 回退，把 await 当标识符
+                    // 无法回退 lexer，将 await 作为表达式语句处理
+                    let awaitRef = newSymbol(SymbolKind.Ref, "await")
+                    let awaitExpr = Expr.identifier(loc, "await", awaitRef)
+                    return Stmt.expr_(loc, awaitExpr)
+                }
                 // async function 声明 — async 是 contextual keyword
                 if (lexer.isContextualKeyword("async")) {
                     lexer.nextToken() // 消耗 async，前进到下一个 token
@@ -1132,6 +1170,67 @@ public class Parser {
             loc
         )
         return Stmt.`class`(loc, class_)
+    }
+
+    /// 解析类表达式 - 对应 Bun t_class (parse_prefix.zig)
+    /// 严格翻译自: src/js_parser/parse/parse_prefix.zig fn t_class
+    ///   var Foo = class { ... };
+    ///   var Bar = class Baz extends Error { ... };
+    ///   new (class { ... })();
+    private func parseClassExpr(loc: Loc): Expr {
+        lexer.expect(Token.Class)
+
+        // 可选类名 — 类表达式的名字是可选的
+        // Bun: if (p.lexer.token == .t_identifier) { name = ... }
+        var name = ""
+        if (lexer.token == Token.Identifier) {
+            // "implements" 在 TypeScript 上下文中不是类名
+            if (!(this.options.features.typescript && lexer.identifier == "implements")) {
+                name = lexer.identifier
+                lexer.nextToken()
+            }
+        }
+
+        // extends 子句 — 关键修复：使用 parsePrimaryExpr 而非 parseExpr 避免 OOM
+        // Bun: extends = try p.parseExpr(.new)
+        // .new 优先级确保只解析一个左值表达式（如 Error, Foo.Mixin），不会触发递归
+        var extends_: ?Expr = None
+        if (lexer.token == Token.Extends) {
+            lexer.nextToken()
+            // 只解析一个成员表达式（a.b.c 形式），不解析完整表达式
+            extends_ = Some(parseMemberExpr(loc))
+        }
+
+        // 类体
+        let properties = parseClassBody()
+
+        let classData = GClass(name, extends_, properties, loc)
+        return Expr.class_(loc, classData)
+    }
+
+    /// 解析成员表达式（用于 class extends 后的父类表达式）
+    /// 只解析 a.b.c[0] 形式，不包含赋值/逗号等低优先级操作
+    /// 对应 Bun 的 parseExpr(.new) 优先级限制
+    private func parseMemberExpr(loc: Loc): Expr {
+        var expr = parsePrimaryExpr(ParseExprOpts())
+
+        // 后缀: .prop / [index] — 但在 extends 中通常只有 .prop
+        while (true) {
+            if (lexer.token == Token.Dot) {
+                lexer.nextToken()
+                let name = lexer.identifier
+                lexer.nextToken()
+                expr = Expr.dot(loc, expr, name)
+            } else if (lexer.token == Token.OpenBracket) {
+                lexer.nextToken()
+                let index = parseExpr(ParseExprOpts())
+                lexer.expect(Token.CloseBracket)
+                expr = Expr.index(loc, expr, index)
+            } else {
+                break
+            }
+        }
+        return expr
     }
 
     /// 解析类体
@@ -1975,6 +2074,14 @@ public class Parser {
             case Function =>
                 return parseFnExpr(loc, false, false)
 
+            // 类表达式 - 对应 Bun t_class (parse_prefix.zig)
+            // 严格翻译自: src/js_parser/parse/parse_prefix.zig fn t_class
+            //   var Foo = class { ... };
+            //   var Bar = class Baz extends Error { ... };
+            //   new (class { ... })();
+            case Class =>
+                return parseClassExpr(loc)
+
             // new 表达式
             case New =>
                 return parseNewExpr(loc)
@@ -2195,7 +2302,11 @@ public class Parser {
     /// 解析 new 表达式 - 对应 Bun parseNewExpr
     public func parseNewExpr(loc: Loc): Expr {
         lexer.expect(Token.New)
-        let target = parsePostfixExpr(ParseExprOpts())
+        // 只解析目标表达式，不消耗调用参数
+        // new Promise(fn) 应解析为 new (Promise)(fn) 而不是 new (Promise(fn))
+        let noCallOpts = ParseExprOpts()
+        noCallOpts.allowCall = false
+        let target = parsePostfixExpr(noCallOpts)
         var args = ArrayList<Expr>()
         if (lexer.token == Token.OpenParen) {
             args = parseCallArgs()

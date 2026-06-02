@@ -15,12 +15,13 @@ private func unsafeNewCString(s: String): CPointer<Int8> {
     unsafe {
         let len = s.size
         let ptr = malloc(UIntNative(len + 1))
-        let bytesPtr = CPointer<Int8>(ptr)
+        let bytesPtr = CPointer<UInt8>(ptr)
         for (i in 0..len) {
-            (bytesPtr + Int64(i)).write(Int8(Int64(s[Int64(i)]) & 0xFF))
+            let byteVal = Int64(s[Int64(i)]) & 0xFF
+            (bytesPtr + Int64(i)).write(UInt8(byteVal))
         }
-        (bytesPtr + Int64(len)).write(Int8(0))
-        return bytesPtr
+        (bytesPtr + Int64(len)).write(UInt8(0))
+        return CPointer<Int8>(ptr)
     }
 }
 
@@ -117,12 +118,26 @@ public class BaoFile {
         return SysMaybe<Unit>.Ok(())
     }
 
+    /// 检查文件是否存在
+    /// 对应 Bun: sys.exists(path) -> bool
+    /// 严格翻译自: Bun 使用 access(path, F_OK)
     public static func exists(path: String): Bool {
-        return false
+        let result = SysFs.access(path, F_OK)
+        match (result) {
+            case Ok(_) => return true
+            case Err(_) => return false
+        }
     }
 
+    /// 检查路径是否为目录
+    /// 对应 Bun: S_ISDIR(stat(path).st_mode)
+    /// 严格翻译自: Bun 使用 stat 系统调用
     public static func isDirectory(path: String): Bool {
-        return false
+        let result = SysFs.stat(path)
+        match (result) {
+            case Ok(st) => return st.isDirectory()
+            case Err(_) => return false
+        }
     }
 
     public static func mkdir(path: String, recursive: Bool): Bool {
@@ -137,8 +152,18 @@ public class BaoFile {
         return SysMaybe<Unit>.Ok(())
     }
 
+    /// 列出目录内容
+    /// 对应 Bun: sys.readdir(path) -> []string
+    /// 严格翻译自: Bun 使用 opendir/readdir/closedir
     public static func readdir(path: String): Array<String> {
-        return []
+        let iterResult = DirIterator.open(path)
+        match (iterResult) {
+            case Ok(iter) =>
+                let entries = iter.collect()
+                iter.close()
+                return entries.items().map({ entry => entry.name })
+            case Err(_) => return []
+        }
     }
 
     public static func createSymlink(target: String, linkPath: String): Bool {
