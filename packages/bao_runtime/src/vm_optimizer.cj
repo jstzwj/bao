@@ -506,16 +506,16 @@ public class BytecodeCompiler {
     private func compileForInOfStmt(s: Stmt): Unit {
         if (let Some(iterable) <-  s.iterValue) {
             let iterReg = compileExpr(iterable)
-            if (let Some(body) <-  s.body) {
-                compileStmt(body)
+            if (s.body.isSome()) {
+                compileStmt(s.body.getOrThrow())
             }
             freeRegister(iterReg)
         }
     }
 
     private func compileDoWhileStmt(s: Stmt): Unit {
-        if (let Some(body) <-  s.body) {
-            compileStmt(body)
+        if (s.body.isSome()) {
+            compileStmt(s.body.getOrThrow())
         }
     }
 
@@ -578,8 +578,8 @@ public class BytecodeCompiler {
         }
 
         // body
-        if (let Some(body) <-  s.body) {
-            compileStmt(body)
+        if (s.body.isSome()) {
+            compileStmt(s.body.getOrThrow())
         }
 
         // update
@@ -612,8 +612,8 @@ public class BytecodeCompiler {
             chunk.emit(BytecodeInstruction(OpCode8.JumpIfFalse, condReg, 0))
             freeRegister(condReg)
 
-            if (let Some(body) <-  s.body) {
-                compileStmt(body)
+            if (s.body.isSome()) {
+                compileStmt(s.body.getOrThrow())
             }
 
             let jumpBackIdx = chunk.currentIp()

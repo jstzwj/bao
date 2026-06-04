@@ -1,0 +1,284 @@
+// Median-cut colour quantizer for `.png({ palette: true, colors: N })`.
+//
+// Goal is "good enough to match Sharp's palette PNG path for screenshot
+// compression", not perceptual perfection — Sharp uses libimagequant which
+// is GPL, so we roll a small permissive one. Median-cut is the classic
+// Heckbert '82 algorithm: treat the RGBA pixels as points in a 4-D box,
+// repeatedly split the box with the largest channel range at that channel's
+// median until you have N boxes, then each box's mean becomes a palette
+// entry. Mapping is nearest-entry by squared RGBA distance, optionally with
+// Floyd–Steinberg error diffusion (`dither: true`).
+
+package bao_runtime.image
+
+import std.math.*
+import std.collection.*
+import std.io.*
+
+// ============================================================
+// Public Types
+// ============================================================
+
+public struct QuantizeResult {
+    public var palette: ArrayList<UInt8>       // [colors][4]u8 RGBA palette
+    public var indices: ArrayList<UInt8>       // One palette index per input pixel
+    public var colors: UInt16                  // Actual palette length (≤ requested)
+    public var hasAlpha: Bool                  // True if any palette entry has alpha < 255
+
+    public func deinit() {
+        // ArrayLists will be cleaned up by owner
+    }
+}
+
+public struct QuantizeOptions {
+    public var maxColors: UInt16
+    public var dither: Bool = false  // Floyd–Steinberg error diffusion
+}
+
+// ============================================================
+// External C Functions
+// ============================================================
+
+@C[name = "bun_image_nearest_palette"]
+external func bunImageNearestPalette(palette: CPointer<UInt8>, k: UInt32,
+                                    r: Int32, g: Int32, b: Int32, a: Int32) -> UInt32
+
+// ============================================================
+// Public Functions
+// ============================================================
+
+public func quantize(rgba: ArrayList<UInt8>, width: UInt32, height: UInt32, opts: QuantizeOptions)
+    -> Result<QuantizeResult, ErrorCode>
+{
+    let maxColors = min(max(opts.maxColors, 1), 256)
+    let n = rgba.size / 4
+
+    // `order` is a permutation of pixel indices that we partition in-place
+    var order = ArrayList<UInt32>()
+    order.resize(n, value: 0)
+    for (i in 0..n) {
+        order[i] = i.toUInt32()
+    }
+
+    var boxes = ArrayList<Box>()
+    boxes.append(shrinkBox(rgba, order, 0, n))
+
+    while (boxes.size < maxColors) {
+        // Pick the box with the largest single-channel range
+        var pick = 0
+        var bestRange = -1
+
+        for (i in 0..boxes.size) {
+            let b = boxes[i]
+            let c = b.widestChannel()
+            let span = (b.max[c].toInt32() - b.min[c].toInt32())
+            if (span > bestRange) {
+                bestRange = span
+                pick = i
+            }
+        }
+
+        if (bestRange <= 0) break  // every remaining box is a single colour
+
+        let b = boxes[pick]
+        if (b.hi - b.lo < 2) break
+
+        let ch = b.widestChannel()
+
+        // Partial sort by the chosen channel, then cut at the midpoint
+        let slice = order.subarray(from: b.lo, length: b.hi - b.lo)
+        sortContext = SortContext(rgba: rgba, channel: ch)
+        // TODO: Implement partial sort - for now just continue
+        let mid = b.lo + (b.hi - b.lo) / 2
+
+        boxes[pick] = shrinkBox(rgba, order, b.lo, mid)
+        boxes.append(shrinkBox(rgba, order, mid, b.hi))
+    }
+
+    let k = boxes.size.toUInt16()
+    var palette = ArrayList<UInt8>()
+    palette.resize((k * 4).toUIntSize(), value: 0u8)
+
+    var hasAlpha = false
+    for (i in 0..boxes.size) {
+        let b = boxes[i]
+        var sum = [0.toUInt64(), 0.toUInt64(), 0.toUInt64(), 0.toUInt64()]
+
+        // Compute sum of all pixels in this box
+        for (idx in order.subarray(from: b.lo, length: b.hi - b.lo)) {
+            let px = idx.toUIntSize() * 4
+            for (c in 0..4) {
+                sum[c] += rgba[px + c].toUInt64()
+            }
+        }
+
+        let cnt = (b.hi - b.lo).toUInt64()
+        for (c in 0..4) {
+            palette[i * 4 + c] = ((sum[c] + cnt / 2) / cnt).toUInt8()
+        }
+
+        if (palette[i * 4 + 3] < 255u8) {
+            hasAlpha = true
+        }
+    }
+
+    var indices = ArrayList<UInt8>()
+    indices.resize(n, value: 0u8)
+
+    if (opts.dither) {
+        let result = mapFloydSteinberg(rgba, width, height, palette, k, indices)
+        if (result is ErrorCode) {
+            return result as ErrorCode
+        }
+    } else {
+        // Direct nearest-entry mapping
+        for (px in 0..n) {
+            let p = rgba.subarray(from: px * 4, length: 4)
+            indices[px] = bunImageNearestPalette(
+                palette.toCPointer(), k.toUInt32(),
+                p[0].toInt32(), p[1].toInt32(), p[2].toInt32(), p[3].toInt32()
+            ).toUInt8()
+        }
+    }
+
+    return QuantizeResult(palette: palette, indices: indices, colors: k, hasAlpha: hasAlpha)
+}
+
+// ============================================================
+// Internal Types and Functions
+// ============================================================
+
+private struct Box {
+    var lo: UInt32
+    var hi: UInt32
+    var min: [UInt8]  // 4 elements: r,g,b,a
+    var max: [UInt8]  // 4 elements: r,g,b,a
+
+    func widestChannel() -> UInt8 {
+        var best = 0.toUInt8()
+        var span = -1.toInt32()
+
+        for (c in 0..4) {
+            let s = max[c].toInt32() - min[c].toInt32()
+            if (s > span) {
+                span = s
+                best = c.toUInt8()
+            }
+        }
+
+        return best
+    }
+}
+
+private struct SortContext {
+    var rgba: ArrayList<UInt8>
+    var channel: UInt8
+}
+
+private var sortContext: SortContext = SortContext(rgba: ArrayList<UInt8>(), channel: 0)
+
+// Recompute a box's tight min/max over its pixel slice
+private func shrinkBox(rgba: ArrayList<UInt8>, order: ArrayList<UInt32>, lo: UInt32, hi: UInt32) -> Box {
+    var minVal = [255u8, 255u8, 255u8, 255u8]
+    var maxVal = [0u8, 0u8, 0u8, 0u8]
+
+    for (i in lo..<hi) {
+        let px = order[i.toUIntSize()].toUIntSize() * 4
+        for (c in 0..4) {
+            let v = rgba[px + c]
+            if (v < minVal[c]) minVal[c] = v
+            if (v > maxVal[c]) maxVal[c] = v
+        }
+    }
+
+    return Box(lo: lo, hi: hi, min: minVal, max: maxVal)
+}
+
+// Floyd–Steinberg error diffusion
+// Serial in raster order — each pixel's quantisation error is pushed to its
+// yet-unvisited neighbours with the classic 7/3/5/1 ÷16 kernel:
+//
+//         ·   X   7
+//         3   5   1
+private func mapFloydSteinberg(
+    rgba: ArrayList<UInt8>,
+    width: UInt32,
+    height: UInt32,
+    palette: ArrayList<UInt8>,
+    k: UInt16,
+    indices: ArrayList<UInt8>
+) -> Result<Unit, ErrorCode>
+{
+    let stride = (width * 4).toUIntSize()
+
+    var cur = ArrayList<Int32>()
+    cur.resize(stride, value: 0)
+
+    var nxt = ArrayList<Int32>()
+    nxt.resize(stride, value: 0)
+
+    var y = 0.toUInt32()
+    while (y < height) {
+        let ltr = (y & 1) == 0
+        let step: Int64 = if (ltr) { 1 } else { -1 }
+        var x: Int64 = if (ltr) { 0 } else { width.toInt64() - 1 }
+
+        while (x >= 0 && x < width.toInt64()) {
+            let px = (y.toUInt64() * width.toUInt64() + x.toUInt64()).toUIntSize()
+            let offset = (x.toUIntSize() * 4).toUIntSize()
+
+            // Candidate colour = source + accumulated error (clamped)
+            var cand = [0.toInt32(), 0.toInt32(), 0.toInt32(), 0.toInt32()]
+            for (c in 0..4) {
+                cand[c] = rgba[px * 4 + c].toInt32() + cur[offset + c]
+            }
+
+            // Clamp to 0-255
+            for (c in 0..4) {
+                cand[c] = max(min(cand[c], 255), 0)
+            }
+
+            // Find nearest palette entry
+            let idx = bunImageNearestPalette(
+                palette.toCPointer(), k.toUInt32(),
+                cand[0], cand[1], cand[2], cand[3]
+            ).toUInt8()
+            indices[px] = idx
+
+            // Compute error and push to neighbours
+            for (c in 0..4) {
+                let err = cand[c] - palette[(idx.toUIntSize() * 4 + c).toUIntSize()].toInt32()
+
+                let dir = step
+                let xr = x + dir
+                let xl = x - dir
+
+                if (xr >= 0 && xr < width.toInt64()) {
+                    cur[((xr.toUIntSize() * 4 + c).toUIntSize())] += (err * 7) >> 4
+                }
+                if (xl >= 0 && xl < width.toInt64()) {
+                    nxt[((xl.toUIntSize() * 4 + c).toUIntSize())] += (err * 3) >> 4
+                }
+                nxt[offset + c] += (err * 5) >> 4
+                if (xr >= 0 && xr < width.toInt64()) {
+                    nxt[((xr.toUIntSize() * 4 + c).toUIntSize())] += err >> 4
+                }
+            }
+
+            x += step
+        }
+
+        // Slide: next row's error becomes current; clear next
+        let tmp = cur
+        cur = nxt
+        nxt = tmp
+
+        for (i in 0..nxt.size) {
+            nxt[i] = 0
+        }
+
+        y += 1
+    }
+
+    return Unit
+}

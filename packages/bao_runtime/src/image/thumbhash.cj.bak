@@ -1,0 +1,424 @@
+// ThumbHash — Evan Wallace's tiny LQIP encoding (public domain).
+// https://github.com/evanw/thumbhash
+//
+// ~21–25 bytes encode the low-order DCT coefficients of L/P/Q (luma + two
+// opponent-colour planes, optionally A) of a ≤100×100 image. Decoding gives a
+// ≤32px blur with the right average colour, aspect ratio and rough structure.
+//
+// `Bun.Image.placeholder()` runs `decode → box-resize ≤100 → encode()` →
+// `decode()` → PNG-encode → `data:` URL, all on the work pool. The hash
+// itself is exposed as the intermediate so a future `as: "hash"` option is
+// one switch away. The encode/decode are scalar f32 and tiny (≤100²·7² mults
+// at the absolute most); not worth a Highway kernel.
+
+package bao_runtime.image
+
+import std.math.*
+import std.collection.*
+import std.io.*
+
+// ============================================================
+// Public Constants
+// ============================================================
+
+// Maximum hash length: 5-byte header + (has_alpha ? 1 : 0) + ceil((L+P+Q+A
+// AC counts)/2). Worst case (has_alpha, square) is 5+1+ceil((14+5+5+14)/2)=25.
+public let THUMBHASH_MAX_LEN = 25
+
+// ============================================================
+// Public Functions
+// ============================================================
+
+// Encode RGBA to ThumbHash
+// w, h: dimensions (must be ≤ 100 and > 0)
+// rgba: RGBA pixel data (must be w*h*4 bytes)
+// Returns: ThumbHash bytes (length ≤ THUMBHASH_MAX_LEN)
+public func encode(w: UInt32, h: UInt32, rgba: ArrayList<UInt8>) -> ArrayList<UInt8> {
+    if (w == 0 || h == 0 || w > 100 || h > 100) {
+        // Invalid dimensions
+        var empty = ArrayList<UInt8>()
+        return empty
+    }
+
+    if (rgba.size != (w * h * 4).toUIntSize()) {
+        // Invalid rgba size
+        var empty = ArrayList<UInt8>()
+        return empty
+    }
+
+    // Average colour (alpha-weighted so transparent pixels don't tug it)
+    var avg = [0.0f32, 0.0f32, 0.0f32, 0.0f32]
+    var i = 0
+    while (i < rgba.size) {
+        let a = rgba[i + 3].toFloat32() / 255.0f32
+        avg[0] += a / 255.0f32 * rgba[i].toFloat32()
+        avg[1] += a / 255.0f32 * rgba[i + 1].toFloat32()
+        avg[2] += a / 255.0f32 * rgba[i + 2].toFloat32()
+        avg[3] += a
+        i += 4
+    }
+
+    if (avg[3] > 0.0f32) {
+        for (c in 0..3) {
+            avg[c] /= avg[3]
+        }
+    }
+
+    let npix = w.toFloat32() * h.toFloat32()
+    let hasAlpha = avg[3] < npix
+    let lLimit = if (hasAlpha) { 5.0f32 } else { 7.0f32 }
+
+    let lx = max(1.0f32, round(lLimit * w.toFloat32() / max(w, h).toFloat32())).toUInt32()
+    let ly = max(1.0f32, round(lLimit * h.toFloat32() / max(w, h).toFloat32())).toUInt32()
+
+    // RGBA → LPQA, compositing transparent pixels onto the average
+    var l = ArrayList<Float32>()
+    var p = ArrayList<Float32>()
+    var q = ArrayList<Float32>()
+    var a = ArrayList<Float32>()
+
+    let totalPixels = (w * h).toUIntSize()
+    l.resize(totalPixels, value: 0.0f32)
+    p.resize(totalPixels, value: 0.0f32)
+    q.resize(totalPixels, value: 0.0f32)
+    a.resize(totalPixels, value: 0.0f32)
+
+    i = 0
+    var px = 0
+    while (i < rgba.size) {
+        let al = rgba[i + 3].toFloat32() / 255.0f32
+        let r = avg[0] * (1.0f32 - al) + al / 255.0f32 * rgba[i].toFloat32()
+        let g = avg[1] * (1.0f32 - al) + al / 255.0f32 * rgba[i + 1].toFloat32()
+        let b = avg[2] * (1.0f32 - al) + al / 255.0f32 * rgba[i + 2].toFloat32()
+
+        l[px] = (r + g + b) / 3.0f32
+        p[px] = (r + g) / 2.0f32 - b
+        q[px] = r - g
+        a[px] = al
+
+        i += 4
+        px += 1
+    }
+
+    let lc = dctChannel(l, w, h, max(lx, 3), max(ly, 3))
+    let pc = dctChannel(p, w, h, 3, 3)
+    let qc = dctChannel(q, w, h, 3, 3)
+    let ac = if (hasAlpha) { dctChannel(a, w, h, 5, 5) } else { Channel() }
+
+    let landscape = w > h
+
+    // Pack header
+    var out = ArrayList<UInt8>()
+    out.resize(THUMBHASH_MAX_LEN, value: 0u8)
+
+    let h24 = (round(63.0f32 * lc.dc)).toUInt32() |
+              ((round(31.5f32 + 31.5f32 * pc.dc)).toUInt32() << 6) |
+              ((round(31.5f32 + 31.5f32 * qc.dc)).toUInt32() << 12) |
+              ((round(31.0f32 * lc.scale)).toUInt32() << 18) |
+              ((if (hasAlpha) { 1u32 } else { 0u32 }) << 23)
+
+    let h16 = (if (landscape) { ly.toUInt16() } else { lx.toUInt16() }) |
+              ((round(63.0f32 * pc.scale)).toUInt16() << 3) |
+              ((round(63.0f32 * qc.scale)).toUInt16() << 9) |
+              ((if (landscape) { 1u16 } else { 0u16 }) << 15)
+
+    out[0] = (h24 & 0xFF).toUInt8()
+    out[1] = ((h24 >> 8) & 0xFF).toUInt8()
+    out[2] = ((h24 >> 16) & 0xFF).toUInt8()
+    out[3] = (h16 & 0xFF).toUInt8()
+    out[4] = ((h16 >> 8) & 0xFF).toUInt8()
+
+    var n = 5
+    if (hasAlpha) {
+        out[5] = (round(15.0f32 * ac.dc).toUInt8() & 0x0F) | ((round(15.0f32 * ac.scale).toUInt8() << 4) & 0xF0)
+        n = 6
+    }
+
+    // Pack AC coefficients
+    var odd = false
+    for (channel in [lc, pc, qc, ac]) {
+        for (acVal in channel.ac) {
+            let u = round(15.0f32 * acVal).toUInt8()
+            if (odd) {
+                out[n - 1] = out[n - 1] | ((u << 4) & 0xF0)
+            } else {
+                out[n] = u
+                n += 1
+            }
+            odd = !odd
+        }
+    }
+
+    // Trim to actual size
+    out.removeRange(n..out.size)
+    return out
+}
+
+// Decode ThumbHash to RGBA
+// hash: ThumbHash bytes
+// Returns: Result with RGBA, width, height or error
+public func decode(hash: ArrayList<UInt8>) -> Result<DecodeResult, ErrorCode> {
+    if (hash.size < 5) {
+        return ErrorCode.INVALID_ARGUMENT
+    }
+
+    let h24 = (hash[0].toUInt32()) |
+              ((hash[1].toUInt32() << 8)) |
+              ((hash[2].toUInt32() << 16))
+
+    let h16 = (hash[3].toUInt16()) | ((hash[4].toUInt16() << 8))
+
+    let lDc = ((h24 & 63).toFloat32()) / 63.0f32
+    let pDc = (((h24 >> 6) & 63).toFloat32()) / 31.5f32 - 1.0f32
+    let qDc = (((h24 >> 12) & 63).toFloat32()) / 31.5f32 - 1.0f32
+    let lScale = (((h24 >> 18) & 31).toFloat32()) / 31.0f32
+
+    let hasAlpha = ((h24 >> 23) & 1) == 1
+
+    let pScale = (((h16 >> 3) & 63).toFloat32()) / 63.0f32
+    let qScale = (((h16 >> 9) & 63).toFloat32()) / 63.0f32
+    let landscape = ((h16 >> 15) & 1) == 1
+
+    let lMax = if (hasAlpha) { 5.toUInt16() } else { 7.toUInt16() }
+    let lx = max(3.toUInt16(), if (landscape) { lMax } else { h16 & 7 })
+    let ly = max(3.toUInt16(), if (landscape) { h16 & 7 } else { lMax })
+
+    var aDc = 1.0f32
+    var aScale = 1.0f32
+    var offset = 5
+
+    if (hasAlpha) {
+        if (hash.size < 6) {
+            return ErrorCode.INVALID_ARGUMENT
+        }
+        aDc = ((hash[5] & 0x0F).toFloat32()) / 15.0f32
+        aScale = (((hash[5] >> 4) & 0x0F).toFloat32()) / 15.0f32
+        offset = 6
+    }
+
+    // Read AC coefficients
+    var nibbles = NibbleReader(src: hash, index: offset)
+
+    var lAc = ArrayList<Float32>()
+    var pAc = ArrayList<Float32>()
+    var qAc = ArrayList<Float32>()
+    var aAc = ArrayList<Float32>()
+
+    let ln = tryReadChannel(&nibbles, &lAc, lx, ly, lScale)
+    // 1.25× saturation boost on decode
+    let pn = tryReadChannel(&nibbles, &pAc, 3, 3, pScale * 1.25f32)
+    let qn = tryReadChannel(&nibbles, &qAc, 3, 3, qScale * 1.25f32)
+    let an = if (hasAlpha) {
+        tryReadChannel(&nibbles, &aAc, 5, 5, aScale)
+    } else {
+        0
+    }
+
+    // Compute output dimensions
+    let ratio = lx.toFloat32() / ly.toFloat32()
+    let (w, h) = if (ratio > 1.0f32) {
+        (32.toUInt32(), (round(32.0f32 / ratio)).toUInt32())
+    } else {
+        ((round(32.0f32 * ratio)).toUInt32(), 32.toUInt32())
+    }
+
+    var rgba = ArrayList<UInt8>()
+    rgba.resize((w * h * 4).toUIntSize(), value: 0u8)
+
+    // Decode each pixel
+    for (y in 0..h) {
+        for (x in 0..w) {
+            var lv = lDc
+            var pv = pDc
+            var qv = qDc
+            var av = aDc
+
+            let nf = max(lx.toUInt32(), if (hasAlpha) { 5.toUInt32() } else { 3.toUInt32() })
+
+            // Precompute cosine values
+            var fx = [0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32]
+            var fy = [0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32]
+
+            for (c in 0..nf) {
+                fx[c] = cos(PI / w.toFloat32() * (x.toFloat32() + 0.5f32) * c.toFloat32())
+            }
+
+            let maxFy = max(ly, if (hasAlpha) { 5.toUInt32() } else { 3.toUInt32() })
+            for (c in 0..maxFy) {
+                fy[c] = cos(PI / h.toFloat32() * (y.toFloat32() + 0.5f32) * c.toFloat32())
+            }
+
+            lv += idctSum(lAc, lx, ly, fx, fy)
+            pv += idctSum(pAc, 3, 3, fx, fy)
+            qv += idctSum(qAc, 3, 3, fx, fy)
+
+            if (hasAlpha) {
+                av += idctSum(aAc, 5, 5, fx, fy)
+            }
+
+            // Convert LPQA back to RGBA
+            let b = lv - 2.0f32 / 3.0f32 * pv
+            let r = (3.0f32 * lv - b + qv) / 2.0f32
+            let g = r - qv
+
+            let o = (y * w + x) * 4
+            rgba[o] = clamp8(r)
+            rgba[o + 1] = clamp8(g)
+            rgba[o + 2] = clamp8(b)
+            rgba[o + 3] = clamp8(av)
+        }
+    }
+
+    return DecodeResult(rgba: rgba, width: w, height: h)
+}
+
+// ============================================================
+// Internal Types and Functions
+// ============================================================
+
+public struct DecodeResult {
+    public var rgba: ArrayList<UInt8>
+    public var width: UInt32
+    public var height: UInt32
+}
+
+private struct Channel {
+    var dc = 0.0f32
+    var scale = 0.0f32
+    var ac = ArrayList<Float32>()
+    var n = 0
+}
+
+private struct NibbleReader {
+    var src: ArrayList<UInt8>
+    var index = 0
+    var highNibble = false
+
+    func next() -> UInt8? {
+        if (index >= src.size) return null
+        let v = if (highNibble) {
+            (src[index] >> 4) & 0x0F
+        } else {
+            src[index] & 0x0F
+        }
+        if (highNibble) index += 1
+        highNibble = !highNibble
+        return v
+    }
+
+    func channel(out: ArrayList<Float32>, nx: UInt16, ny: UInt16, scale: Float32) -> UIntSize {
+        var n = 0.toUIntSize()
+        var cy = 0.toUInt32()
+
+        while (cy < ny) {
+            var cx = if (cy > 0) { 0.toUInt32() } else { 1.toUInt32() }
+
+            while (cx * ny.toUInt32() < nx.toUInt32() * (ny.toUInt32() - cy)) {
+                if (let nib <- next()) {
+                    out.append((nib.toFloat32() / 7.5f32 - 1.0f32) * scale)
+                } else {
+                    return n
+                }
+                n += 1
+                cx += 1
+            }
+            cy += 1
+        }
+
+        return n
+    }
+}
+
+// Triangular DCT-II
+private func dctChannel(chan: ArrayList<Float32>, w: UInt32, h: UInt32, nx: UInt32, ny: UInt32) -> Channel {
+    var c = Channel()
+
+    var fx = [0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
+              0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
+              0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
+              0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
+              0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
+              0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
+              0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
+              0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
+              0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
+              0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
+              0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
+              0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
+              0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
+              0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
+              0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
+              0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32]
+
+    var cy = 0.toUInt32()
+    while (cy < ny) {
+        var cx = 0.toUInt32()
+
+        while (cx * ny < nx * (ny - cy)) {
+            // Compute fx values
+            for (x in 0..w) {
+                fx[x.toUIntSize()] = cos(PI / w.toFloat32() * (x.toFloat32() + 0.5f32) * cx.toFloat32())
+            }
+
+            var f = 0.0f32
+            for (y in 0..h) {
+                let fy = cos(PI / h.toFloat32() * (y.toFloat32() + 0.5f32) * cy.toFloat32())
+                for (x in 0..w) {
+                    f += chan[(x + y * w).toUIntSize()] * fx[x.toUIntSize()] * fy
+                }
+            }
+            f /= w.toFloat32() * h.toFloat32()
+
+            if (cx == 0 && cy == 0) {
+                c.dc = f
+            } else {
+                c.ac.append(f)
+                c.n += 1
+                c.scale = max(c.scale, abs(f))
+            }
+
+            cx += 1
+        }
+        cy += 1
+    }
+
+    if (c.scale > 0.0f32) {
+        for (i in 0..c.ac.size) {
+            c.ac[i] = 0.5f32 + 0.5f32 / c.scale * c.ac[i]
+        }
+    }
+
+    return c
+}
+
+// Inverse DCT sum
+private func idctSum(ac: ArrayList<Float32>, nx: UInt16, ny: UInt16,
+                     fx: Array<Float32>, fy: Array<Float32>) -> Float32 {
+    var v = 0.0f32
+    var j = 0.toUIntSize()
+    var cy = 0.toUInt32()
+
+    while (cy < ny.toUInt32()) {
+        var cx = if (cy > 0) { 0.toUInt32() } else { 1.toUInt32() }
+        let fy2 = fy[cy.toUIntSize()] * 2.0f32
+
+        while (cx * ny.toUInt32() < nx.toUInt32() * (ny.toUInt32() - cy)) {
+            v += ac[j] * fx[cx.toUIntSize()] * fy2
+            j += 1
+            cx += 1
+        }
+        cy += 1
+    }
+
+    return v
+}
+
+private func tryReadChannel(reader: NibbleReader, out: ArrayList<Float32>,
+                           nx: UInt16, ny: UInt16, scale: Float32) -> UIntSize {
+    return reader.channel(out: out, nx: nx, ny: ny, scale: scale)
+}
+
+private func clamp8(v: Float32) -> UInt8 {
+    let clamped = max(0.0f32, min(1.0f32, v))
+    return (clamped * 255.0f32).toUInt8()
+}

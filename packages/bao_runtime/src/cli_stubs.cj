@@ -35,8 +35,6 @@ public class PM {
     public init(allocator: Allocator) { this.allocator = allocator }
 }
 
-public type PackageManager = PM
-
 public class LoggerStub {
     public init() {}
 }

@@ -1,0 +1,578 @@
+// `Bao.Image` — Sharp-shaped image pipeline backed by the statically linked
+// libjpeg-turbo / libspng / libwebp codecs and the highway resize kernel.
+//
+// Shape: the constructor only captures the *input* (path or bytes). Chainable
+// mutators (`resize`, `rotate`, `flip`, `flop`, `jpeg`/`png`/`webp`) each
+// write one slot of `Pipeline` and return `this` — there is no op list, so
+// calling a setter twice overwrites. The actual decode → transform → encode
+// work happens off-thread when a terminal (`bytes`/`buffer`/`blob`/
+// `toBase64`/`metadata`) is awaited.
+
+package bao_runtime.image
+
+import std.math.*
+import std.convert.*
+import std.collection.*
+import std.io.*
+import bao_runtime.jsc.*
+
+// ============================================================
+// Public Types
+// ============================================================
+
+public class Image {
+    // ============================================================
+    // Source Types
+    // ============================================================
+
+    public enum class Source {
+        // Input is a JS ArrayBuffer/TypedArray held in a cached slot
+        JS_BUFFER
+        // Owned bytes - Blob inputs, decoded data: URLs
+        OWNED(ArrayList<UInt8>)
+        // File path - owned bytes, read on worker thread
+        PATH(String)
+        // Blob (Bun.file(), Bun.s3(), fd-backed) - keep JS object
+        BLOB(JSValue)
+
+        func deinit() {
+            match (self) {
+                case JS_BUFFER => {}
+                case OWNED(bytes) => {
+                    // bytes will be cleaned by owner
+                }
+                case PATH(path) => {
+                    // path will be cleaned by owner
+                }
+                case BLOB(blob) => {
+                    // blob is managed by JS
+                }
+            }
+        }
+    }
+
+    // ============================================================
+    // Pipeline Operations
+    // ============================================================
+
+    public struct Pipeline {
+        public var rotate: UInt16 = 0       // 0/90/180/270
+        public var flip: Bool = false      // vertical flip
+        public var flop: Bool = false      // horizontal flip
+        public var resize: Resize? = null
+        public var modulate: Modulate? = null
+        public var output: EncodeOptions? = null
+    }
+
+    public struct Resize {
+        public var w: UInt32
+        public var h: UInt32
+        public var filter: Filter = Filter.LANCZOS3
+        public var fit: Fit = Fit.FILL
+        public var withoutEnlargement: Bool = false
+    }
+
+    public enum class Fit {
+        FILL
+        INSIDE
+    }
+
+    public struct Modulate {
+        public var brightness: Float32 = 1.0f32  // multiplier, 1.0 = identity
+        public var saturation: Float32 = 1.0f32   // 0 = greyscale, 1 = identity, >1 = boost
+    }
+
+    // ============================================================
+    // Instance Variables
+    // ============================================================
+
+    public var source: Source
+    public var pipeline: Pipeline = Pipeline()
+    public var maxPixels: UInt64 = DEFAULT_MAX_PIXELS
+    public var autoOrient: Bool = true
+    public var lastWidth: Int32 = -1
+    public var lastHeight: Int32 = -1
+    public var thisRef: JSRef = JSRef()
+    public var pendingTasks: UInt32 = 0
+
+    // ============================================================
+    // Constructor
+    // ============================================================
+
+    public init(input: JSValue, options: JSValue? = null, global: JSGlobalObject) throws {
+        // Validate input
+        if (input.isUndefinedOrNull()) {
+            throw RuntimeError("Image() expects a path, ArrayBuffer, TypedArray, Blob or data: URL")
+        }
+
+        this.source = try sourceFromJS(input, global: global)
+        try applyOptions(options, global: global)
+    }
+
+    // ============================================================
+    // Chainable Operations
+    // ============================================================
+
+    public func resize(width: UInt32, height: UInt32 = 0, options: JSValue? = null, global: JSGlobalObject)
+        throws -> Image
+    {
+        var r = Resize(w: width, h: height)
+
+        if (let opt <- options, opt.isObject()) {
+            if (let filterVal <- try? opt.get(global, "filter")) {
+                if (let filterStr <- filterVal.toString()) {
+                    if (let f <- Filter.fromString(filterStr)) {
+                        r.filter = f
+                    }
+                }
+            }
+
+            if (let fitVal <- try? opt.get(global, "fit")) {
+                if (let fitStr <- fitVal.toString()) {
+                    r.fit = match (fitStr.lowercase()) {
+                        case "fill" => Fit.FILL
+                        case "inside" => Fit.INSIDE
+                        case _ => Fit.FILL
+                    }
+                }
+            }
+
+            if (let withoutEnlargementVal <- try? opt.get(global, "withoutEnlargement")) {
+                r.withoutEnlargement = withoutEnlargementVal.toBoolean()
+            }
+        }
+
+        pipeline.resize = r
+        return this
+    }
+
+    public func rotate(degrees: Int32, global: JSGlobalObject) throws -> Image {
+        if (degrees != 0 && degrees != 90 && degrees != 180 && degrees != 270) {
+            throw RuntimeError("rotate: only multiples of 90 are supported")
+        }
+        pipeline.rotate = degrees.toUInt16()
+        return this
+    }
+
+    public func flip() -> Image {
+        pipeline.flip = true
+        return this
+    }
+
+    public func flop() -> Image {
+        pipeline.flop = true
+        return this
+    }
+
+    public func modulate(options: JSValue, global: JSGlobalObject) throws -> Image {
+        var m = pipeline.modulate ?? Modulate()
+
+        if (options.isObject()) {
+            if (let brightnessVal <- try? options.get(global, "brightness")) {
+                if (brightnessVal.isNumber()) {
+                    let x = brightnessVal.toNumber()
+                    if (isFinite(x)) {
+                        m.brightness = clamp(x, 0.0, 10000.0).toFloat32()
+                    }
+                }
+            }
+
+            if (let saturationVal <- try? options.get(global, "saturation")) {
+                if (saturationVal.isNumber()) {
+                    let x = saturationVal.toNumber()
+                    if (isFinite(x)) {
+                        m.saturation = clamp(x, 0.0, 10000.0).toFloat32()
+                    }
+                }
+            }
+        }
+
+        pipeline.modulate = m
+        return this
+    }
+
+    public func jpeg(options: JSValue? = null, global: JSGlobalObject) throws -> Image {
+        try setFormat(.JPEG, options: options, global: global)
+        return this
+    }
+
+    public func png(options: JSValue? = null, global: JSGlobalObject) throws -> Image {
+        try setFormat(.PNG, options: options, global: global)
+        return this
+    }
+
+    public func webp(options: JSValue? = null, global: JSGlobalObject) throws -> Image {
+        try setFormat(.WEBP, options: options, global: global)
+        return this
+    }
+
+    public func heic(options: JSValue? = null, global: JSGlobalObject) throws -> Image {
+        try setFormat(.HEIC, options: options, global: global)
+        return this
+    }
+
+    public func avif(options: JSValue? = null, global: JSGlobalObject) throws -> Image {
+        try setFormat(.AVIF, options: options, global: global)
+        return this
+    }
+
+    // ============================================================
+    // Terminal Operations (async)
+    // ============================================================
+
+    public func metadata(global: JSGlobalObject) async throws -> MetadataResult {
+        // Header-only probe is fast - do it inline for in-memory sources
+        if (let bytes <- getJSBufferBytes()) {
+            if (let p <- probe(bytes, maxPixels: maxPixels)) {
+                var (w, h, format) = (p.width, p.height, p.format)
+
+                // Apply EXIF orientation for JPEG
+                if (autoOrient && format == Format.JPEG) {
+                    let t = readJpeg(bytes).transform()
+                    if (t.rotate == 90 || t.rotate == 270) {
+                        swap(&w, &h)
+                    }
+                }
+
+                lastWidth = w.toInt32()
+                lastHeight = h.toInt32()
+
+                return MetadataResult(width: w, height: h, format: format)
+            }
+        }
+
+        // Fall back to full async pipeline
+        let result = try await runPipeline(.METADATA, deliver: .UINT8ARRAY)
+        if (case .META(let meta) = result) {
+            return MetadataResult(width: meta.width, height: meta.height, format: meta.format)
+        }
+
+        throw RuntimeError("Failed to get metadata")
+    }
+
+    public func bytes(global: JSGlobalObject) async throws -> ArrayList<UInt8> {
+        let result = try await runPipeline(.ENCODE(pipeline.output), deliver: .UINT8ARRAY)
+        if (case .ENCODED(let enc) = result) {
+            lastWidth = enc.w.toInt32()
+            lastHeight = enc.h.toInt32()
+            return enc.bytes
+        }
+
+        throw RuntimeError("Failed to encode image")
+    }
+
+    public func buffer(global: JSGlobalObject) async throws -> JSValue {
+        // TODO: Implement Buffer creation
+        throw RuntimeError("buffer() not yet implemented")
+    }
+
+    public func blob(global: JSGlobalObject) async throws -> JSValue {
+        // TODO: Implement Blob creation
+        throw RuntimeError("blob() not yet implemented")
+    }
+
+    public func toBase64(global: JSGlobalObject) async throws -> String {
+        let result = try await runPipeline(.ENCODE(pipeline.output), deliver: .BASE64)
+        if (case .ENCODED(let enc) = result) {
+            lastWidth = enc.w.toInt32()
+            lastHeight = enc.h.toInt32()
+            // Encode to base64
+            return base64Encode(enc.bytes)
+        }
+
+        throw RuntimeError("Failed to encode image")
+    }
+
+    public func dataURL(global: JSGlobalObject) async throws -> String {
+        let result = try await runPipeline(.ENCODE(pipeline.output), deliver: .DATAURL)
+        if (case .ENCODED(let enc) = result) {
+            lastWidth = enc.w.toInt32()
+            lastHeight = enc.h.toInt32()
+            let mime = enc.format.mime()
+            let base64 = base64Encode(enc.bytes)
+            return "data:${mime};base64,${base64}"
+        }
+
+        throw RuntimeError("Failed to encode image")
+    }
+
+    public func placeholder(options: JSValue? = null, global: JSGlobalObject) async throws -> String {
+        // Check for "dataurl" option
+        if (let opts <- options, !opts.isUndefinedOrNull()) {
+            let s = opts.toString() ?? ""
+            if (s != "dataurl") {
+                throw RuntimeError("Image.placeholder(): only \"dataurl\" is supported")
+            }
+        }
+
+        let result = try await runPipeline(.PLACEHOLDER, deliver: .DATAURL)
+        if (case .ENCODED(let enc) = result) {
+            let base64 = base64Encode(enc.bytes)
+            return "data:image/png;base64,${base64}"
+        }
+
+        throw RuntimeError("Failed to create placeholder")
+    }
+
+    // ============================================================
+    // Static Properties
+    // ============================================================
+
+    public static func getBackend() -> String {
+        return match (backend) {
+            case SYSTEM => "system"
+            case BUN => "bun"
+        }
+    }
+
+    public static func setBackend(value: String) -> Bool {
+        backend = match (value.lowercase()) {
+            case "system" => Backend.SYSTEM
+            case "bun" => Backend.BUN
+            case _ => return false
+        }
+        return true
+    }
+
+    // ============================================================
+    // Internal Methods
+    // ============================================================
+
+    private func sourceFromJS(value: JSValue, global: JSGlobalObject) throws -> Source {
+        if (value.isString()) {
+            let str = value.toString() ?? ""
+            // Check for data: URL
+            if (str.hasPrefix("data:")) {
+                return try parseDataURL(str)
+            }
+            return .PATH(str)
+        }
+
+        if (value.isArrayBuffer()) {
+            // Just remember the JS object
+            return .JS_BUFFER
+        }
+
+        if (value.isBlob()) {
+            return .BLOB(value)
+        }
+
+        throw RuntimeError("Image() input must be a path string, data: URL, ArrayBuffer, TypedArray or Blob")
+    }
+
+    private func parseDataURL(url: String) throws -> Source {
+        // data:[<mime>][;base64],<payload>
+        guard let comma = url.indexOf(",") else {
+            throw RuntimeError("Image(): malformed data: URL (no comma)")
+        }
+
+        let meta = url.substring(5, length: comma - 5)
+        let payload = url.substring(comma + 1)
+
+        if (!meta.contains(";base64")) {
+            throw RuntimeError("Image(): only base64 data: URLs are supported")
+        }
+
+        // Decode base64
+        let bytes = try base64Decode(payload)
+        return .OWNED(bytes)
+    }
+
+    private func applyOptions(options: JSValue?, global: JSGlobalObject) throws {
+        guard let opt = options, opt.isObject() else { return }
+
+        if (let maxPixelsVal <- try? opt.get(global, "maxPixels")) {
+            if (maxPixelsVal.isNumber()) {
+                maxPixels = clamp(maxPixelsVal.toNumber(), 0.0, 1e15).toUInt64()
+            }
+        }
+
+        if (let autoOrientVal <- try? opt.get(global, "autoOrient")) {
+            autoOrient = autoOrientVal.toBoolean()
+        }
+    }
+
+    private func setFormat(format: Format, options: JSValue?, global: JSGlobalObject) throws {
+        var enc = pipeline.output ?? EncodeOptions(format: format)
+        enc.format = format
+
+        if (let opt <- options, opt.isObject()) {
+            if (let qualityVal <- try? opt.get(global, "quality")) {
+                if (qualityVal.isNumber()) {
+                    enc.quality = clamp(qualityVal.toNumber(), 1.0, 100.0).toUInt8()
+                }
+            }
+
+            if (let losslessVal <- try? opt.get(global, "lossless")) {
+                enc.lossless = losslessVal.toBoolean()
+            }
+
+            if (let compressionLevelVal <- try? opt.get(global, "compressionLevel")) {
+                if (compressionLevelVal.isNumber()) {
+                    enc.compressionLevel = clamp(compressionLevelVal.toNumber(), 0.0, 9.0).toInt8()
+                }
+            }
+
+            if (let paletteVal <- try? opt.get(global, "palette")) {
+                enc.palette = paletteVal.toBoolean()
+            }
+
+            if (let colorsVal <- try? opt.get(global, "colors")) {
+                if (colorsVal.isNumber()) {
+                    enc.colors = clamp(colorsVal.toNumber(), 2.0, 256.0).toUInt16()
+                }
+            }
+
+            if (let ditherVal <- try? opt.get(global, "dither")) {
+                enc.dither = ditherVal.toBoolean()
+            }
+
+            if (let progressiveVal <- try? opt.get(global, "progressive")) {
+                enc.progressive = progressiveVal.toBoolean()
+            }
+        }
+
+        pipeline.output = enc
+    }
+
+    private func getJSBufferBytes() -> ArrayList<UInt8>? {
+        // TODO: Implement getting bytes from cached JS buffer
+        return null
+    }
+
+    private enum TaskKind {
+        case ENCODE(EncodeOptions?)
+        case METADATA
+        case PLACEHOLDER
+    }
+
+    private enum Deliver {
+        case UINT8ARRAY
+        case BUFFER
+        case BLOB
+        case BASE64
+        case DATAURL
+    }
+
+    private enum TaskResult {
+        case ENCODED(EncodedResult)
+        case META(MetaResult)
+        case ERR(ImageError)
+    }
+
+    private struct EncodedResult {
+        var bytes: ArrayList<UInt8>
+        var format: Format
+        var w: UInt32
+        var h: UInt32
+    }
+
+    private struct MetaResult {
+        var width: UInt32
+        var height: UInt32
+        var format: Format
+    }
+
+    private func runPipeline(kind: TaskKind, deliver: Deliver) async throws -> TaskResult {
+        // TODO: Implement async pipeline execution
+        // This should:
+        // 1. Get input bytes (from buffer, file, or blob)
+        // 2. Decode based on format
+        // 3. Apply EXIF auto-orient if needed
+        // 4. Apply pipeline operations (rotate, flip, flop, resize, modulate)
+        // 5. Encode based on format or placeholder
+        // 6. Deliver result
+
+        throw RuntimeError("Pipeline execution not yet implemented")
+    }
+}
+
+// ============================================================
+// Public Result Types
+// ============================================================
+
+public struct MetadataResult {
+    public var width: UInt32
+    public var height: UInt32
+    public var format: Format
+}
+
+// ============================================================
+// Helper Functions
+// ============================================================
+
+private func probe(bytes: ArrayList<UInt8>, maxPixels: UInt64) -> (width: UInt32, height: UInt32, format: Format)? {
+    let fmt = Format.fromBytes(bytes) ?? return null
+
+    match (fmt) {
+        case JPEG => {
+            // TODO: Parse JPEG header
+            return null
+        }
+        case PNG => {
+            if (bytes.size >= 24) {
+                let w = bytes[16..20].toUInt32(bigEndian: true)
+                let h = bytes[20..24].toUInt32(bigEndian: true)
+                if (w > 0 && h > 0) {
+                    if (let err <- guardSize(w: w, h: h, maxPixels: maxPixels)) {
+                        return null
+                    }
+                    return (w, h, fmt)
+                }
+            }
+        }
+        case WEBP => {
+            // TODO: Parse WebP header
+            return null
+        }
+        case BMP => {
+            // TODO: Parse BMP header
+            return null
+        }
+        case GIF => {
+            if (bytes.size >= 10) {
+                let w = bytes[6..8].toUInt16(littleEndian: true).toUInt32()
+                let h = bytes[8..10].toUInt16(littleEndian: true).toUInt32()
+                if (w > 0 && h > 0) {
+                    if (let err <- guardSize(w: w, h: h, maxPixels: maxPixels)) {
+                        return null
+                    }
+                    return (w, h, fmt)
+                }
+            }
+        }
+        case HEIC, AVIF, TIFF => {
+            // System backend only
+            return null
+        }
+    }
+
+    return null
+}
+
+private func base64Encode(bytes: ArrayList<UInt8>) -> String {
+    // TODO: Implement base64 encoding
+    return ""
+}
+
+private func base64Decode(str: String) throws -> ArrayList<UInt8> {
+    // TODO: Implement base64 decoding
+    throw RuntimeError("Base64 decode not yet implemented")
+}
+
+private func clamp<T: Comparable>(_ value: T, _ minVal: T, _ maxVal: T) -> T {
+    return max(min(value, maxVal), minVal)
+}
+
+private func isFinite(_ value: Float64) -> Bool {
+    return !value.isNaN && !value.isInfinite
+}
+
+extension Float64 {
+    var isNaN: Bool {
+        return self != self
+    }
+    var isInfinite: Bool {
+        return self > 1.7976931348623157e308 || self < -1.7976931348623157e308
+    }
+}

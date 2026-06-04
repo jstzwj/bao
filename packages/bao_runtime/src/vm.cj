@@ -842,8 +842,8 @@ public class Interpreter {
 
     /// 执行 labeled 语句
     private func execLabeledStmt(s: Stmt, env: Environment): JsValue {
-        if (let Some(body) <- s.body) {
-            return execStmt(body, env)
+        if (s.body.isSome()) {
+            return execStmt(s.body.getOrThrow(), env)
         }
         return JsValue.UNDEFINED
     }
@@ -1103,8 +1103,8 @@ public class Interpreter {
         var result = JsValue.UNDEFINED
         try {
             // 执行 try 块
-            if (let Some(body) <- s.body) {
-                result = execStmt(body, env)
+            if (s.body.isSome()) {
+                result = execStmt(s.body.getOrThrow(), env)
             }
         } catch (thrown: JsRuntimeThrow) {
             // catch 块 — 绑定异常值

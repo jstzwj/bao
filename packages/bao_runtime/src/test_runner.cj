@@ -800,18 +800,16 @@ public class TestReporter {
 
         // 如果失败，输出错误信息
         if (result.status == TestStatus.Failed) {
-            match (result.error) {
-                case Some(err) =>
-                    outputFn("${indent}  Error: ${err}")
-                    match (result.stackTrace) {
-                        case Some(stack) =>
-                            let lines = stack.split("\n")
-                            for (line in lines) {
-                                outputFn("${indent}    ${line}")
-                            }
-                        case None => ()
+            if (result.error.isSome()) {
+                let errVal = result.error.getOrThrow()
+                outputFn("${indent}  Error: ${errVal}")
+                if (result.stackTrace.isSome()) {
+                    let stackVal = result.stackTrace.getOrThrow()
+                    let lines = stackVal.split("\n")
+                    for (line in lines) {
+                        outputFn("${indent}    ${line}")
                     }
-                case None => ()
+                }
             }
         }
     }
@@ -842,9 +840,8 @@ public class TestReporter {
             outputFn("  Failed tests:")
             for (failure in result.failures) {
                 outputFn("    - ${failure.name}")
-                match (failure.error) {
-                    case Some(err) => outputFn("      ${err}")
-                    case None => ()
+                if (failure.error.isSome()) {
+                    outputFn("      ${failure.error.getOrThrow()}")
                 }
             }
         }

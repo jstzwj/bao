@@ -511,7 +511,7 @@ public class BaoCli {
                 CreateCommandHandler.exec()
             case CommandTag.RunCommand =>
                 let ctx = CommandContext(tag)
-                RunCommand.exec(ctx)
+                RunCommand.exec(ctx, ExecConfig())
             case CommandTag.RunAsNodeCommand =>
                 let ctx = CommandContext(tag)
                 RunCommand.execAsIfNode(ctx)
@@ -672,7 +672,7 @@ public class BaoCli {
 
         // 如果有位置参数, 尝试作为运行命令
         if (ctx.positionals.size > 0) {
-            RunCommand.exec(ctx)
+            RunCommand.exec(ctx, ExecConfig())
             return
         }
 
@@ -738,7 +738,7 @@ public class CommandContext {
         this.sequential = false
         this.filters = ArrayList<String>()
         this.workspaces = false
-        this.sourceMap = SourceMapOption.None
+        this.sourceMap = SourceMapOption.Off
         this.minify = false
         this.target = BundleTarget.Bun
 
@@ -822,7 +822,7 @@ public class DebugOptions {
     public var verbose: Bool
 
     public init() {
-        hotReload = HotReloadMode.None
+        hotReload = HotReloadMode.Off
         globalCache = GlobalCacheOption.Auto
         verbose = false
     }
@@ -830,15 +830,15 @@ public class DebugOptions {
 
 /// 热重载模式
 public enum HotReloadMode {
-    | None
+    | Off
     | Watch
     | Hot
 
     public operator func ==(right: HotReloadMode): Bool {
         match (this) {
-            case None =>
+            case Off =>
                 match (right) {
-                    case None => true
+                    case Off => true
                     case _ => false
                 }
             case Watch =>
@@ -947,16 +947,16 @@ public class EvalOptions {
 
 /// Source Map 选项
 public enum SourceMapOption {
-    | None
+    | Off
     | External
     | Inline
     | Linked
 
     public operator func ==(right: SourceMapOption): Bool {
         match (this) {
-            case None =>
+            case Off =>
                 match (right) {
-                    case None => true
+                    case Off => true
                     case _ => false
                 }
             case External =>

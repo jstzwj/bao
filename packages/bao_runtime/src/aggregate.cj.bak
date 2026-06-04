@@ -1,0 +1,388 @@
+// 严格翻译自: src/cli/aggregate.zig 或对应文件
+// 聚合工具 — 用于批量操作和统计
+package bao_runtime
+
+import bao_core.*
+import bao_collections.*
+import bao_path.*
+import bao_io.*
+import bao_sys.*
+
+/// 聚合操作类型
+public enum AggregateOperation {
+    | count
+    | sum
+    | average
+    | min
+    | max
+    | group
+    | unique
+    | sort
+}
+
+/// 聚合结果
+public class AggregateResult {
+    let operation: AggregateOperation
+    let count: UInt64
+    let sum: Float64
+    let average: Float64
+    let min: ?Float64
+    let max: ?Float64
+    let groups: HashMap<String, ArrayList<Unit>>
+    let uniques: ArrayList<String>
+
+    public init(operation: AggregateOperation) {
+        this.operation = operation
+        this.count = 0
+        this.sum = 0.0
+        this.average = 0.0
+        this.min = None
+        this.max = None
+        this.groups = HashMap()
+        this.uniques = ArrayList()
+    }
+}
+
+/// 聚合命令实现
+public class AggregateCommand {
+    /// 从 ArrayList 创建子数组
+    static func subArgs(args: ArrayList<String>, start: Int64): Array<String> {
+        var list = ArrayList<String>()
+        var i = start
+        while (i < args.size) {
+            list.append(args[i])
+            i++
+        }
+        return list.toArray()
+    }
+
+    /// 执行聚合命令
+    public static func exec(ctx: CommandContext): Unit {
+        let args = ctx.positionals
+
+        if (args.isEmpty()) {
+            printHelp()
+            return
+        }
+
+        let operation = parseOperation(args[0])
+
+        match (operation) {
+            case count => countOperation(ctx, subArgs(args, 1))
+            case sum => sumOperation(ctx, subArgs(args, 1))
+            case average => averageOperation(ctx, subArgs(args, 1))
+            case min => minOperation(ctx, subArgs(args, 1))
+            case max => maxOperation(ctx, subArgs(args, 1))
+            case group => groupOperation(ctx, subArgs(args, 1))
+            case unique => uniqueOperation(ctx, subArgs(args, 1))
+            case sort => sortOperation(ctx, subArgs(args, 1))
+            case _ =>
+                Output.prettyErrorln("<r><red>error:<r> Unknown operation: ${args[0]}", [])
+                printHelp()
+                Global.exit(1)
+        }
+    }
+
+    /// 解析操作类型
+    static func parseOperation(op: String): AggregateOperation {
+        if (op == "count" || op == "cnt") {
+            return AggregateOperation.count
+        } else if (op == "sum" || op == "total") {
+            return AggregateOperation.sum
+        } else if (op == "average" || op == "avg" || op == "mean") {
+            return AggregateOperation.average
+        } else if (op == "min" || op == "minimum") {
+            return AggregateOperation.min
+        } else if (op == "max" || op == "maximum") {
+            return AggregateOperation.max
+        } else if (op == "group" || op == "grp") {
+            return AggregateOperation.group
+        } else if (op == "unique" || op == "uniq") {
+            return AggregateOperation.unique
+        } else if (op == "sort" || op == "order") {
+            return AggregateOperation.sort
+        } else {
+            Output.prettyErrorln("<r><red>error:<r> Unknown operation: ${op}", [])
+            printHelp()
+            Global.exit(1)
+            return AggregateOperation.count
+        }
+    }
+
+    /// 计数操作
+    static func countOperation(ctx: CommandContext, args: Array<String>): Unit {
+        let files = getFiles(args)
+
+        var totalCount: UInt64 = 0
+
+        for (file in files) {
+            let lines = countLines(file)
+            totalCount += lines
+            Output.prettyln("${file}: ${lines} lines", [])
+        }
+
+        if (files.size > 1) {
+            Output.prettyln("\\n<d>Total: ${totalCount} lines<r>", [])
+        }
+    }
+
+    /// 求和操作
+    static func sumOperation(ctx: CommandContext, args: Array<String>): Unit {
+        let files = getFiles(args)
+
+        var totalSum: Float64 = 0.0
+
+        for (file in files) {
+            let values = readNumbers(file)
+            let sum = values.sum()
+            totalSum += sum
+            Output.prettyln("${file}: ${sum}", [])
+        }
+
+        if (files.size > 1) {
+            Output.prettyln("\\n<d>Total sum: ${totalSum}<r>", [])
+        }
+    }
+
+    /// 平均值操作
+    static func averageOperation(ctx: CommandContext, args: Array<String>): Unit {
+        let files = getFiles(args)
+
+        var allValues = ArrayList<Float64>()
+
+        for (file in files) {
+            let values = readNumbers(file)
+            allValues.appendAll(values)
+
+            let avg = if (values.isNotEmpty) { values.sum() / Float64(values.size) } else { 0.0 }
+            Output.prettyln("${file}: ${avg}", [])
+        }
+
+        if (allValues.isNotEmpty && files.size > 1) {
+            let totalAvg = allValues.sum() / Float64(allValues.size)
+            Output.prettyln("\\n<d>Overall average: ${totalAvg}<r>", [])
+        }
+    }
+
+    /// 最小值操作
+    static func minOperation(ctx: CommandContext, args: Array<String>): Unit {
+        let files = getFiles(args)
+
+        var globalMin: ?Float64 = None
+
+        for (file in files) {
+            let values = readNumbers(file)
+
+            if (values.isNotEmpty) {
+                let min = values.min()
+                globalMin = if (let gm <- globalMin) {
+                    Some(min(min, gm))
+                } else {
+                    Some(min)
+                }
+
+                Output.prettyln("${file}: ${min}", [])
+            }
+        }
+
+        if (let gm <- globalMin) {
+            Output.prettyln("\\n<d>Global minimum: ${gm}<r>", [])
+        }
+    }
+
+    /// 最大值操作
+    static func maxOperation(ctx: CommandContext, args: Array<String>): Unit {
+        let files = getFiles(args)
+
+        var globalMax: ?Float64 = None
+
+        for (file in files) {
+            let values = readNumbers(file)
+
+            if (values.isNotEmpty) {
+                let max = values.max()
+                globalMax = if (let gm <- globalMax) {
+                    Some(max(max, gm))
+                } else {
+                    Some(max)
+                }
+
+                Output.prettyln("${file}: ${max}", [])
+            }
+        }
+
+        if (let gm <- globalMax) {
+            Output.prettyln("\\n<d>Global maximum: ${gm}<r>", [])
+        }
+    }
+
+    /// 分组操作
+    static func groupOperation(ctx: CommandContext, args: Array<String>): Unit {
+        let files = getFiles(args)
+        let field = if (args.isNotEmpty) { args[0] } else { "" }
+
+        var groups = HashMap<String, ArrayList<String>>()
+
+        for (file in files) {
+            let content = BaoFile.readFile(file)
+            let lines = content.split("\\n")
+
+            for (line in lines) {
+                let key = if (field.isNotEmpty) {
+                    extractField(line, field)
+                } else {
+                    line
+                }
+
+                if (!groups.contains(key)) {
+                    groups.put(key, ArrayList<String>())
+                }
+
+                groups.get(key).getOrThrow().append(line)
+            }
+        }
+
+        // 输出分组结果
+        for ((key, items) in groups) {
+            Output.prettyln("<cyan>${key}<r>: ${items.size()} items", [])
+        }
+    }
+
+    /// 唯一值操作
+    static func uniqueOperation(ctx: CommandContext, args: Array<String>): Unit {
+        let files = getFiles(args)
+
+        var uniqueSet = HashSet<String>()
+
+        for (file in files) {
+            let content = BaoFile.readFile(file)
+            let lines = content.split("\\n")
+
+            for (line in lines) {
+                uniqueSet.put(line.trim())
+            }
+        }
+
+        let uniques = uniqueSet.toArray()
+        var sorted = uniques.sorted()
+
+        Output.prettyln("Unique values (${sorted.size()}):", [])
+
+        for (value in sorted) {
+            Output.prettyln("  ${value}", [])
+        }
+    }
+
+    /// 排序操作
+    static func sortOperation(ctx: CommandContext, args: Array<String>): Unit {
+        let files = getFiles(args)
+
+        for (file in files) {
+            let content = BaoFile.readFile(file)
+            let lines = content.split("\\n")
+
+            var linesList = ArrayList<String>()
+            for (line in lines) {
+                linesList.append(line)
+            }
+
+            let sorted = linesList.sorted()
+
+            Output.prettyln("<cyan>${file}<r> (${sorted.size()} lines):", [])
+
+            for (line in sorted) {
+                Output.prettyln("  ${line}", [])
+            }
+        }
+    }
+
+    /// 获取文件列表
+    static func getFiles(args: Array<String>): ArrayList<String> {
+        var files = ArrayList<String>()
+
+        if (args.isEmpty()) {
+            // 从 stdin 读取
+            return files
+        }
+
+        for (arg in args) {
+            if (BaoFile.exists(arg)) {
+                files.append(arg)
+            } else {
+                Output.prettyErrorln("<r><yellow>warning:<r> File not found: ${arg}", [])
+            }
+        }
+
+        return files
+    }
+
+    /// 读取数字
+    static func readNumbers(path: String): ArrayList<Float64> {
+        let content = BaoFile.readFile(path)
+        let lines = content.split("\\n")
+
+        var numbers = ArrayList<Float64>()
+
+        for (line in lines) {
+            let trimmed = line.trim()
+            if (let num <- trimmed.toFloat64()) {
+                numbers.append(num)
+            }
+        }
+
+        return numbers
+    }
+
+    /// 计算行数
+    static func countLines(path: String): UInt64 {
+        let content = BaoFile.readFile(path)
+        let lines = content.split("\\n")
+        return UInt64(lines.size)
+    }
+
+    /// 提取字段
+    static func extractField(line: String, field: String): String {
+        // TODO: 实现字段提取
+        return line
+    }
+
+    /// 打印帮助
+    static func printHelp(): Unit {
+        Output.prettyln(
+            "<b>Usage<r>: <b><green>bao aggregate<r> <operation> [files...]\\n\\n" +
+            "Operations:\\n" +
+            "  count          Count lines in files\\n" +
+            "  sum            Calculate sum of numbers\\n" +
+            "  average        Calculate average of numbers\\n" +
+            "  min            Find minimum value\\n" +
+            "  max            Find maximum value\\n" +
+            "  group          Group lines by field\\n" +
+            "  unique         Find unique values\\n" +
+            "  sort           Sort lines\\n\\n" +
+            "Options:\\n" +
+            "  -h, --help     Print this help\\n",
+            []
+        )
+    }
+}
+
+/// HashSet 简单实现
+class HashSet<T> {
+    let data: HashMap<T, Unit>
+
+    public init() {
+        this.data = HashMap()
+    }
+
+    public func put(value: T): Unit {
+        data.put(value, ())
+    }
+
+    public func contains(value: T): Bool {
+        return data.contains(value)
+    }
+
+    public func toArray(): Array<T> {
+        return data.keys().toArray()
+    }
+}

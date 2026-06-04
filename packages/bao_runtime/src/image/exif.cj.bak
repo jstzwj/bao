@@ -1,0 +1,210 @@
+// EXIF Orientation reader.
+//
+// Only the Orientation tag (0x0112) is parsed — that is the one piece of
+// EXIF that changes pixel meaning, and the only thing Sharp's autoOrient
+// looks at. Everything else (GPS, camera model, timestamps, …) is ignored.
+//
+// Layout being walked, for the next maintainer:
+//
+//   JPEG = FF D8 (SOI) · marker* · FF DA (SOS) · scan · FF D9 (EOI)
+//   marker = FF xx · be16 length · payload[length-2]
+//
+//   APP1/Exif payload = "Exif\0\0" · TIFF
+//   TIFF = byte-order ("II"=LE | "MM"=BE) · u16 magic 42 · u32 IFD0-offset
+//   IFD0 = u16 entry-count · entry[count] · u32 next-IFD-offset
+//   entry = u16 tag · u16 type · u32 count · u32 value-or-offset
+//
+// Orientation is type 3 (SHORT), count 1, so its value is packed in the
+// first 2 bytes of the 4-byte value field — no offset chase needed.
+//
+// The functions are deliberately permissive: any malformation returns
+// null/.normal rather than an error. EXIF is advisory; we never fail
+// decode over it.
+
+package bao_runtime.image
+
+import std.math.*
+import std.io.*
+
+// ============================================================
+// Public Types
+// ============================================================
+
+public enum class Orientation(UInt8) {
+    NORMAL = 1
+    FLOP = 2           // mirror horizontal
+    ROTATE_180 = 3
+    FLIP = 4           // mirror vertical
+    FLOP_ROTATE_90 = 5
+    ROTATE_90 = 6
+    FLOP_ROTATE_270 = 7
+    ROTATE_270 = 8
+
+    // The (mirror?, cw-degrees) pair that turns the stored pixels upright
+    public func transform() -> TransformInfo {
+        match (self) {
+            case NORMAL => return TransformInfo(flop: false, flip: false, rotate: 0)
+            case FLOP => return TransformInfo(flop: true, flip: false, rotate: 0)
+            case ROTATE_180 => return TransformInfo(flop: false, flip: false, rotate: 180)
+            case FLIP => return TransformInfo(flop: false, flip: true, rotate: 0)
+            // 5 = transpose, 7 = transverse. With flop applied BEFORE a CW
+            // rotate (Image.applyOrientation order), flop∘rot270 = transpose
+            // and flop∘rot90 = transverse.
+            case FLOP_ROTATE_90 => return TransformInfo(flop: true, flip: false, rotate: 270)
+            case ROTATE_90 => return TransformInfo(flop: false, flip: false, rotate: 90)
+            case FLOP_ROTATE_270 => return TransformInfo(flop: true, flip: false, rotate: 90)
+            case ROTATE_270 => return TransformInfo(flop: false, flip: false, rotate: 270)
+        }
+    }
+}
+
+public struct TransformInfo {
+    public var flop: Bool
+    public var flip: Bool
+    public var rotate: UInt16
+}
+
+// ============================================================
+// Public Functions
+// ============================================================
+
+// Walk JPEG markers up to SOS looking for an APP1/Exif segment, then read
+// IFD0 tag 0x0112. JPEG-only because phone cameras are the source of rotated
+// images; PNG eXIf and WebP EXIF chunks exist but are rare enough to leave
+// for a follow-up.
+public func readJpeg(bytes: ByteArray) -> Orientation {
+    if (bytes.size < 4 || bytes[0] != 0xFFu8 || bytes[1] != 0xD8u8) {
+        return Orientation.NORMAL
+    }
+
+    var i = 2
+    while (i + 4 <= bytes.size) {
+        if (bytes[i] != 0xFFu8) {
+            return Orientation.NORMAL
+        }
+
+        let marker = bytes[i + 1]
+        match (marker) {
+            case 0xFFu8 => {
+                // Padding marker
+                i += 1
+                continue
+            }
+            case 0xD0u8..0xD8u8 => {
+                // Restart markers
+                i += 2
+                continue
+            }
+            case 0xDAu8, 0xD9u8 => {
+                // SOS / EOI: scan data begins; EXIF would have come earlier
+                return Orientation.NORMAL
+            }
+            case _ => {}
+        }
+
+        let segLen = ((bytes[i + 2].toInt32() << 8) | bytes[i + 3].toInt32())
+        if (segLen < 2 || i + 2 + segLen > bytes.size) {
+            return Orientation.NORMAL
+        }
+
+        if (marker == 0xE1u8 && segLen >= 8) {
+            let seg = bytes.subarray(from: i + 4, length: segLen - 2)
+            if (seg.size >= 6 &&
+                seg[0] == 'E'.code.toUInt8() && seg[1] == 'x'.code.toUInt8() &&
+                seg[2] == 'i'.code.toUInt8() && seg[3] == 'f'.code.toUInt8() &&
+                seg[4] == 0x00u8 && seg[5] == 0x00u8) {
+                let tiff = seg.subarray(from: 6, length: seg.size - 6)
+                if (let orient <- parseTiff(tiff)) {
+                    return orient
+                }
+            }
+        }
+
+        i += 2 + segLen
+    }
+
+    return Orientation.NORMAL
+}
+
+// ============================================================
+// Internal Functions
+// ============================================================
+
+private func parseTiff(tiff: ByteArray) -> Orientation? {
+    if (tiff.size < 8) return null
+
+    // Check byte order
+    let bigEndian = tiff[0] == 'M'.code.toUInt8() && tiff[1] == 'M'.code.toUInt8()
+    let littleEndian = tiff[0] == 'I'.code.toUInt8() && tiff[1] == 'I'.code.toUInt8()
+    if (!bigEndian && !littleEndian) return null
+
+    // Read magic (should be 42)
+    let magic = readUInt16(tiff, offset: 2, bigEndian: bigEndian)
+    if (magic == null || magic != 42) return null
+
+    // Get IFD0 offset
+    let ifd0Offset = readUInt32(tiff, offset: 4, bigEndian: bigEndian)
+    if (ifd0Offset == null) return null
+
+    // Read entry count
+    let count = readUInt16(tiff, offset: ifd0Offset!, bigEndian: bigEndian)
+    if (count == null) return null
+
+    // Walk entries looking for tag 0x0112 (Orientation)
+    var e = ifd0Offset! + 2
+    for (_ in 0..count!) {
+        let tag = readUInt16(tiff, offset: e, bigEndian: bigEndian)
+        if (tag == null) return null
+
+        if (tag == 0x0112) {
+            // Type 3 (SHORT), count 1 — anything else is malformed
+            let ty = readUInt16(tiff, offset: e + 2, bigEndian: bigEndian)
+            let cnt = readUInt32(tiff, offset: e + 4, bigEndian: bigEndian)
+            if (ty == null || cnt == null || ty != 3 || cnt != 1) return null
+
+            // Value is packed in first 2 bytes of value field
+            let v = readUInt16(tiff, offset: e + 8, bigEndian: bigEndian)
+            if (v == null || v < 1 || v > 8) return null
+
+            return match (v) {
+                case 1 => Orientation.NORMAL
+                case 2 => Orientation.FLOP
+                case 3 => Orientation.ROTATE_180
+                case 4 => Orientation.FLIP
+                case 5 => Orientation.FLOP_ROTATE_90
+                case 6 => Orientation.ROTATE_90
+                case 7 => Orientation.FLOP_ROTATE_270
+                case 8 => Orientation.ROTATE_270
+                case _ => Orientation.NORMAL
+            }
+        }
+
+        e += 12  // Move to next entry
+    }
+
+    return null
+}
+
+private func readUInt16(bytes: ByteArray, offset: Int, bigEndian: Bool) -> UInt16? {
+    if (offset + 2 > bytes.size) return null
+    if (bigEndian) {
+        return ((bytes[offset].toUInt32() << 8) | bytes[offset + 1].toUInt32()).toUInt16()
+    } else {
+        return ((bytes[offset + 1].toUInt32() << 8) | bytes[offset].toUInt32()).toUInt16()
+    }
+}
+
+private func readUInt32(bytes: ByteArray, offset: Int, bigEndian: Bool) -> UInt32? {
+    if (offset + 4 > bytes.size) return null
+    if (bigEndian) {
+        return ((bytes[offset].toUInt64() << 24) |
+                (bytes[offset + 1].toUInt64() << 16) |
+                (bytes[offset + 2].toUInt64() << 8) |
+                bytes[offset + 3].toUInt64()).toUInt32()
+    } else {
+        return ((bytes[offset + 3].toUInt64() << 24) |
+                (bytes[offset + 2].toUInt64() << 16) |
+                (bytes[offset + 1].toUInt64() << 8) |
+                bytes[offset].toUInt64()).toUInt32()
+    }
+}

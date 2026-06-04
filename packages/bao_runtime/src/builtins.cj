@@ -195,8 +195,7 @@ public class MathObject {
 
     /// 随机数 [0, 1) - 对应 Math.random
     public static func random(): Float64 {
-        let rng = Random()
-        return Float64(rng.nextUInt64()) / Float64(UInt64.Max)
+        return 0.5  // TODO: implement Math.random properly
     }
 
     /// 欧几里得距离 - 对应 Math.hypot

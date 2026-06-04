@@ -1,0 +1,428 @@
+// Thin Cangjie wrappers over the statically-linked image codecs and the
+// highway resize/rotate kernels. Everything works on RGBA8 — decoders are
+// told to emit RGBA, encoders are fed RGBA, so Image.cj never branches on
+// channel layout.
+//
+// Memory ownership: decode returns allocator-owned RGBA. Encode
+// returns Encoded{bytes, free} carrying the codec's own deallocator so the
+// JS layer can hand the buffer to ArrayBuffer without a dupe.
+
+package bao_runtime.image
+
+import std.math.*
+import std.convert.*
+import std.collection.*
+import std.io.*
+
+// ============================================================
+// Public Types
+// ============================================================
+
+public enum class Format(UInt8) {
+    JPEG = 0
+    PNG = 1
+    WEBP = 2
+    HEIC = 3  // System-backend-only on macOS/Windows
+    AVIF = 4  // System-backend-only on macOS/Windows
+    BMP = 5   // Decode-only
+    TIFF = 6  // Decode-only via system backend
+    GIF = 7   // Decode-only, first frame
+
+    public func mime() -> String {
+        match (self) {
+            case JPEG => return "image/jpeg"
+            case PNG => return "image/png"
+            case WEBP => return "image/webp"
+            case HEIC => return "image/heic"
+            case AVIF => return "image/avif"
+            case BMP => return "image/bmp"
+            case TIFF => return "image/tiff"
+            case GIF => return "image/gif"
+        }
+    }
+
+    public static func fromBytes(bytes: ByteArray) -> Format? {
+        if (bytes.size >= 3 && bytes[0] == 0xFFu8 && bytes[1] == 0xD8u8 && bytes[2] == 0xFFu8) {
+            return JPEG
+        }
+        if (bytes.size >= 8) {
+            let png_sig: Array<UInt8> = [0x89u8, 0x50u8, 0x4Eu8, 0x47u8, 0x0Du8, 0x0Au8, 0x1Au8, 0x0Au8]
+            var match = true
+            for (i in 0..8) {
+                if (bytes[i] != png_sig[i]) {
+                    match = false
+                    break
+                }
+            }
+            if (match) return PNG
+        }
+        if (bytes.size >= 12 && bytes[0] == 'R'.code.toUInt8() && bytes[1] == 'I'.code.toUInt8() &&
+            bytes[2] == 'F'.code.toUInt8() && bytes[3] == 'F'.code.toUInt8() &&
+            bytes[8] == 'W'.code.toUInt8() && bytes[9] == 'E'.code.toUInt8() &&
+            bytes[10] == 'B'.code.toUInt8() && bytes[11] == 'P'.code.toUInt8()) {
+            return WEBP
+        }
+        if (bytes.size >= 2 && bytes[0] == 'B'.code.toUInt8() && bytes[1] == 'M'.code.toUInt8()) {
+            return BMP
+        }
+        if (bytes.size >= 4) {
+            let le = bytes[0] == 'I'.code.toUInt8() && bytes[1] == 'I'.code.toUInt8() &&
+                     bytes[2] == 0x42u8 && bytes[3] == 0x00u8
+            let be = bytes[0] == 'M'.code.toUInt8() && bytes[1] == 'M'.code.toUInt8() &&
+                     bytes[2] == 0x00u8 && bytes[3] == 0x42u8
+            if (le || be) return TIFF
+        }
+        if (bytes.size >= 6) {
+            let gif87a = bytes[0] == 'G'.code.toUInt8() && bytes[1] == 'I'.code.toUInt8() &&
+                         bytes[2] == 'F'.code.toUInt8() && bytes[3] == '8'.code.toUInt8() &&
+                         bytes[4] == '7'.code.toUInt8() && bytes[5] == 'a'.code.toUInt8()
+            let gif89a = bytes[0] == 'G'.code.toUInt8() && bytes[1] == 'I'.code.toUInt8() &&
+                         bytes[2] == 'F'.code.toUInt8() && bytes[3] == '8'.code.toUInt8() &&
+                         bytes[4] == '9'.code.toUInt8() && bytes[5] == 'a'.code.toUInt8()
+            if (gif87a || gif89a) return GIF
+        }
+        // HEIC/AVIF detection (ISO BMFF)
+        if (bytes.size >= 16 && bytes[4] == 'f'.code.toUInt8() && bytes[5] == 't'.code.toUInt8() &&
+            bytes[6] == 'y'.code.toUInt8() && bytes[7] == 'p'.code.toUInt8()) {
+            let box_size = bytes[0..4].toUInt32(bigEndian: true)
+            let box = min(bytes.size, max(16, Int(box_size)))
+            var has_avif = false
+            var has_heic = false
+            var has_miaf = false
+            var offset = 8
+            while (offset + 4 <= box) {
+                if (offset == 12) {
+                    offset += 4  // skip minor_version
+                    continue
+                }
+                let brand = String.fromUtf8(bytes[offset..offset+4]) ?? ""
+                if (brand == "avif" || brand == "avis") has_avif = true
+                else if (brand == "heic" || brand == "heix" || brand == "hevc" || brand == "hevx") has_heic = true
+                else if (brand == "mif1" || brand == "msf1") has_miaf = true
+                offset += 4
+            }
+            if (has_avif) return AVIF
+            if (has_heic) return HEIC
+            if (has_miaf) return HEIC  // MIAF with no codec brand -> assume HEVC
+        }
+        return null
+    }
+
+    public static func fromExtension(path: String) -> Format? {
+        let dot = path.lastIndexOf(".")
+        if (dot == None) return null
+        let ext = path.substring(dot.toInt() + 1).lowercase()
+        match (ext) {
+            case "jpg", "jpeg" => return JPEG
+            case "png" => return PNG
+            case "webp" => return WEBP
+            case "heic", "heif" => return HEIC
+            case "avif" => return AVIF
+            case "bmp" => return BMP
+            case "gif" => return GIF
+            case "tif", "tiff" => return TIFF
+            case _ => return null
+        }
+    }
+}
+
+public enum class Backend {
+    SYSTEM  // Use OS-native backend when available
+    BUN     // Use only static codecs
+}
+
+// Process-global backend selector
+public var backend: Backend = SYSTEM
+
+public struct Decoded {
+    public var rgba: ArrayList<UInt8>
+    public var width: UInt32
+    public var height: UInt32
+    public var iccProfile: ArrayList<UInt8>? = null  // ICC color profile from source
+
+    public func deinit() {
+        // ArrayList will be cleaned up by owner
+    }
+}
+
+public enum class ImageError {
+    UNKNOWN_FORMAT
+    DECODE_FAILED
+    ENCODE_FAILED
+    TOO_MANY_PIXELS
+    UNSUPPORTED_ON_PLATFORM
+    OUT_OF_MEMORY
+}
+
+public struct EncodeOptions {
+    public var format: Format
+    public var quality: UInt8 = 80           // 0-100 for JPEG/WebP-lossy
+    public var lossless: Bool = false       // WebP only
+    public var compressionLevel: Int8 = -1  // PNG only: zlib level 0-9, -1 = default
+    public var palette: Bool = false        // PNG only: quantize to indexed colors
+    public var colors: UInt16 = 256         // PNG palette only: max colors
+    public var dither: Bool = false         // PNG palette only: Floyd-Steinberg
+    public var progressive: Bool = false    // JPEG only
+    public var iccProfile: ArrayList<UInt8>? = null  // ICC profile to embed
+}
+
+public struct Encoded {
+    public var bytes: ArrayList<UInt8>
+    public var freeFunc: ((UInt8) -> Unit)? = null  // Optional custom deallocator
+
+    public func deinit() {
+        if (let f <- freeFunc) {
+            // Caller is responsible for managing the memory
+        }
+    }
+}
+
+public struct DecodeHint {
+    public var targetW: UInt32 = 0  // Final output width (after rotate), 0 = no resize
+    public var targetH: UInt32 = 0  // Final output height (after rotate), 0 = no resize
+}
+
+// Sharp's default: 0x3FFF * 0x3FFF ≈ 268 MP
+public let DEFAULT_MAX_PIXELS: UInt64 = 0x3FFF * 0x3FFF
+
+// ============================================================
+// Resize Filters
+// ============================================================
+
+public enum class Filter(Int32) {
+    BOX = 0
+    BILINEAR = 1
+    LINEAR = 1
+    LANCZOS3 = 2
+    MITCHELL = 3
+    NEAREST = 4
+    CUBIC = 5
+    LANCZOS2 = 6
+    MKS2013 = 7  // Magic Kernel Sharp 2013
+    MKS2021 = 8  // Magic Kernel Sharp 2021
+
+    public static func fromString(name: String) -> Filter? {
+        match (name.lowercase()) {
+            case "box" => return BOX
+            case "bilinear", "linear" => return BILINEAR
+            case "lanczos3" => return LANCZOS3
+            case "mitchell" => return MITCHELL
+            case "nearest" => return NEAREST
+            case "cubic" => return CUBIC
+            case "lanczos2" => return LANCZOS2
+            case "mks2013" => return MKS2013
+            case "mks2021" => return MKS2021
+            case _ => return null
+        }
+    }
+}
+
+// ============================================================
+// External C Functions (FFI)
+// ============================================================
+
+// Highway resize/rotate kernels
+@C[name = "bun_image_resize_scratch_size"]
+external func bunImageResizeScratchSize(srcW: Int32, srcH: Int32, dstW: Int32, dstH: Int32, filter: Int32) -> UIntSize
+
+@C[name = "bun_image_resize_rgba8"]
+external func bunImageResizeRgba8(
+    src: CPointer<UInt8>, srcW: Int32, srcH: Int32,
+    dst: CPointer<UInt8>, dstW: Int32, dstH: Int32,
+    filter: Int32, scratch: CPointer<UInt8>
+) -> Int32
+
+@C[name = "bun_image_rotate_rgba8"]
+external func bunImageRotateRgba8(src: CPointer<UInt8>, w: Int32, h: Int32, dst: CPointer<UInt8>, deg: Int32) -> Unit
+
+@C[name = "bun_image_flip_rgba8"]
+external func bunImageFlipRgba8(src: CPointer<UInt8>, w: Int32, h: Int32, dst: CPointer<UInt8>, horiz: Int32) -> Unit
+
+@C[name = "bun_image_modulate_rgba8"]
+external func bunImageModulateRgba8(buf: CPointer<UInt8>, len: UIntSize, brightness: Float32, saturation: Float32) -> Unit
+
+// ============================================================
+// Core Functions
+// ============================================================
+
+public func guardSize(w: UInt32, h: UInt32, maxPixels: UInt64) -> ImageError? {
+    let product = (w.toUInt64() * h.toUInt64())
+    if (product > maxPixels) {
+        return ImageError.TOO_MANY_PIXELS
+    }
+    return null
+}
+
+// Brightness/saturation modulation
+// brightness: multiplier (1.0 = identity)
+// saturation: 0 = greyscale, 1 = identity, >1 = boost
+public func modulate(rgba: ArrayList<UInt8>, brightness: Float32, saturation: Float32) -> Unit {
+    bunImageModulateRgba8(rgba.toCPointer(), rgba.size, brightness, saturation)
+}
+
+// Resize using highway kernel
+public func resize(src: ArrayList<UInt8>, sw: UInt32, sh: UInt32, dw: UInt32, dh: UInt32, filter: Filter)
+    -> Result<Encoded, ImageError>
+{
+    let outSize = (dw.toUInt64() * dh.toUInt64() * 4).toUIntSize()
+    let scratchSize = bunImageResizeScratchSize(
+        sw.toInt32(), sh.toInt32(), dw.toInt32(), dh.toInt32(), filter.value.toInt32()
+    )
+    let block = ArrayList<UInt8>()
+    block.resize(outSize + scratchSize, value: 0u8)
+
+    let result = bunImageResizeRgba8(
+        src.toCPointer(), sw.toInt32(), sh.toInt32(),
+        block.toCPointer(), dw.toInt32(), dh.toInt32(),
+        filter.value.toInt32(), (block.toCPointer() + outSize)
+    )
+
+    if (result != 0) {
+        return ImageError.OUT_OF_MEMORY
+    }
+
+    // Shrink to just the output size (drop scratch)
+    block.removeRange(outSize..block.size)
+    return Encoded(bytes: block)
+}
+
+// Rotate by 90/180/270 degrees
+public func rotate(src: ArrayList<UInt8>, w: UInt32, h: UInt32, degrees: UInt32)
+    -> Result<Decoded, ImageError>
+{
+    let (dw, dh) = if (degrees == 90 || degrees == 270) { (h, w) } else { (w, h) }
+    let out = ArrayList<UInt8>()
+    out.resize((dw * dh * 4).toUIntSize(), value: 0u8)
+
+    bunImageRotateRgba8(src.toCPointer(), w.toInt32(), h.toInt32(), out.toCPointer(), degrees.toInt32())
+
+    return Decoded(rgba: out, width: dw, height: dh)
+}
+
+// Flip/mirror image
+public func flip(src: ArrayList<UInt8>, w: UInt32, h: UInt32, horizontal: Bool)
+    -> Result<ArrayList<UInt8>, ImageError>
+{
+    let out = ArrayList<UInt8>()
+    out.resize((w * h * 4).toUIntSize(), value: 0u8)
+
+    bunImageFlipRgba8(src.toCPointer(), w.toInt32(), h.toInt32(), out.toCPointer(), if (horizontal) { 1 } else { 0 })
+
+    return out
+}
+
+// ============================================================
+// Format-Specific Decoders/Encoders
+// ============================================================
+
+// Decode image bytes to RGBA
+public func decode(bytes: ByteArray, maxPixels: UInt64, hint: DecodeHint)
+    -> Result<Decoded, ImageError>
+{
+    let fmt = Format.fromBytes(bytes) ?? return ImageError.UNKNOWN_FORMAT
+
+    match (fmt) {
+        case JPEG => return decodeJPEG(bytes, maxPixels, hint)
+        case PNG => return decodePNG(bytes, maxPixels)
+        case WEBP => return decodeWEBP(bytes, maxPixels)
+        case BMP => return decodeBMP(bytes, maxPixels)
+        case GIF => return decodeGIF(bytes, maxPixels)
+        case HEIC, AVIF, TIFF => return ImageError.UNSUPPORTED_ON_PLATFORM
+    }
+}
+
+// Encode RGBA to target format
+public func encode(rgba: ArrayList<UInt8>, width: UInt32, height: UInt32, opts: EncodeOptions)
+    -> Result<Encoded, ImageError>
+{
+    match (opts.format) {
+        case JPEG => return encodeJPEG(rgba, width, height, opts.quality, opts.progressive, opts.iccProfile)
+        case PNG => {
+            if (opts.palette) {
+                return encodePNGIndexed(rgba, width, height, opts.compressionLevel,
+                                        opts.colors, opts.dither, opts.iccProfile)
+            } else {
+                return encodePNG(rgba, width, height, opts.compressionLevel, opts.iccProfile)
+            }
+        }
+        case WEBP => return encodeWEBP(rgba, width, height, opts.quality, opts.lossless, opts.iccProfile)
+        case HEIC, AVIF => return ImageError.UNSUPPORTED_ON_PLATFORM
+        case BMP, TIFF, GIF => return ImageError.UNSUPPORTED_ON_PLATFORM
+    }
+}
+
+// ============================================================
+// Placeholder Functions (to be implemented)
+// ============================================================
+
+// JPEG codec - TODO: implement with libjpeg-turbo
+private func decodeJPEG(bytes: ByteArray, maxPixels: UInt64, hint: DecodeHint)
+    -> Result<Decoded, ImageError>
+{
+    // TODO: Implement JPEG decoding via libjpeg-turbo FFI
+    return ImageError.UNSUPPORTED_ON_PLATFORM
+}
+
+private func encodeJPEG(rgba: ArrayList<UInt8>, width: UInt32, height: UInt32,
+                       quality: UInt8, progressive: Bool, iccProfile: ArrayList<UInt8>?)
+    -> Result<Encoded, ImageError>
+{
+    // TODO: Implement JPEG encoding via libjpeg-turbo FFI
+    return ImageError.UNSUPPORTED_ON_PLATFORM
+}
+
+// PNG codec - TODO: implement with libspng
+private func decodePNG(bytes: ByteArray, maxPixels: UInt64)
+    -> Result<Decoded, ImageError>
+{
+    // TODO: Implement PNG decoding via libspng FFI
+    return ImageError.UNSUPPORTED_ON_PLATFORM
+}
+
+private func encodePNG(rgba: ArrayList<UInt8>, width: UInt32, height: UInt32,
+                      level: Int8, iccProfile: ArrayList<UInt8>?)
+    -> Result<Encoded, ImageError>
+{
+    // TODO: Implement PNG encoding via libspng FFI
+    return ImageError.UNSUPPORTED_ON_PLATFORM
+}
+
+private func encodePNGIndexed(rgba: ArrayList<UInt8>, width: UInt32, height: UInt32,
+                              level: Int8, colors: UInt16, dither: Bool, iccProfile: ArrayList<UInt8>?)
+    -> Result<Encoded, ImageError>
+{
+    // TODO: Implement indexed PNG encoding via libspng + quantization
+    return ImageError.UNSUPPORTED_ON_PLATFORM
+}
+
+// WebP codec - TODO: implement with libwebp
+private func decodeWEBP(bytes: ByteArray, maxPixels: UInt64)
+    -> Result<Decoded, ImageError>
+{
+    // TODO: Implement WebP decoding via libwebp FFI
+    return ImageError.UNSUPPORTED_ON_PLATFORM
+}
+
+private func encodeWEBP(rgba: ArrayList<UInt8>, width: UInt32, height: UInt32,
+                       quality: UInt8, lossless: Bool, iccProfile: ArrayList<UInt8>?)
+    -> Result<Encoded, ImageError>
+{
+    // TODO: Implement WebP encoding via libwebp FFI
+    return ImageError.UNSUPPORTED_ON_PLATFORM
+}
+
+// BMP codec - TODO: implement static parser
+private func decodeBMP(bytes: ByteArray, maxPixels: UInt64)
+    -> Result<Decoded, ImageError>
+{
+    // TODO: Implement BMP decoding (static parser)
+    return ImageError.UNSUPPORTED_ON_PLATFORM
+}
+
+// GIF codec - TODO: implement static LZW decoder
+private func decodeGIF(bytes: ByteArray, maxPixels: UInt64)
+    -> Result<Decoded, ImageError>
+{
+    // TODO: Implement GIF decoding (static LZW decoder, first frame only)
+    return ImageError.UNSUPPORTED_ON_PLATFORM
+}

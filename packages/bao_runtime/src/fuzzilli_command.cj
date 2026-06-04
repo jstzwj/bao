@@ -138,6 +138,6 @@ public class FuzzilliCommand {
         // TODO: implement with RunCommandConfig
         ctx.positionals.clear()
         ctx.positionals.append(scriptPath)
-        RunCommand.exec(ctx)
+        RunCommand.exec(ctx, ExecConfig())
     }
 }
