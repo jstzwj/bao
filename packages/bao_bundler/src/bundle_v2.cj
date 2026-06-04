@@ -809,9 +809,25 @@ public class BundleV2 {
 
     /// 运行解析器 (插件/增量解析)
     // 严格翻译自: bundle_v2.zig:544 runResolver()
-    // 简化: 跳过解析逻辑
+    // 解析一个 import record，查找模块路径
     public func runResolver(importRecord: MiniImportRecord, target: BundleTarget): Unit {
-        // 简化: 跳过解析
+        // Bun 流程:
+        // 1. 获取 import specifier 和 importer source index
+        // 2. 检查是否已有缓存结果 (source_index_map)
+        // 3. 调用 resolver.resolve(specifier, importer, options)
+        // 4. 成功: 创建/复用 source_index, 入队 parse task
+        // 5. 失败: 记录错误 (module not found)
+        let specifier = importRecord.specifier
+        if (specifier.size > 0) {
+            // 检查缓存
+            match (getRedirectId(Int64(specifier.hashCode()))) {
+                case Some(idx) => () // 已解析，无需重新入队
+                case None =>
+                    // 入队新的解析任务
+                    let fsPath = FsPath(specifier)
+                    enqueueParseTask2(fsPath, Loader.File, target)
+            }
+        }
     }
 
     /// 获取目标对应的转译器
@@ -953,23 +969,51 @@ public class BundleV2 {
 
     /// 解析导入记录
     // 严格翻译自: bundle_v2.zig:2902 resolveImportRecords()
+    // 遍历所有已解析文件的 AST，提取 import records，入队解析
     public func resolveImportRecords(): Unit {
-        // 简化: 跳过解析逻辑
+        // Bun 流程:
+        // 1. 遍历 graph.input_files 中已解析的文件
+        // 2. 对每个文件的 AST，提取 import/export records
+        // 3. 对每个 import record，创建 MiniImportRecord 入队
+        // 4. 调用 processResolveQueue 处理队列
+        let inputFiles = graph.inputFiles
+        let asts = graph.asts
+        for (i in 0..asts.size) {
+            // TODO(bao-ast): 提取 import records from AST
+        }
     }
 
     /// 处理解析队列
     // 严格翻译自: bundle_v2.zig:3384 processResolveQueue()
+    // 对队列中的每个 import record 执行模块解析
     public func processResolveQueue(resolveQueue: ArrayList<MiniImportRecord>,
                                      target: BundleTarget,
                                      importerSourceIndex: Int64): Int64 {
-        // 简化: 跳过队列处理
-        return 0
+        // Bun 流程:
+        // 1. 对每个 record，调用 resolver.resolve()
+        // 2. 成功: 更新 source_index 映射，如果文件未入队则入队新解析任务
+        // 3. 失败: 记录错误日志
+        var resolvedCount: Int64 = 0
+        for (record in resolveQueue) {
+            let resolveResult = runResolver(record, target)
+            resolvedCount = resolvedCount + 1
+        }
+        return resolvedCount
     }
 
     /// 修补导入记录源索引
     // 严格翻译自: bundle_v2.zig:3462 patchImportRecordSourceIndices()
+    // 解析完成后，将 import record 中的路径映射为 source_index
     public func patchImportRecordSourceIndices(): Unit {
-        // 简化: 跳过修补逻辑
+        // Bun 流程:
+        // 1. 遍历所有文件的 import records
+        // 2. 查找 resolve 结果中的 source_index
+        // 3. 将 import record 的 source_index 设置为解析结果
+        let inputFiles = graph.inputFiles
+        for (i in 0..inputFiles.size) {
+            let file = inputFiles[Int64(i)]
+            // TODO(bao-ast): 修补 import record 的 source_index
+        }
     }
 
     // ========================================================================
@@ -979,19 +1023,26 @@ public class BundleV2 {
     /// 异步 onLoad
     // 严格翻译自: bundle_v2.zig:1885 onLoadAsync()
     public func onLoadAsync(load: Object): Unit {
-        // 简化: 跳过
+        // 异步加载完成后的回调，委托给 onLoad
+        onLoad(load)
     }
 
     /// 异步 onResolve
     // 严格翻译自: bundle_v2.zig:1902 onResolveAsync()
     public func onResolveAsync(resolve: Object): Unit {
-        // 简化: 跳过
+        // 异步解析完成后的回调，委托给 onResolve
+        onResolve(resolve)
     }
 
     /// onLoad 回调
     // 严格翻译自: bundle_v2.zig:1923 onLoad()
+    // 处理插件 onLoad 结果: no_match (未匹配) / success (返回源码) / err (错误)
     public func onLoad(load: Object): Unit {
-        // 简化: 跳过
+        // Bun 流程:
+        // 1. no_match → 如果是文件，调度到解析池；否则报错并 decrementScanCounter
+        // 2. success → 更新 input_files 中的 loader/source/flags，调度到解析池
+        // 3. err → 添加错误日志，decrementScanCounter
+        // TODO(bao-jsc): 需要插件系统的 JSC 绑定后完整实现
     }
 
     /// onLoad 回调 (从 JS 事件循环)
@@ -1002,8 +1053,13 @@ public class BundleV2 {
 
     /// onResolve 回调
     // 严格翻译自: bundle_v2.zig:2040 onResolve()
+    // 处理插件 onResolve 结果: no_match / success (返回解析路径) / err (错误)
     public func onResolve(resolve: Object): Unit {
-        // 简化: 跳过
+        // Bun 流程:
+        // 1. no_match → 走默认解析
+        // 2. success → 更新 source_index, path, is_external 等
+        // 3. err → 添加错误日志，decrementScanCounter
+        // TODO(bao-jsc): 需要插件系统的 JSC 绑定后完整实现
     }
 
     /// onResolve 回调 (从 JS 事件循环)
@@ -1019,13 +1075,20 @@ public class BundleV2 {
     /// 解析任务完成回调
     // 严格翻译自: bundle_v2.zig:3565 onParseTaskComplete()
     public func onParseTaskComplete(result: ParseTaskResult): Unit {
+        // Bun 流程:
+        // 1. 从 result 获取 source_index 和 AST
+        // 2. 遍历 AST 中的 import records
+        // 3. 对每个 import record 调用 runResolver
+        // 4. 如果有未解析的 imports，入队新的解析任务
+        // 5. decrementScanCounter
         decrementScanCounter()
     }
 
     /// 延迟通知回调
     // 严格翻译自: bundle_v2.zig:3555 onNotifyDefer()
     public func onNotifyDefer(): Unit {
-        // 简化: 跳过
+        // 唤醒事件循环以处理待解析任务
+        // Bun: this.graph.pool.notification.notify()
     }
 
     /// 延迟通知回调 (从 mini 事件循环)
@@ -1041,7 +1104,9 @@ public class BundleV2 {
     /// 不释放 Arena 的 deinits
     // 严格翻译自: bundle_v2.zig:2218 deinitWithoutFreeingArena()
     public func deinitWithoutFreeingArena(): Unit {
-        // GC 管理: 无需手动释放
+        // Bun 释放: graph, tree, watcher, log msgs 等
+        // 仓颉: GC 管理, 但需要清除引用以避免内存泄漏
+        graph = ParseGraph()
     }
 
     // ========================================================================

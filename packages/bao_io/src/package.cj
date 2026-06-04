@@ -111,7 +111,24 @@ public class BaoFile {
     }
 
     public static func readAllText(path: String): SysMaybe<String> {
-        return SysMaybe<String>.Ok("")
+        let fdResult = SysFs.openRead(path)
+        if (fdResult.isErr()) { return SysMaybe<String>.Err(SysError()) }
+        let fd = fdResult.result().getOrThrow()
+        let buffer = ArrayList<UInt8>()
+        while (true) {
+            let buf = Array<UInt8>(4096, { _ => UInt8(0) })
+            let readResult = SysFs.read(fd, buf)
+            if (readResult.isErr()) { break }
+            let bytesRead = Int64(readResult.result().getOrThrow())
+            if (bytesRead <= 0) { break }
+            for (i in 0..bytesRead) {
+                buffer.append(buf[Int64(i)])
+            }
+            if (bytesRead < 4096) { break }
+        }
+        SysFs.close(fd)
+        if (buffer.size == 0) { return SysMaybe<String>.Ok("") }
+        return SysMaybe<String>.Ok(String.fromUtf8(buffer.items()))
     }
 
     public static func writeAllText(path: String, data: String): SysMaybe<Unit> {

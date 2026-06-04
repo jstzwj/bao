@@ -7,6 +7,38 @@ import bao_io.*
 import bao_path.*
 import bao_sys.{SysFs, SysMaybe, OpenFlags, FileMode, OS, ChildProcess, SpawnOptions, ProcessSpawner}
 import bao_collections.ArrayList
+import bao_jsc.JscRuntime
+
+// ============================================================================
+// JSC FFI 声明 — jsc_bridge.c 提供的接口
+// 使用 dlopen 方式加载 JSC，避免 CJ_MCC_C2NStub 崩溃
+// ============================================================================
+
+/// 执行 JS 脚本，返回 malloc 分配的结果字符串（需 bao_jsc_free 释放）
+@C
+foreign func bao_jsc_run(code: CPointer<Unit>, filename: CPointer<Unit>): CPointer<Unit>
+
+/// 释放 bao_jsc_run 返回的字符串
+@C
+foreign func bao_jsc_free(s: CPointer<Unit>): Unit
+
+/// 关闭 JSC 上下文
+@C
+foreign func bao_jsc_shutdown(): Unit
+
+/// C 内存分配
+@C
+foreign func bao_c_malloc(size: UInt64): CPointer<Unit>
+
+@C
+foreign func bao_c_free(ptr: CPointer<Unit>): Unit
+
+/// No-op test
+@C
+foreign func bao_noop_run(code: CPointer<Unit>, filename: CPointer<Unit>): CPointer<Unit>
+
+@C
+foreign func bao_test_add(a: Int32, b: Int32): Int32
 
 let BAO_VERSION = "0.1.0"
 
@@ -74,8 +106,23 @@ func runCommand(args: Array<String>, start: Int64): Unit {
         return
     }
 
-    let target = args[start]
-    runJavaScriptFile(target, args, start + 1)
+    // 解析 --ast 标志（默认使用 JSC，对齐 Bun 行为）
+    var jscMode = true
+    var idx = start
+    while (idx < args.size) {
+        match (args[idx]) {
+            case "--ast" => jscMode = false; idx++
+            case _ => break
+        }
+    }
+
+    if (idx >= args.size) {
+        println("bao run: missing script or file after flags")
+        return
+    }
+
+    let target = args[idx]
+    runJavaScriptFile(target, args, idx + 1, jscMode)
 }
 
 // ============================================================================
@@ -991,7 +1038,7 @@ func autoCommand(command: String, args: Array<String>): Unit {
     // Auto-detect: if the command looks like a JS/TS file, run it directly
     // Strictly from: run_command.zig try_fast_run detection
     if (isJavaScriptLikeFile(command)) {
-        runJavaScriptFile(command, args, 2)
+        runJavaScriptFile(command, args, 2, false)
         return
     }
 
@@ -1046,12 +1093,126 @@ func extractScriptCommand(json: String, scriptName: String): ?String {
 // Utility functions
 // ============================================================================
 
-func runJavaScriptFile(target: String, args: Array<String>, start: Int64): Unit {
-    let vm = VirtualMachine()
-    let _ = vm.executeFile(target)
-    // 传播 process.exit() 的退出码
-    if (vm.exitCode >= 0) {
-        OS.exit(Int32(vm.exitCode))
+func runJavaScriptFile(target: String, args: Array<String>, start: Int64, jscMode: Bool): Unit {
+    if (jscMode) {
+        // JSC 模式: 在 bao_cli 中创建上下文（FFI 在此包中解析）
+        // 然后传给 JscRuntime 使用
+        let rt = createJscRuntime()
+        if (rt.isSome()) {
+            let jscRt = rt.getOrThrow()
+            // 直接通过 JSC 执行
+            let source = readFileAsString(target)
+            if (source.isEmpty()) {
+                println("Error: Cannot read file '${target}'")
+                return
+            }
+            let result = evalJsc(jscRt, source, target)
+            if (!result.isEmpty() && !result.startsWith("Error:")) {
+                // 脚本有返回值（非 undefined）— 无需打印
+            } else if (result.startsWith("Error:")) {
+                println(result)
+            }
+            destroyJscRuntime(jscRt)
+        } else {
+            println("Error: Failed to create JSC context")
+        }
+    } else {
+        // AST 解释器模式
+        let vm = VirtualMachine()
+        let _ = vm.executeFile(target)
+        if (vm.exitCode >= 0) {
+            OS.exit(Int32(vm.exitCode))
+        }
+    }
+}
+
+// ============================================================================
+// JSC 运行时辅助函数
+// ============================================================================
+
+/// 创建 JSC 运行时（dlopen 方式，上下文由 C 层管理）
+func createJscRuntime(): ?JscRuntime {
+    // JSC 上下文由 C 层的 bao_jsc_init() 延迟创建
+    // 首次调用 bao_jsc_run 时自动初始化
+    return Some(JscRuntime(CPointer<Unit>()))
+}
+
+/// 通过 JSC 执行脚本
+func evalJsc(rt: JscRuntime, code: String, filename: String): String {
+    unsafe {
+        let codeCstr = stringToNativePtr(code)
+        let urlCstr = if (filename.isEmpty()) {
+            CPointer<Unit>()
+        } else {
+            stringToNativePtr(filename)
+        }
+
+        let resultPtr = bao_jsc_run(codeCstr, urlCstr)
+
+        // 释放输入字符串
+        if (!codeCstr.isNull()) { bao_c_free(codeCstr) }
+        if (!urlCstr.isNull()) { bao_c_free(urlCstr) }
+
+        // 读取结果
+        var result = ""
+        if (!resultPtr.isNull()) {
+            result = nativePtrToString(resultPtr)
+            bao_jsc_free(resultPtr)
+        }
+
+        return result
+    }
+}
+
+/// 销毁 JSC 运行时
+func destroyJscRuntime(rt: JscRuntime): Unit {
+    rt.deinit()
+    unsafe {
+        bao_jsc_shutdown()
+    }
+}
+
+/// 读取文件为字符串
+func readFileAsString(path: String): String {
+    match (BaoFile.readAllText(path)) {
+        case SysMaybe.Ok(text) => text
+        case _ => ""
+    }
+}
+
+/// Cangjie String → CPointer<Unit>（需 bao_c_free 释放）
+func stringToNativePtr(s: String): CPointer<Unit> {
+    unsafe {
+        let len = s.size
+        let ptr = bao_c_malloc(UInt64(len + 1))
+        if (ptr.isNull()) { return ptr }
+        let bytePtr = CPointer<UInt8>(ptr)
+        for (i in 0..len) {
+            let byteVal = Int64(s[Int64(i)]) & 0xFF
+            (bytePtr + Int64(i)).write(UInt8(byteVal))
+        }
+        (bytePtr + Int64(len)).write(UInt8(0))
+        return ptr
+    }
+}
+
+/// CPointer<Unit> → Cangjie String（不释放指针）
+func nativePtrToString(ptr: CPointer<Unit>): String {
+    if (ptr.isNull()) { return "" }
+    unsafe {
+        let bytePtr = CPointer<UInt8>(ptr)
+        var len: Int64 = 0
+        var p = bytePtr
+        while (!p.read(0) == UInt8(0)) {
+            len++
+            p = p + 1
+        }
+        if (len == 0) { return "" }
+        var sb = StringBuilder()
+        for (i in 0..len) {
+            sb.append(String(Rune(Int32(bytePtr.read(i)))))
+        }
+        return sb.toString()
     }
 }
 

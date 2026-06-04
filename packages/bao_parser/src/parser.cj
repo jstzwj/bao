@@ -986,6 +986,14 @@ public class Parser {
             case Function => return parseFnStmt(loc, false, false)
             case Class => return parseClassStmt(loc, false)
 
+            // TypeScript enum — enum 是保留字 Token.Enum，不走 case Identifier
+            // 严格翻译自 Bun: src/js_parser/parse/parse_stmt.zig t_enum
+            case Enum =>
+                if (options.features.typescript) {
+                    return parseTsEnumStmt(loc)
+                }
+                return parseExprStmt(loc)
+
             // 控制流
             case If => return parseIfStmt(loc)
             case For => return parseForStmt(loc)
@@ -1091,30 +1099,62 @@ public class Parser {
     // 声明语句
     // ========================================================================
 
-    /// 解析 var 语句 - 对应 Bun parseVarStmt
+    /// 解析 var/let/const 语句 - 对应 Bun parseVarStmt
+    /// 支持逗号分隔的多声明: var a = 1, b = 2, c;
     public func parseVarStmt(kind: DeclKind, loc: Loc): Stmt {
         lexer.nextToken() // 消耗 var/let/const
-        let binding = parseBinding()
-        var `init`: ?Expr = None
-        if (lexer.token == Token.Equals) {
-            lexer.nextToken()
-            `init` = Some(parseExpr(ParseExprOpts()))
+        let decls = ArrayList<GDecl>()
+
+        while (true) {
+            let binding = parseBinding()
+            var `init`: ?Expr = None
+            if (lexer.token == Token.Equals) {
+                lexer.nextToken()
+                `init` = Some(parseExpr(ParseExprOpts()))
+            }
+            let decl = GDecl(binding)
+            if (`init`.isSome()) {
+                decl.value = `init`
+            }
+            decls.append(decl)
+
+            if (lexer.token != Token.Comma) {
+                break
+            }
+            lexer.nextToken() // 消耗逗号，继续解析下一个声明
         }
+
         lexer.expectOrInsertSemicolon()
-        return Stmt.local(loc, kind, binding, `init`)
+        return Stmt.local(loc, kind, decls)
     }
 
     /// 解析 let/const 语句 - 对应 Bun parseLetConstStmt
+    /// 支持逗号分隔的多声明: let a = 1, b = 2; const c = 3, d = 4;
     public func parseLetConstStmt(kind: DeclKind, loc: Loc): Stmt {
         lexer.nextToken() // 消耗 let/const
-        let binding = parseBinding()
-        var `init`: ?Expr = None
-        if (lexer.token == Token.Equals) {
-            lexer.nextToken()
-            `init` = Some(parseExpr(ParseExprOpts()))
+        let decls = ArrayList<GDecl>()
+
+        while (true) {
+            let binding = parseBinding()
+            var `init`: ?Expr = None
+            if (lexer.token == Token.Equals) {
+                lexer.nextToken()
+                `init` = Some(parseExpr(ParseExprOpts()))
+            }
+            let decl = GDecl(binding)
+            if (`init`.isSome()) {
+                decl.value = `init`
+            }
+            decls.append(decl)
+
+            if (lexer.token != Token.Comma) {
+                break
+            }
+            lexer.nextToken() // 消耗逗号，继续解析下一个声明
         }
+
         lexer.expectOrInsertSemicolon()
-        return Stmt.local(loc, kind, binding, `init`)
+        return Stmt.local(loc, kind, decls)
     }
 
     /// 解析函数声明语句 - 对应 Bun parseFnStmt
@@ -1130,8 +1170,19 @@ public class Parser {
         let nameLoc = lexer.loc()
         lexer.nextToken()
 
+        // TypeScript 类型参数 <T, U>
+        if (options.features.typescript && lexer.token == Token.LessThan) {
+            ParseSkipTypeScript.skipTypeScriptTypeParameters(this, TypeParameterFlag.TpNone)
+        }
+
         // 参数
         let args = parseFnArgs()
+
+        // TypeScript 返回类型 : ReturnType
+        if (options.features.typescript && lexer.token == Token.Colon) {
+            lexer.nextToken()
+            ParseSkipTypeScript.skipTypeScriptReturnType(this)
+        }
 
         // 函数体
         let body = parseFnBody()
@@ -1154,10 +1205,25 @@ public class Parser {
         let nameLoc = lexer.loc()
         lexer.nextToken()
 
+        // TypeScript 类型参数 <T, U>
+        if (options.features.typescript && lexer.token == Token.LessThan) {
+            ParseSkipTypeScript.skipTypeScriptTypeParameters(this, TypeParameterFlag.TpNone)
+        }
+
         var extends_: ?Expr = None
         if (lexer.token == Token.Extends) {
             lexer.nextToken()
             extends_ = Some(parseExpr(ParseExprOpts()))
+        }
+
+        // TypeScript implements
+        if (options.features.typescript && lexer.isContextualKeyword("implements")) {
+            lexer.nextToken()
+            ParseSkipTypeScript.skipTypeScriptType(this, Level.Lowest)
+            while (lexer.token == Token.Comma) {
+                lexer.nextToken()
+                ParseSkipTypeScript.skipTypeScriptType(this, Level.Lowest)
+            }
         }
 
         // 类体
@@ -1191,6 +1257,11 @@ public class Parser {
             }
         }
 
+        // TypeScript 类型参数 <T, U>
+        if (options.features.typescript && lexer.token == Token.LessThan) {
+            ParseSkipTypeScript.skipTypeScriptTypeParameters(this, TypeParameterFlag.TpNone)
+        }
+
         // extends 子句 — 关键修复：使用 parsePrimaryExpr 而非 parseExpr 避免 OOM
         // Bun: extends = try p.parseExpr(.new)
         // .new 优先级确保只解析一个左值表达式（如 Error, Foo.Mixin），不会触发递归
@@ -1199,6 +1270,16 @@ public class Parser {
             lexer.nextToken()
             // 只解析一个成员表达式（a.b.c 形式），不解析完整表达式
             extends_ = Some(parseMemberExpr(loc))
+        }
+
+        // TypeScript implements
+        if (options.features.typescript && lexer.isContextualKeyword("implements")) {
+            lexer.nextToken()
+            ParseSkipTypeScript.skipTypeScriptType(this, Level.Lowest)
+            while (lexer.token == Token.Comma) {
+                lexer.nextToken()
+                ParseSkipTypeScript.skipTypeScriptType(this, Level.Lowest)
+            }
         }
 
         // 类体
@@ -2007,6 +2088,21 @@ public class Parser {
                 continue
             }
 
+            // TypeScript as / satisfies 类型断言
+            // 严格翻译自 Bun: parse_suffix.zig sfx_handle_typescript_as
+            if (options.features.typescript && !lexer.hasNewlineBefore &&
+                (lexer.isContextualKeyword("as") || lexer.isContextualKeyword("satisfies"))) {
+                lexer.nextToken()
+                ParseSkipTypeScript.skipTypeScriptType(this, Level.Lowest)
+                continue
+            }
+
+            // TypeScript 非空断言 !
+            if (options.features.typescript && lexer.token == Token.Exclamation) {
+                lexer.nextToken()
+                continue
+            }
+
             break
         }
 
@@ -2288,7 +2384,20 @@ public class Parser {
             nameRef = newSymbol(SymbolKind.Hoisted, name)
             lexer.nextToken()
         }
+
+        // TypeScript 类型参数 <T, U>
+        if (options.features.typescript && lexer.token == Token.LessThan) {
+            ParseSkipTypeScript.skipTypeScriptTypeParameters(this, TypeParameterFlag.TpNone)
+        }
+
         let args = parseFnArgs()
+
+        // TypeScript 返回类型 : ReturnType
+        if (options.features.typescript && lexer.token == Token.Colon) {
+            lexer.nextToken()
+            ParseSkipTypeScript.skipTypeScriptReturnType(this)
+        }
+
         let body = parseFnBody()
         let fn = GFn(
             name,
@@ -2644,8 +2753,8 @@ public class Parser {
             skipTsTypeParameters()
         }
 
-        // extends / implements
-        if (lexer.identifier == "extends" || lexer.identifier == "implements") {
+        // extends / implements — extends 是 Token.Extends（保留字），implements 是 contextual keyword
+        if (lexer.token == Token.Extends || lexer.isContextualKeyword("implements")) {
             lexer.nextToken()
             skipTsType() // 跳过父类类型
             while (lexer.token == Token.Comma) {
@@ -2681,8 +2790,12 @@ public class Parser {
             skipTsTypeParameters()
         }
 
-        // = TypeExpression
-        lexer.expectOrInsertSemicolon() // 跳到分号
+        // = TypeExpression — 严格翻译自 Bun skipTypeScriptTypeStmt
+        if (lexer.token == Token.Equals) {
+            lexer.nextToken() // skip =
+            ParseSkipTypeScript.skipTypeScriptType(this, Level.Lowest)
+        }
+        lexer.expectOrInsertSemicolon()
 
         let s = Stmt(loc, StmtTag.Type)
         s.label = name
@@ -2781,11 +2894,11 @@ public class Parser {
                 lexer.nextToken() // skip class
                 lexer.nextToken() // skip name
                 if (lexer.token == Token.LessThan) { skipTsTypeParameters() }
-                if (lexer.identifier == "extends") {
+                if (lexer.token == Token.Extends) {
                     lexer.nextToken()
                     skipTsType()
                 }
-                if (lexer.identifier == "implements") {
+                if (lexer.isContextualKeyword("implements")) {
                     lexer.nextToken()
                     skipTsType()
                 }
@@ -2845,21 +2958,9 @@ public class Parser {
 
     /// 跳过 TypeScript 类型参数 <T, U extends Foo>
     /// 对应 Bun: skipTypeScriptTypeParameters
+    /// 委托给 ParseSkipTypeScript 的正确递归下降实现
     private func skipTsTypeParameters(): Unit {
-        if (lexer.token != Token.LessThan) { return }
-        lexer.nextToken() // skip <
-        var depth = 1
-        while (depth > 0 && lexer.token != Token.EndOfFile) {
-            if (lexer.token == Token.LessThan) { depth += 1 }
-            else if (lexer.token == Token.GreaterThan) {
-                depth -= 1
-                if (depth == 0) {
-                    lexer.nextToken()
-                    return
-                }
-            }
-            lexer.nextToken()
-        }
+        ParseSkipTypeScript.skipTypeScriptTypeParameters(this, TypeParameterFlag.TpNone)
     }
 
     /// 跳过 TypeScript 类型注解 : Type
@@ -2867,53 +2968,14 @@ public class Parser {
     private func skipTsTypeAnnotation(): Unit {
         if (lexer.token != Token.Colon) { return }
         lexer.nextToken() // skip :
-        skipTsType()
+        ParseSkipTypeScript.skipTypeScriptType(this, Level.Lowest)
     }
 
     /// 跳过 TypeScript 类型表达式
     /// 对应 Bun: skipTypeScriptType
-    /// 处理: 基础类型、联合类型 (A|B)、交叉类型 (A&B)、泛型 (Foo<T>)、
-    ///        元组 ([A, B])、对象类型 ({a: A})、数组 (A[])、函数类型 (() => A)
+    /// 委托给 ParseSkipTypeScript 的正确递归下降实现
     private func skipTsType(): Unit {
-        // 简化实现: 跳过直到遇到 , 或 > 或 ; 或 = (非嵌套级别)
-        var depth = 0
-        while (lexer.token != Token.EndOfFile) {
-            match (lexer.token) {
-                case OpenParen =>
-                    depth += 1
-                    lexer.nextToken()
-                case OpenBracket =>
-                    depth += 1
-                    lexer.nextToken()
-                case OpenBrace =>
-                    depth += 1
-                    lexer.nextToken()
-                case LessThan =>
-                    depth += 1
-                    lexer.nextToken()
-                case CloseParen =>
-                    if (depth == 0) { return }
-                    depth -= 1
-                    lexer.nextToken()
-                case CloseBracket =>
-                    if (depth == 0) { return }
-                    depth -= 1
-                    lexer.nextToken()
-                case CloseBrace =>
-                    if (depth == 0) { return }
-                    depth -= 1
-                    lexer.nextToken()
-                case GreaterThan =>
-                    if (depth == 0) { return }
-                    depth -= 1
-                    lexer.nextToken()
-                case Comma | Semicolon | Equals | EqualsGreaterThan =>
-                    if (depth == 0) { return }
-                    lexer.nextToken()
-                case _ =>
-                    lexer.nextToken()
-            }
-        }
+        ParseSkipTypeScript.skipTypeScriptType(this, Level.Lowest)
     }
 
     /// 跳过 TypeScript 函数参数类型

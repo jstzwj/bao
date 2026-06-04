@@ -6,7 +6,7 @@ description = "Bao CLI entry point: run, build, install, test, init commands"
 version = "0.1.0"
 compile-option = ""
 override-compile-option = ""
-link-option = "target/native/bao_cli_native_shims.o target/native/jsc_stubs.o target/native/bao_native_stubs.o target/native/bao_ssl_macros.o -lssl -lcrypto -luv -lz -lbrotlienc -lbrotlidec -lzstd -lpthread /usr/lib/x86_64-linux-gnu/libatomic.so.1"
+link-option = "target/native/jsc_bridge.o target/native/bao_cli_native_shims.o target/native/jsc_stubs.o target/native/bao_native_stubs.o target/native/bao_ssl_macros.o -lssl -lcrypto -luv -lz -lbrotlienc -lbrotlidec -lzstd -lglib-2.0 -lgobject-2.0 -licui18n -licuuc -licudata -lpthread -ldl -lrt -lstdc++ /usr/lib/x86_64-linux-gnu/libatomic.so.1"
 output-type = "executable"
 src-dir = "src_min"
 target-dir = ""
@@ -37,4 +37,8 @@ bao_sys = { path = "../bao_sys" }
 [native_sources]
 bao_cli_native_shims = [
   "native/bao_cli_native_shims.c",
+]
+
+jsc_bridge = [
+  "native/jsc_bridge.c",
 ]

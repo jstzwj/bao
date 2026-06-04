@@ -1,5 +1,40 @@
 target/
 
+# Build artifacts
+*.o
+*.a
+*.so
+*.dylib
+*.dSYM/
+a.out
+
+# Native libraries and build sources
+native_libs/webkit/
+native_libs/webkit-build/
+native_libs/webkit-source/
+include/
+lib/
+
+# Random JS test files in project root
+/*.js
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Backup directories
+.bak/
+
+# Claude Code project settings (keep skills, ignore local settings)
+.claude/settings.local.json
+
 # Test run artifacts
 /test/**/.bun/
 /test/**/.vite/
@@ -11,5 +46,3 @@ target/
 /test/**/*.log
 /test/**/.tmp.*
 /test/**/fails.txt
-a.out
-.bak/

@@ -319,6 +319,17 @@ public class Interpreter {
         // console.log 等
         globalEnv.define("console", JsValue(makeConsoleObject()), false)
 
+        // print() — QuickJS/Hermes 兼容的全局打印函数
+        globalEnv.define("print", makeNativeFn("print") { args =>
+            let sb = StringBuilder()
+            for (i in 0..args.size) {
+                if (i > 0) { sb.append(" ") }
+                sb.append(jsToString(args[i]))
+            }
+            printFn(sb.toString())
+            return JsValue.UNDEFINED
+        }, false)
+
         // parseInt, parseFloat, isNaN, isFinite
         globalEnv.define("parseInt", makeNativeFn("parseInt") { args =>
             if (args.size < 1) { return JsValue.nan }
@@ -501,6 +512,29 @@ public class Interpreter {
         globalEnv.define("Promise", promiseCtorFn, false)
         // 注册到原生构造函数注册表 — evalNew 通过此表查找
         nativeConstructors.put("Promise", promiseCtorFn.nativeFnData.getOrThrow().fn)
+
+        // Date 构造函数 — new Date() 返回当前时间, new Date(ms) 返回指定时间戳
+        let dateCtorFn = makeNativeFn("Date") { args =>
+            let ts = if (args.size > 0) { Int64(jsToNumber(args[0])) } else { DateObject.now() }
+            let dateObj = DateObject(ts)
+            let obj = JsObject()
+            obj.className = "Date"
+            obj.set("valueOf", makeNativeFn("valueOf") { _ =>
+                JsValue(Float64(dateObj.timestamp))
+            })
+            obj.set("getTime", makeNativeFn("getTime") { _ =>
+                JsValue(Float64(dateObj.timestamp))
+            })
+            obj.set("toString", makeNativeFn("toString") { _ =>
+                JsValue(BaoString(dateObj.timestamp.toString()))
+            })
+            let dateValue = JsValue(JsValueType.Date)
+            dateValue.objectData = Some(obj)
+            dateValue.numberValue = Float64(dateObj.timestamp)
+            dateValue
+        }
+        globalEnv.define("Date", dateCtorFn, false)
+        nativeConstructors.put("Date", dateCtorFn.nativeFnData.getOrThrow().fn)
 
         // 注册当前 Interpreter 为 TestRunner 的回调 VM
         // 这样 bun:test 在 bao run 模式下也能执行 JS 测试回调
@@ -1301,7 +1335,9 @@ public class Interpreter {
                     let regOpt = nativeConstructors.get(name)
                     if (regOpt.isSome()) {
                         let ret = regOpt.getOrThrow()(args)
-                        if (ret.valueType == JsValueType.Object) { result = ret }
+                        // 接受 Object 或 Date 类型 (Date 构造函数返回 JsValueType.Date)
+                        if (ret.valueType == JsValueType.Object ||
+                            ret.valueType == JsValueType.Date) { result = ret }
                         ctorCalled = true
                     }
                 }
@@ -2573,6 +2609,42 @@ public class Interpreter {
             let rhs = e.value.getOrThrow()
             value = evalExpr(rhs, env)
         }
+
+        // 复合赋值运算符: *=, +=, -=, /=, %=, **=, <<=, >>=, >>>=, &=, |=, ^=
+        // 对应 JS 语义: a op= b  等价于  a = a op b
+        let op = e.op
+        if (op != OpCode.BinAssign && op != OpCode.BinLoAndAssign &&
+            op != OpCode.BinLoOrAssign && op != OpCode.BinNullishAssign) {
+            // 非短路复合赋值: 先读取旧值，用运算求新值
+            if (e.target.isSome()) {
+                let target = e.target.getOrThrow()
+                let oldVal = evalExpr(target, env)
+                let baseOp = assignOpToBinaryOp(op)
+                value = evalBinaryOp(baseOp, oldVal, value)
+            }
+        } else if (op == OpCode.BinLoAndAssign) {
+            // &&= 短路: 左值为 falsy 则不赋值
+            if (e.target.isSome()) {
+                let target = e.target.getOrThrow()
+                let oldVal = evalExpr(target, env)
+                if (!jsToBoolean(oldVal)) { return oldVal }
+            }
+        } else if (op == OpCode.BinLoOrAssign) {
+            // ||= 短路: 左值为 truthy 则不赋值
+            if (e.target.isSome()) {
+                let target = e.target.getOrThrow()
+                let oldVal = evalExpr(target, env)
+                if (jsToBoolean(oldVal)) { return oldVal }
+            }
+        } else if (op == OpCode.BinNullishAssign) {
+            // ??= 短路: 左值非 null/undefined 则不赋值
+            if (e.target.isSome()) {
+                let target = e.target.getOrThrow()
+                let oldVal = evalExpr(target, env)
+                if (!oldVal.isUndefinedOrNull()) { return oldVal }
+            }
+        }
+
         if (e.target.isSome()) {
             let target = e.target.getOrThrow()
             match (target.tag) {
@@ -2629,6 +2701,26 @@ public class Interpreter {
 
     /// 从表达式应用绑定 — 用于赋值表达式中的解构
     private func applyBindingFromExpr(expr: Expr, value: JsValue, env: Environment): Unit {}
+
+    /// 将复合赋值操作符转换为对应的二元操作符
+    /// 例如: BinMulAssign → BinMul, BinAddAssign → BinAdd
+    private func assignOpToBinaryOp(op: OpCode): OpCode {
+        match (op) {
+            case OpCode.BinAddAssign => OpCode.BinAdd
+            case OpCode.BinSubAssign => OpCode.BinSub
+            case OpCode.BinMulAssign => OpCode.BinMul
+            case OpCode.BinDivAssign => OpCode.BinDiv
+            case OpCode.BinRemAssign => OpCode.BinRem
+            case OpCode.BinPowAssign => OpCode.BinPow
+            case OpCode.BinShlAssign => OpCode.BinShl
+            case OpCode.BinShrAssign => OpCode.BinShr
+            case OpCode.BinUShrAssign => OpCode.BinUShr
+            case OpCode.BinAndAssign => OpCode.BinAnd
+            case OpCode.BinOrAssign => OpCode.BinOr
+            case OpCode.BinXorAssign => OpCode.BinXor
+            case _ => OpCode.BinAdd
+        }
+    }
 
     /// 后缀表达式 ++/--
     /// 对应 JS x++ / x-- 语义: 先返回旧值，再更新

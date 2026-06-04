@@ -234,6 +234,7 @@ public class JsValue {
             case JsValueType.Boolean => if (boolValue) { 1.0 } else { 0.0 }
             case JsValueType.Number => numberValue
             case JsValueType.String => parseNumber(stringValue.toString())
+            case JsValueType.Date => numberValue  // Date 的 valueOf() 时间戳
             case _ => Float64.NaN
         }
     }
@@ -823,6 +824,10 @@ public class VirtualMachine {
     public func eval(source: String, filename: String): JsValue {
         let options = ParserOptions()
         options.sourceFile = filename
+        if (filename.endsWith(".ts") || filename.endsWith(".tsx") ||
+            filename.endsWith(".mts") || filename.endsWith(".cts")) {
+            options.features = ParserFeatures.typescriptFeatures()
+        }
         let result = parser.parse(source, options)
 
         if (result.hasErrors()) {

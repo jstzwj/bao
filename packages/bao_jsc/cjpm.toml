@@ -15,3 +15,8 @@ bao_ptr = { path = "../bao_ptr" }
 bao_sys = { path = "../bao_sys" }
 bao_bundler = { path = "../bao_bundler" }
 bao_collections = { path = "../bao_collections" }
+
+[native-sources]
+jsc_bridge = [
+  "native/jsc_bridge.c",
+]

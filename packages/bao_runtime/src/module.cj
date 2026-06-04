@@ -161,6 +161,10 @@ public class ModuleLoader {
         let parser = JsParser()
         let options = ParserOptions()
         options.sourceFile = mod.filename
+        if (mod.filename.endsWith(".ts") || mod.filename.endsWith(".tsx") ||
+            mod.filename.endsWith(".mts") || mod.filename.endsWith(".cts")) {
+            options.features = ParserFeatures.typescriptFeatures()
+        }
         let result = parser.parse(mod.source, options)
 
         if (result.hasErrors()) {
@@ -213,6 +217,10 @@ public class ModuleLoader {
         let parser = JsParser()
         let options = ParserOptions()
         options.sourceFile = mod.filename
+        if (mod.filename.endsWith(".ts") || mod.filename.endsWith(".tsx") ||
+            mod.filename.endsWith(".mts") || mod.filename.endsWith(".cts")) {
+            options.features = ParserFeatures.typescriptFeatures()
+        }
         let result = parser.parse(mod.source, options)
 
         if (result.hasErrors()) {

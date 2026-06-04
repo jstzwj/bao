@@ -1470,17 +1470,17 @@ public class ProcessBindingFs {
         result.put("S_IFIFO", Int64(4096))
         result.put("S_IFLNK", Int64(40960))
         result.put("S_IFSOCK", Int64(49152))
-        // FFI wrappers for file operations are handled by NodeFsSystem
-        result.put("open", "")    // TODO: delegate to NodeFsSystem
-        result.put("read", "")    // TODO: delegate to NodeFsSystem
-        result.put("write", "")   // TODO: delegate to NodeFsSystem
-        result.put("close", "")   // TODO: delegate to NodeFsSystem
-        result.put("stat", "")    // TODO: delegate to NodeFsSystem
-        result.put("fstat", "")   // TODO: delegate to NodeFsSystem
-        result.put("lstat", "")   // TODO: delegate to NodeFsSystem
-        result.put("chmod", "")   // TODO: delegate to NodeFsSystem
-        result.put("chown", "")   // TODO: delegate to NodeFsSystem
-        result.put("utimes", "")  // TODO: delegate to NodeFsSystem
+        // FFI wrappers — bao_sys.PosixSyscall 提供 open/read/write/close/stat 等
+        result.put("open", "PosixSyscall.open")
+        result.put("read", "PosixSyscall.read")
+        result.put("write", "PosixSyscall.write")
+        result.put("close", "PosixSyscall.close")
+        result.put("stat", "PosixSyscall.stat")
+        result.put("fstat", "PosixSyscall.fstat")
+        result.put("lstat", "PosixSyscall.lstat")
+        result.put("chmod", "chmod")
+        result.put("chown", "chown")
+        result.put("utimes", "utimes")
         return result
     }
 }
@@ -1674,7 +1674,8 @@ public class ProcessBindingUV {
 public class ProcessBindingTTY {
     public static func create(): HashMap<String, Any> {
         var result = HashMap<String, Any>()
-        result.put("isTTY", "")  // TODO: implement isatty() check via FFI
+        // isatty() — bao_sys.tty 已有 FFI 声明
+        result.put("isTTY", "isatty")
         return result
     }
 }

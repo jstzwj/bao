@@ -4,6 +4,7 @@
 // 使用 CPointer<UInt8> 表示不透明指针 (void*)，
 // 遵循项目现有的 FFI 惯例（与 jni_ffi.cj 保持一致）。
 // 所有 foreign 函数需要在 unsafe 块中调用。
+// @C 修饰符确保使用 C ABI 调用约定。
 
 package bao_jsc
 
@@ -13,18 +14,21 @@ package bao_jsc
 
 /// 创建 JSStringRef from a UTF-8 C string
 /// C API: JSStringCreateWithUTF8CString(const char* string) -> JSStringRef
+@C
 foreign func JSStringCreateWithUTF8CString(
     string: CString
 ): CPointer<UInt8>
 
 /// 释放 JSStringRef
 /// C API: JSStringRelease(JSStringRef string)
+@C
 foreign func JSStringRelease(
     string: CPointer<UInt8>
 ): Unit
 
 /// 获取 JSStringRef 的 UTF-8 编码最大缓冲区大小
 /// C API: JSStringGetMaximumUTF8CStringSize(JSStringRef string) -> size_t
+@C
 foreign func JSStringGetMaximumUTF8CStringSize(
     string: CPointer<UInt8>
 ): UInt64
@@ -32,6 +36,7 @@ foreign func JSStringGetMaximumUTF8CStringSize(
 /// 将 JSStringRef 复制到 UTF-8 C 字符串缓冲区
 /// C API: JSStringGetUTF8CString(JSStringRef string, char* buffer, size_t bufferSize) -> size_t
 /// 返回实际写入的字节数（不含 null 终止符）
+@C
 foreign func JSStringGetUTF8CString(
     string: CPointer<UInt8>,
     buffer: CPointer<UInt8>,
@@ -40,6 +45,7 @@ foreign func JSStringGetUTF8CString(
 
 /// 比较 JSStringRef 与 UTF-8 C 字符串是否相等
 /// C API: JSStringIsEqualToUTF8CString(JSStringRef a, const char* b) -> bool
+@C
 foreign func JSStringIsEqualToUTF8CString(
     a: CPointer<UInt8>,
     b: CString
@@ -47,6 +53,7 @@ foreign func JSStringIsEqualToUTF8CString(
 
 /// 获取 JSStringRef 的字符长度
 /// C API: JSStringGetLength(JSStringRef string) -> size_t
+@C
 foreign func JSStringGetLength(
     string: CPointer<UInt8>
 ): UInt64
@@ -57,18 +64,21 @@ foreign func JSStringGetLength(
 
 /// 获取全局上下文中的全局对象
 /// C API: JSContextGetGlobalObject(JSContextRef ctx) -> JSObjectRef
+@C
 foreign func JSContextGetGlobalObject(
     ctx: CPointer<UInt8>
 ): CPointer<UInt8>
 
 /// 创建全局上下文
 /// C API: JSGlobalContextCreate(JSClassRef globalObjectClass) -> JSGlobalContextRef
+@C
 foreign func JSGlobalContextCreate(
     globalObjectClass: CPointer<UInt8>
 ): CPointer<UInt8>
 
 /// 释放全局上下文
 /// C API: JSGlobalContextRelease(JSGlobalContextRef ctx)
+@C
 foreign func JSGlobalContextRelease(
     ctx: CPointer<UInt8>
 ): Unit
@@ -81,6 +91,7 @@ foreign func JSGlobalContextRelease(
 /// C API: JSEvaluateScript(JSContextRef ctx, JSStringRef script,
 ///           JSObjectRef thisObject, JSStringRef sourceURL,
 ///           int startingLineNumber, JSValueRef* exception) -> JSValueRef
+@C
 foreign func JSEvaluateScript(
     ctx: CPointer<UInt8>,
     script: CPointer<UInt8>,
@@ -94,6 +105,7 @@ foreign func JSEvaluateScript(
 /// C API: JSCheckScriptSyntax(JSContextRef ctx, JSStringRef script,
 ///           JSStringRef sourceURL, int startingLineNumber,
 ///           JSValueRef* exception) -> bool
+@C
 foreign func JSCheckScriptSyntax(
     ctx: CPointer<UInt8>,
     script: CPointer<UInt8>,
@@ -108,18 +120,21 @@ foreign func JSCheckScriptSyntax(
 
 /// 创建 undefined 值
 /// C API: JSValueMakeUndefined(JSContextRef ctx) -> JSValueRef
+@C
 foreign func JSValueMakeUndefined(
     ctx: CPointer<UInt8>
 ): CPointer<UInt8>
 
 /// 创建 null 值
 /// C API: JSValueMakeNull(JSContextRef ctx) -> JSValueRef
+@C
 foreign func JSValueMakeNull(
     ctx: CPointer<UInt8>
 ): CPointer<UInt8>
 
 /// 创建 boolean 值
 /// C API: JSValueMakeBoolean(JSContextRef ctx, bool value) -> JSValueRef
+@C
 foreign func JSValueMakeBoolean(
     ctx: CPointer<UInt8>,
     value: Bool
@@ -127,6 +142,7 @@ foreign func JSValueMakeBoolean(
 
 /// 创建 number 值
 /// C API: JSValueMakeNumber(JSContextRef ctx, double value) -> JSValueRef
+@C
 foreign func JSValueMakeNumber(
     ctx: CPointer<UInt8>,
     value: Float64
@@ -134,6 +150,7 @@ foreign func JSValueMakeNumber(
 
 /// 创建 string 值
 /// C API: JSValueMakeString(JSContextRef ctx, JSStringRef string) -> JSValueRef
+@C
 foreign func JSValueMakeString(
     ctx: CPointer<UInt8>,
     str: CPointer<UInt8>
@@ -144,48 +161,56 @@ foreign func JSValueMakeString(
 // ============================================================================
 
 /// C API: JSValueGetType(JSContextRef ctx, JSValueRef value) -> JSType
+@C
 foreign func JSValueGetType(
     ctx: CPointer<UInt8>,
     value: CPointer<UInt8>
 ): Int32
 
 /// C API: JSValueIsUndefined(JSContextRef ctx, JSValueRef value) -> bool
+@C
 foreign func JSValueIsUndefined(
     ctx: CPointer<UInt8>,
     value: CPointer<UInt8>
 ): Bool
 
 /// C API: JSValueIsNull(JSContextRef ctx, JSValueRef value) -> bool
+@C
 foreign func JSValueIsNull(
     ctx: CPointer<UInt8>,
     value: CPointer<UInt8>
 ): Bool
 
 /// C API: JSValueIsBoolean(JSContextRef ctx, JSValueRef value) -> bool
+@C
 foreign func JSValueIsBoolean(
     ctx: CPointer<UInt8>,
     value: CPointer<UInt8>
 ): Bool
 
 /// C API: JSValueIsNumber(JSContextRef ctx, JSValueRef value) -> bool
+@C
 foreign func JSValueIsNumber(
     ctx: CPointer<UInt8>,
     value: CPointer<UInt8>
 ): Bool
 
 /// C API: JSValueIsString(JSContextRef ctx, JSValueRef value) -> bool
+@C
 foreign func JSValueIsString(
     ctx: CPointer<UInt8>,
     value: CPointer<UInt8>
 ): Bool
 
 /// C API: JSValueIsObject(JSContextRef ctx, JSValueRef value) -> bool
+@C
 foreign func JSValueIsObject(
     ctx: CPointer<UInt8>,
     value: CPointer<UInt8>
 ): Bool
 
 /// C API: JSValueIsSymbol(JSContextRef ctx, JSValueRef value) -> bool
+@C
 foreign func JSValueIsSymbol(
     ctx: CPointer<UInt8>,
     value: CPointer<UInt8>
@@ -196,12 +221,14 @@ foreign func JSValueIsSymbol(
 // ============================================================================
 
 /// C API: JSValueToBoolean(JSContextRef ctx, JSValueRef value) -> bool
+@C
 foreign func JSValueToBoolean(
     ctx: CPointer<UInt8>,
     value: CPointer<UInt8>
 ): Bool
 
 /// C API: JSValueToNumber(JSContextRef ctx, JSValueRef value, JSValueRef* exception) -> double
+@C
 foreign func JSValueToNumber(
     ctx: CPointer<UInt8>,
     value: CPointer<UInt8>,
@@ -210,6 +237,7 @@ foreign func JSValueToNumber(
 
 /// C API: JSValueToStringCopy(JSContextRef ctx, JSValueRef value, JSValueRef* exception) -> JSStringRef
 /// 返回的 JSStringRef 需要调用者用 JSStringRelease 释放
+@C
 foreign func JSValueToStringCopy(
     ctx: CPointer<UInt8>,
     value: CPointer<UInt8>,
@@ -217,6 +245,7 @@ foreign func JSValueToStringCopy(
 ): CPointer<UInt8>
 
 /// C API: JSValueToObject(JSContextRef ctx, JSValueRef value, JSValueRef* exception) -> JSObjectRef
+@C
 foreign func JSValueToObject(
     ctx: CPointer<UInt8>,
     value: CPointer<UInt8>,
@@ -228,6 +257,7 @@ foreign func JSValueToObject(
 // ============================================================================
 
 /// C API: JSValueIsEqual(JSContextRef ctx, JSValueRef a, JSValueRef b, JSValueRef* exception) -> bool
+@C
 foreign func JSValueIsEqual(
     ctx: CPointer<UInt8>,
     a: CPointer<UInt8>,
@@ -236,6 +266,7 @@ foreign func JSValueIsEqual(
 ): Bool
 
 /// C API: JSValueIsStrictEqual(JSContextRef ctx, JSValueRef a, JSValueRef b) -> bool
+@C
 foreign func JSValueIsStrictEqual(
     ctx: CPointer<UInt8>,
     a: CPointer<UInt8>,
@@ -244,6 +275,7 @@ foreign func JSValueIsStrictEqual(
 
 /// C API: JSValueIsInstanceOfConstructor(JSContextRef ctx, JSValueRef value,
 ///           JSObjectRef constructor, JSValueRef* exception) -> bool
+@C
 foreign func JSValueIsInstanceOfConstructor(
     ctx: CPointer<UInt8>,
     value: CPointer<UInt8>,
@@ -257,6 +289,7 @@ foreign func JSValueIsInstanceOfConstructor(
 
 /// 保护 JSValue 不被垃圾回收
 /// C API: JSValueProtect(JSContextRef ctx, JSValueRef value)
+@C
 foreign func JSValueProtect(
     ctx: CPointer<UInt8>,
     value: CPointer<UInt8>
@@ -264,6 +297,7 @@ foreign func JSValueProtect(
 
 /// 取消保护 JSValue（与 JSValueProtect 配对使用）
 /// C API: JSValueUnprotect(JSContextRef ctx, JSValueRef value)
+@C
 foreign func JSValueUnprotect(
     ctx: CPointer<UInt8>,
     value: CPointer<UInt8>
@@ -277,6 +311,7 @@ foreign func JSValueUnprotect(
 /// C API: JSObjectCallAsFunction(JSContextRef ctx, JSObjectRef object,
 ///           JSObjectRef thisObject, size_t argumentCount,
 ///           const JSValueRef arguments[], JSValueRef* exception) -> JSValueRef
+@C
 foreign func JSObjectCallAsFunction(
     ctx: CPointer<UInt8>,
     object: CPointer<UInt8>,
@@ -290,6 +325,7 @@ foreign func JSObjectCallAsFunction(
 /// C API: JSObjectCallAsConstructor(JSContextRef ctx, JSObjectRef object,
 ///           size_t argumentCount, const JSValueRef arguments[],
 ///           JSValueRef* exception) -> JSObjectRef
+@C
 foreign func JSObjectCallAsConstructor(
     ctx: CPointer<UInt8>,
     object: CPointer<UInt8>,
@@ -304,6 +340,7 @@ foreign func JSObjectCallAsConstructor(
 
 /// 检查对象是否为函数
 /// C API: JSObjectIsFunction(JSContextRef ctx, JSObjectRef object) -> bool
+@C
 foreign func JSObjectIsFunction(
     ctx: CPointer<UInt8>,
     object: CPointer<UInt8>
@@ -311,6 +348,7 @@ foreign func JSObjectIsFunction(
 
 /// 检查对象是否为构造函数
 /// C API: JSObjectIsConstructor(JSContextRef ctx, JSObjectRef object) -> bool
+@C
 foreign func JSObjectIsConstructor(
     ctx: CPointer<UInt8>,
     object: CPointer<UInt8>
@@ -323,6 +361,7 @@ foreign func JSObjectIsConstructor(
 /// 创建 Error 对象
 /// C API: JSObjectMakeError(JSContextRef ctx, size_t argumentCount,
 ///           const JSValueRef arguments[], JSValueRef* exception) -> JSObjectRef
+@C
 foreign func JSObjectMakeError(
     ctx: CPointer<UInt8>,
     argumentCount: UInt64,
@@ -332,6 +371,7 @@ foreign func JSObjectMakeError(
 
 /// 创建普通对象
 /// C API: JSObjectMake(JSContextRef ctx, JSClassRef jsClass, void* data) -> JSObjectRef
+@C
 foreign func JSObjectMake(
     ctx: CPointer<UInt8>,
     jsClass: CPointer<UInt8>,
@@ -341,11 +381,22 @@ foreign func JSObjectMake(
 /// 创建数组
 /// C API: JSObjectMakeArray(JSContextRef ctx, size_t argumentCount,
 ///           const JSValueRef arguments[], JSValueRef* exception) -> JSObjectRef
+@C
 foreign func JSObjectMakeArray(
     ctx: CPointer<UInt8>,
     argumentCount: UInt64,
     arguments: CPointer<CPointer<UInt8>>,
     exception: CPointer<CPointer<UInt8>>
+): CPointer<UInt8>
+
+/// 创建带回调的函数对象 — 用于注册原生函数
+/// C API: JSObjectMakeFunctionWithCallback(JSContextRef ctx, JSStringRef name,
+///           JSObjectCallAsFunctionCallback callAsFunction) -> JSObjectRef
+@C
+foreign func JSObjectMakeFunctionWithCallback(
+    ctx: CPointer<UInt8>,
+    name: CPointer<UInt8>,
+    callAsFunction: CPointer<Unit>
 ): CPointer<UInt8>
 
 // ============================================================================
@@ -354,6 +405,7 @@ foreign func JSObjectMakeArray(
 
 /// C API: JSObjectGetProperty(JSContextRef ctx, JSObjectRef object,
 ///           JSStringRef propertyName, JSValueRef* exception) -> JSValueRef
+@C
 foreign func JSObjectGetProperty(
     ctx: CPointer<UInt8>,
     object: CPointer<UInt8>,
@@ -364,6 +416,7 @@ foreign func JSObjectGetProperty(
 /// C API: JSObjectSetProperty(JSContextRef ctx, JSObjectRef object,
 ///           JSStringRef propertyName, JSValueRef value,
 ///           JSPropertyAttributes attributes, JSValueRef* exception)
+@C
 foreign func JSObjectSetProperty(
     ctx: CPointer<UInt8>,
     object: CPointer<UInt8>,
@@ -375,6 +428,7 @@ foreign func JSObjectSetProperty(
 
 /// C API: JSObjectDeleteProperty(JSContextRef ctx, JSObjectRef object,
 ///           JSStringRef propertyName, JSValueRef* exception) -> bool
+@C
 foreign func JSObjectDeleteProperty(
     ctx: CPointer<UInt8>,
     object: CPointer<UInt8>,
@@ -383,6 +437,7 @@ foreign func JSObjectDeleteProperty(
 ): Bool
 
 /// C API: JSObjectHasProperty(JSContextRef ctx, JSObjectRef object, JSStringRef propertyName) -> bool
+@C
 foreign func JSObjectHasProperty(
     ctx: CPointer<UInt8>,
     object: CPointer<UInt8>,
@@ -390,12 +445,14 @@ foreign func JSObjectHasProperty(
 ): Bool
 
 /// C API: JSObjectGetPrototype(JSContextRef ctx, JSObjectRef object) -> JSValueRef
+@C
 foreign func JSObjectGetPrototype(
     ctx: CPointer<UInt8>,
     object: CPointer<UInt8>
 ): CPointer<UInt8>
 
 /// C API: JSObjectSetPrototype(JSContextRef ctx, JSObjectRef object, JSValueRef value)
+@C
 foreign func JSObjectSetPrototype(
     ctx: CPointer<UInt8>,
     object: CPointer<UInt8>,
@@ -403,6 +460,7 @@ foreign func JSObjectSetPrototype(
 ): Unit
 
 /// C API: JSObjectCopyPropertyNames(JSContextRef ctx, JSObjectRef object) -> JSPropertyNameArrayRef
+@C
 foreign func JSObjectCopyPropertyNames(
     ctx: CPointer<UInt8>,
     object: CPointer<UInt8>
@@ -417,6 +475,7 @@ foreign func JSObjectCopyPropertyNames(
 ///           JSTypedArrayType arrayType, void* bytes, size_t byteLength,
 ///           JSTypedArrayBytesDeallocator deallocator, void* deallocatorContext,
 ///           JSValueRef* exception) -> JSObjectRef
+@C
 foreign func JSObjectMakeTypedArrayWithBytesNoCopy(
     ctx: CPointer<UInt8>,
     arrayType: Int32,
@@ -430,6 +489,7 @@ foreign func JSObjectMakeTypedArrayWithBytesNoCopy(
 /// 创建 TypedArray（分配新内存）
 /// C API: JSObjectMakeTypedArray(JSContextRef ctx, JSTypedArrayType arrayType,
 ///           size_t length, JSValueRef* exception) -> JSObjectRef
+@C
 foreign func JSObjectMakeTypedArray(
     ctx: CPointer<UInt8>,
     arrayType: Int32,
@@ -440,6 +500,7 @@ foreign func JSObjectMakeTypedArray(
 /// 获取 TypedArray 的字节长度
 /// C API: JSObjectGetTypedArrayByteLength(JSContextRef ctx, JSObjectRef object,
 ///           JSValueRef* exception) -> size_t
+@C
 foreign func JSObjectGetTypedArrayByteLength(
     ctx: CPointer<UInt8>,
     object: CPointer<UInt8>,
@@ -449,6 +510,7 @@ foreign func JSObjectGetTypedArrayByteLength(
 /// 获取 TypedArray 的长度
 /// C API: JSObjectGetTypedArrayLength(JSContextRef ctx, JSObjectRef object,
 ///           JSValueRef* exception) -> size_t
+@C
 foreign func JSObjectGetTypedArrayLength(
     ctx: CPointer<UInt8>,
     object: CPointer<UInt8>,
@@ -458,6 +520,7 @@ foreign func JSObjectGetTypedArrayLength(
 /// 获取 TypedArray 的字节偏移
 /// C API: JSObjectGetTypedArrayByteOffset(JSContextRef ctx, JSObjectRef object,
 ///           JSValueRef* exception) -> size_t
+@C
 foreign func JSObjectGetTypedArrayByteOffset(
     ctx: CPointer<UInt8>,
     object: CPointer<UInt8>,
@@ -467,6 +530,7 @@ foreign func JSObjectGetTypedArrayByteOffset(
 /// 获取 TypedArray 底层的 ArrayBuffer
 /// C API: JSObjectGetTypedArrayBuffer(JSContextRef ctx, JSObjectRef object,
 ///           JSValueRef* exception) -> JSObjectRef
+@C
 foreign func JSObjectGetTypedArrayBuffer(
     ctx: CPointer<UInt8>,
     object: CPointer<UInt8>,
@@ -476,6 +540,7 @@ foreign func JSObjectGetTypedArrayBuffer(
 /// 获取 ArrayBuffer 的字节指针
 /// C API: JSObjectGetArrayBufferBytesPtr(JSContextRef ctx, JSObjectRef object,
 ///           JSValueRef* exception) -> void*
+@C
 foreign func JSObjectGetArrayBufferBytesPtr(
     ctx: CPointer<UInt8>,
     object: CPointer<UInt8>,
@@ -485,6 +550,7 @@ foreign func JSObjectGetArrayBufferBytesPtr(
 /// 获取 ArrayBuffer 的字节长度
 /// C API: JSObjectGetArrayBufferByteLength(JSContextRef ctx, JSObjectRef object,
 ///           JSValueRef* exception) -> size_t
+@C
 foreign func JSObjectGetArrayBufferByteLength(
     ctx: CPointer<UInt8>,
     object: CPointer<UInt8>,
@@ -497,6 +563,7 @@ foreign func JSObjectGetArrayBufferByteLength(
 
 /// 触发垃圾回收
 /// C API: JSGarbageCollect(JSContextRef ctx)
+@C
 foreign func JSGarbageCollect(
     ctx: CPointer<UInt8>
 ): Unit

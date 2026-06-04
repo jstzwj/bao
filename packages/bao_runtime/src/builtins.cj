@@ -344,7 +344,7 @@ public class MathObject {
 /// 表示自 1970-01-01T00:00:00Z (Unix Epoch) 以来的毫秒数
 public class DateObject {
     /// 时间戳 - 毫秒精度, 对应 [[DateValue]] 内部槽位
-    private var timestamp: Int64
+    public var timestamp: Int64
 
     /// 创建当前时间的 Date - 对应 new Date()
     public init() {
@@ -352,8 +352,8 @@ public class DateObject {
     }
 
     /// 从时间戳创建 Date - 对应 new Date(value)
-    public init(timestamp: Int64) {
-        this.timestamp = timestamp
+    public init(ts: Int64) {
+        timestamp = ts
     }
 
     /// 获取当前时间戳 - 对应 Date.now()
