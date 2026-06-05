@@ -1284,17 +1284,25 @@ func runTestFile(filePath: String, fileName: String): TestFileResult {
     // 去掉 import "bun:test" 行（这些函数已由 C bridge 注册为全局变量）
     let cleanedSource = stripTestImports(source)
 
+    // Wrap test code: reset state, run test registrations, then call __runTests()
+    // __runTests() stores its JSON result via __bao_set_result()
+    let wrappedCode = "__resetTests();\n" + cleanedSource + "\n__runTests()"
+
     // 通过 JSC eval 执行
     let rt = createJscRuntime()
     if (rt.isSome()) {
         let jscRt = rt.getOrThrow()
-        let evalResult = evalJsc(jscRt, cleanedSource, filePath)
-        if (evalResult.startsWith("Error:")) {
-            result.failCount++
+        let evalResult = evalJsc(jscRt, wrappedCode, filePath)
+        // Parse the JSON result from __runTests()
+        let parsed = parseTestResult(evalResult)
+        result.passCount = parsed.passCount
+        result.failCount = parsed.failCount
+        result.skipCount = parsed.skipCount
+        result.todoCount = parsed.todoCount
+
+        if (result.failCount > 0) {
             println("  FAIL ${fileName}")
-            println("    ${evalResult}")
         } else {
-            result.passCount++
             println("  PASS ${fileName}")
         }
         destroyJscRuntime(jscRt)
@@ -1318,6 +1326,51 @@ class TestFileResult {
         failCount = 0
         skipCount = 0
         todoCount = 0
+    }
+}
+
+/// 解析 __runTests() 返回的 JSON 结果字符串
+/// 格式: {"pass":N,"fail":N,"skip":N,"todo":N,"errors":[...]}
+func parseTestResult(json: String): TestFileResult {
+    let result = TestFileResult()
+    if (json.isEmpty() || json.startsWith("Error:")) {
+        // JSC evaluation error — count as a single failure
+        result.failCount = 1
+        return result
+    }
+    // Simple JSON parser (no stdlib JSON available in src_min)
+    result.passCount = extractJsonInt(json, "pass")
+    result.failCount = extractJsonInt(json, "fail")
+    result.skipCount = extractJsonInt(json, "skip")
+    result.todoCount = extractJsonInt(json, "todo")
+    return result
+}
+
+/// 从 JSON 字符串中提取整数值
+/// Simple key:value parser — looks for "key":N pattern
+func extractJsonInt(json: String, key: String): Int64 {
+    let pattern = "\"${key}\":"
+    let idxOpt = json.indexOf(pattern)
+    match (idxOpt) {
+        case Some(idx) =>
+            let start = idx + pattern.size
+            if (start >= json.size) { return 0 }
+            var end = start
+            while (end < json.size) {
+                let byteVal = Int64(json[Int64(end)])
+                if (byteVal < 48 || byteVal > 57) { // '0' = 48, '9' = 57
+                    break
+                }
+                end++
+            }
+            if (end <= start) { return 0 }
+            let numStr = json[Int64(start)..Int64(end)]
+            try {
+                return Int64.parse(numStr)
+            } catch (_: Exception) {
+                return 0
+            }
+        case None => return 0
     }
 }
 

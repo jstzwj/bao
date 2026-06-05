@@ -561,19 +561,8 @@ public class BuiltinModules {
         // 对应 Bun: src/runtime/test_runner/expect.zig 中 expect
         obj.set("expect", JsValue.nativeFunction(JsNativeFunction("expect") { args =>
             if (args.size >= 1) {
-                // Create an expect matcher object and return it as a JsValue
-                // The matcher has .toBe(), .toEqual(), etc. methods
-                let matcherObj = JsObject()
                 let actual = args[0]
-                // Store the actual value
-                matcherObj.set("_actual", actual)
-                // .toBe(expected) - strict equality
-                matcherObj.set("toBe", JsValue.nativeFunction(JsNativeFunction("toBe") { mArgs =>
-                    let expected = if (mArgs.size >= 1) { mArgs[0] } else { JsValue.UNDEFINED }
-                    // Simple equality check - in real impl this would be deep comparison
-                    JsValue.UNDEFINED
-                }))
-                return JsValue(matcherObj)
+                return BuiltinModules.createExpectMatcher(actual)
             }
             return JsValue.UNDEFINED
         }))
@@ -694,6 +683,279 @@ public class BuiltinModules {
         obj.set("jest", JsValue(JsObject()))
         obj.set("default", JsValue(obj))
         return JsValue(obj)
+    }
+
+    /// 创建 expect(value) 返回的断言匹配器对象
+    /// 创建 expect(value) 返回的断言匹配器对象
+    /// 支持完整的 Jest 兼容断言链: toBe/toEqual/toBeTruthy/toBeFalsy/toThrow/toContain 等
+    /// 断言失败时抛出 JsRuntimeThrow，被测试运行器捕获并记录为 FAIL
+    public static func createExpectMatcher(actual: JsValue): JsValue {
+        let matcherObj = JsObject()
+
+        // Helper: format a value for error messages
+        func fmtVal(v: JsValue): String {
+            match (v.valueType) {
+                case JsValueType.String =>
+                    let s = v.stringValue.toString()
+                    return "'${s}'"
+                case JsValueType.Number =>
+                    let n = v.numberValue
+                    if (n == Float64(Int64(n)) && !n.isNaN()) {
+                        return Int64(n).toString()
+                    }
+                    return n.toString()
+                case JsValueType.Boolean =>
+                    return if (v.boolValue) { "true" } else { "false" }
+                case JsValueType.Null => return "null"
+                case JsValueType.Undefined => return "undefined"
+                case _ =>
+                    let s = Interpreter.jsToString(v)
+                    if (s.size > 80) {
+                        return s[0..80] + "..."
+                    }
+                    return s
+            }
+        }
+
+        // Helper: throw assertion error (no negation)
+        func assertPass(matched: Bool, matcherName: String, expected: JsValue): Unit {
+            if (!matched) {
+                let actualStr = fmtVal(actual)
+                var msg = "expect(${actualStr}).${matcherName}"
+                if (expected.valueType != JsValueType.Undefined) {
+                    msg = msg + "(${fmtVal(expected)})"
+                }
+                throw JsRuntimeThrow(JsValue(BaoString(msg)))
+            }
+        }
+
+        // Helper: throw assertion error (negated)
+        func assertNot(matched: Bool, matcherName: String, expected: JsValue): Unit {
+            if (matched) {
+                let actualStr = fmtVal(actual)
+                var msg = "expect(${actualStr}).not.${matcherName}"
+                if (expected.valueType != JsValueType.Undefined) {
+                    msg = msg + "(${fmtVal(expected)})"
+                }
+                throw JsRuntimeThrow(JsValue(BaoString(msg)))
+            }
+        }
+
+        // Helper: compare two JsValues for strict equality
+        func jsStrictEqual(a: JsValue, b: JsValue): Bool {
+            if (a.valueType != b.valueType) { return false }
+            match (a.valueType) {
+                case JsValueType.Undefined => return true
+                case JsValueType.Null => return true
+                case JsValueType.Boolean => return a.boolValue == b.boolValue
+                case JsValueType.Number => return a.numberValue == b.numberValue
+                case JsValueType.String =>
+                    return a.stringValue.toString() == b.stringValue.toString()
+                case _ =>
+                    // For objects/arrays/functions, use reference identity via string comparison
+                    return Interpreter.jsToString(a) == Interpreter.jsToString(b)
+            }
+        }
+
+        // .toBe(expected)
+        matcherObj.set("toBe", JsValue.nativeFunction(JsNativeFunction("toBe") { mArgs =>
+            let expected = if (mArgs.size >= 1) { mArgs[0] } else { JsValue.UNDEFINED }
+            assertPass(jsStrictEqual(actual, expected), "toBe", expected)
+            JsValue(matcherObj)
+        }))
+
+        // .toEqual(expected) — uses stringify for deep comparison
+        matcherObj.set("toEqual", JsValue.nativeFunction(JsNativeFunction("toEqual") { mArgs =>
+            let expected = if (mArgs.size >= 1) { mArgs[0] } else { JsValue.UNDEFINED }
+            let actualStr = Interpreter.jsToString(actual)
+            let expectedStr = Interpreter.jsToString(expected)
+            assertPass(actualStr == expectedStr, "toEqual", expected)
+            JsValue(matcherObj)
+        }))
+
+        // .toBeTruthy()
+        matcherObj.set("toBeTruthy", JsValue.nativeFunction(JsNativeFunction("toBeTruthy") { _ =>
+            let isTruthy = match (actual.valueType) {
+                case JsValueType.Boolean => actual.boolValue
+                case JsValueType.Number => actual.numberValue != 0.0 && !actual.numberValue.isNaN()
+                case JsValueType.String => actual.stringValue.toString().size > 0
+                case JsValueType.Null => false
+                case JsValueType.Undefined => false
+                case _ => true
+            }
+            assertPass(isTruthy, "toBeTruthy", JsValue.UNDEFINED)
+            JsValue(matcherObj)
+        }))
+
+        // .toBeFalsy()
+        matcherObj.set("toBeFalsy", JsValue.nativeFunction(JsNativeFunction("toBeFalsy") { _ =>
+            let isTruthy = match (actual.valueType) {
+                case JsValueType.Boolean => actual.boolValue
+                case JsValueType.Number => actual.numberValue != 0.0 && !actual.numberValue.isNaN()
+                case JsValueType.String => actual.stringValue.toString().size > 0
+                case JsValueType.Null => false
+                case JsValueType.Undefined => false
+                case _ => true
+            }
+            assertPass(!isTruthy, "toBeFalsy", JsValue.UNDEFINED)
+            JsValue(matcherObj)
+        }))
+
+        // .toBeGreaterThan(n)
+        matcherObj.set("toBeGreaterThan", JsValue.nativeFunction(JsNativeFunction("toBeGreaterThan") { mArgs =>
+            let n = if (mArgs.size >= 1) { Interpreter.jsToNumber(mArgs[0]) } else { 0.0 }
+            assertPass(Interpreter.jsToNumber(actual) > n, "toBeGreaterThan", if (mArgs.size >= 1) { mArgs[0] } else { JsValue.UNDEFINED })
+            JsValue(matcherObj)
+        }))
+
+        // .toBeLessThan(n)
+        matcherObj.set("toBeLessThan", JsValue.nativeFunction(JsNativeFunction("toBeLessThan") { mArgs =>
+            let n = if (mArgs.size >= 1) { Interpreter.jsToNumber(mArgs[0]) } else { 0.0 }
+            assertPass(Interpreter.jsToNumber(actual) < n, "toBeLessThan", if (mArgs.size >= 1) { mArgs[0] } else { JsValue.UNDEFINED })
+            JsValue(matcherObj)
+        }))
+
+        // .toContain(item)
+        matcherObj.set("toContain", JsValue.nativeFunction(JsNativeFunction("toContain") { mArgs =>
+            let item = if (mArgs.size >= 1) { mArgs[0] } else { JsValue.UNDEFINED }
+            var found = false
+            match (actual.valueType) {
+                case JsValueType.String =>
+                    found = actual.stringValue.toString().contains(Interpreter.jsToString(item))
+                case JsValueType.Array =>
+                    match (actual.arrayData) {
+                        case Some(arr) =>
+                            for (elem in arr) {
+                                if (jsStrictEqual(elem, item)) { found = true; break }
+                            }
+                        case None => ()
+                    }
+                case _ => ()
+            }
+            assertPass(found, "toContain", item)
+            JsValue(matcherObj)
+        }))
+
+        // .toThrow()
+        matcherObj.set("toThrow", JsValue.nativeFunction(JsNativeFunction("toThrow") { mArgs =>
+            var threw = false
+            match (actual.nativeFnData) {
+                case Some(nf) =>
+                    try { nf.fn(ArrayList<JsValue>()) } catch (_: Exception) { threw = true }
+                case None =>
+                    match (actual.functionData) {
+                        case Some(_) =>
+                            try { TestRunner.callJsCallback(actual, ArrayList<JsValue>()) } catch (_: Exception) { threw = true }
+                        case None => ()
+                    }
+            }
+            assertPass(threw, "toThrow", if (mArgs.size >= 1) { mArgs[0] } else { JsValue.UNDEFINED })
+            JsValue(matcherObj)
+        }))
+
+        // .toBeDefined()
+        matcherObj.set("toBeDefined", JsValue.nativeFunction(JsNativeFunction("toBeDefined") { _ =>
+            assertPass(actual.valueType != JsValueType.Undefined, "toBeDefined", JsValue.UNDEFINED)
+            JsValue(matcherObj)
+        }))
+
+        // .toBeUndefined()
+        matcherObj.set("toBeUndefined", JsValue.nativeFunction(JsNativeFunction("toBeUndefined") { _ =>
+            assertPass(actual.valueType == JsValueType.Undefined, "toBeUndefined", JsValue.UNDEFINED)
+            JsValue(matcherObj)
+        }))
+
+        // .toBeNull()
+        matcherObj.set("toBeNull", JsValue.nativeFunction(JsNativeFunction("toBeNull") { _ =>
+            assertPass(actual.valueType == JsValueType.Null, "toBeNull", JsValue.UNDEFINED)
+            JsValue(matcherObj)
+        }))
+
+        // .not — negation modifier (uses assertNot which inverts the logic)
+        let notObj = JsObject()
+        notObj.set("toBe", JsValue.nativeFunction(JsNativeFunction("toBe") { mArgs =>
+            let expected = if (mArgs.size >= 1) { mArgs[0] } else { JsValue.UNDEFINED }
+            assertNot(jsStrictEqual(actual, expected), "toBe", expected)
+            JsValue(matcherObj)
+        }))
+        notObj.set("toEqual", JsValue.nativeFunction(JsNativeFunction("toEqual") { mArgs =>
+            let expected = if (mArgs.size >= 1) { mArgs[0] } else { JsValue.UNDEFINED }
+            assertNot(Interpreter.jsToString(actual) == Interpreter.jsToString(expected), "toEqual", expected)
+            JsValue(matcherObj)
+        }))
+        notObj.set("toBeTruthy", JsValue.nativeFunction(JsNativeFunction("toBeTruthy") { _ =>
+            let isTruthy = match (actual.valueType) {
+                case JsValueType.Boolean => actual.boolValue
+                case JsValueType.Number => actual.numberValue != 0.0 && !actual.numberValue.isNaN()
+                case JsValueType.String => actual.stringValue.toString().size > 0
+                case JsValueType.Null => false
+                case JsValueType.Undefined => false
+                case _ => true
+            }
+            assertNot(isTruthy, "toBeTruthy", JsValue.UNDEFINED)
+            JsValue(matcherObj)
+        }))
+        notObj.set("toBeFalsy", JsValue.nativeFunction(JsNativeFunction("toBeFalsy") { _ =>
+            let isTruthy = match (actual.valueType) {
+                case JsValueType.Boolean => actual.boolValue
+                case JsValueType.Number => actual.numberValue != 0.0 && !actual.numberValue.isNaN()
+                case JsValueType.String => actual.stringValue.toString().size > 0
+                case JsValueType.Null => false
+                case JsValueType.Undefined => false
+                case _ => true
+            }
+            assertNot(!isTruthy, "toBeFalsy", JsValue.UNDEFINED)
+            JsValue(matcherObj)
+        }))
+        notObj.set("toThrow", JsValue.nativeFunction(JsNativeFunction("toThrow") { mArgs =>
+            var threw = false
+            match (actual.nativeFnData) {
+                case Some(nf) =>
+                    try { nf.fn(ArrayList<JsValue>()) } catch (_: Exception) { threw = true }
+                case None =>
+                    match (actual.functionData) {
+                        case Some(_) =>
+                            try { TestRunner.callJsCallback(actual, ArrayList<JsValue>()) } catch (_: Exception) { threw = true }
+                        case None => ()
+                    }
+            }
+            assertNot(threw, "toThrow", JsValue.UNDEFINED)
+            JsValue(matcherObj)
+        }))
+        notObj.set("toContain", JsValue.nativeFunction(JsNativeFunction("toContain") { mArgs =>
+            let item = if (mArgs.size >= 1) { mArgs[0] } else { JsValue.UNDEFINED }
+            var found = false
+            match (actual.valueType) {
+                case JsValueType.String =>
+                    found = actual.stringValue.toString().contains(Interpreter.jsToString(item))
+                case JsValueType.Array =>
+                    match (actual.arrayData) {
+                        case Some(arr) =>
+                            for (elem in arr) {
+                                if (jsStrictEqual(elem, item)) { found = true; break }
+                            }
+                        case None => ()
+                    }
+                case _ => ()
+            }
+            assertNot(found, "toContain", item)
+            JsValue(matcherObj)
+        }))
+        notObj.set("toBeNull", JsValue.nativeFunction(JsNativeFunction("toBeNull") { _ =>
+            assertNot(actual.valueType == JsValueType.Null, "toBeNull", JsValue.UNDEFINED)
+            JsValue(matcherObj)
+        }))
+        notObj.set("toBeDefined", JsValue.nativeFunction(JsNativeFunction("toBeDefined") { _ =>
+            assertNot(actual.valueType != JsValueType.Undefined, "toBeDefined", JsValue.UNDEFINED)
+            JsValue(matcherObj)
+        }))
+        notObj.set("toBeUndefined", JsValue.nativeFunction(JsNativeFunction("toBeUndefined") { _ =>
+            assertNot(actual.valueType == JsValueType.Undefined, "toBeUndefined", JsValue.UNDEFINED)
+            JsValue(matcherObj)
+        }))
+        matcherObj.set("not", JsValue(notObj))
+
+        return JsValue(matcherObj)
     }
 
     private static func createNodeTestModule(bunTest: JsValue): JsValue {

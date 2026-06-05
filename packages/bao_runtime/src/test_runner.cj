@@ -365,7 +365,7 @@ public class ExpectMatcher {
     // 内部辅助
     // ========================================================================
 
-    /// 断言匹配
+    /// 断言匹配 — 失败时抛出 JsRuntimeThrow
     private func assertMatch(matched: Bool, matcherName: String, expected: JsValue): Unit {
         let pass = if (negated) { !matched } else { matched }
         if (!pass) {
@@ -379,9 +379,7 @@ public class ExpectMatcher {
             let msgOpt = message
             if (msgOpt.isSome()) { msg = msg + "\n  " + msgOpt.getOrThrow() }
 
-
-
-            return
+            throw JsRuntimeThrow(JsValue(BaoString(msg)))
         }
     }
 
