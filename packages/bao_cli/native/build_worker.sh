@@ -23,11 +23,19 @@ cc -c -O2 -o /tmp/bao_sanitizer_stubs.o "$SCRIPT_DIR/sanitizer_stubs.c"
 # Compile Node.js compatibility module
 cc -c -O2 -I"$SCRIPT_DIR" -o /tmp/bao_jsc_node_compat.o "$SCRIPT_DIR/jsc_node_compat.c"
 
+# Compile missing APIs module
+cc -c -O2 -I"$SCRIPT_DIR" -o /tmp/bao_jsc_missing_apis.o "$SCRIPT_DIR/jsc_missing_apis.c"
+
+# Compile Node.js extras module (depends on missing_apis)
+cc -c -O2 -I"$SCRIPT_DIR" -o /tmp/bao_jsc_node_extras.o "$SCRIPT_DIR/jsc_node_extras.c"
+
 # Link worker with Bun's static WebKit
 cc -o "$OUTPUT" \
   "$SCRIPT_DIR/jsc_worker.c" \
   /tmp/bao_sanitizer_stubs.o \
   /tmp/bao_jsc_node_compat.o \
+  /tmp/bao_jsc_node_extras.o \
+  /tmp/bao_jsc_missing_apis.o \
   "$WEBKIT_LIB/libJavaScriptCore.a" \
   "$WEBKIT_LIB/libWTF.a" \
   "$WEBKIT_LIB/libbmalloc.a" \
